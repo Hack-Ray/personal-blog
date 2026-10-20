@@ -1,0 +1,21 @@
+{
+  "doc_id": "01K7M4Y7P65BDCF8AHRTQY7ZQF",
+  "version": 1,
+  "title": "用 FastAPI 打造個人部落格的後端",
+  "topic": {
+    "slug": "backend",
+    "name": "Backend"
+  },
+  "tags": [
+    {
+      "slug": "fastapi",
+      "name": "FastAPI"
+    },
+    {
+      "slug": "python",
+      "name": "Python"
+    }
+  ],
+  "published_at": "2026-10-01T09:00:00+08:00",
+  "markdown": "這是一篇範例文章。\n\n![FastAPI 示意圖](images/2eafe1e529eb920d5ae6cff2e5a4a62b79dfb00a6586323819121629973ab500.svg)\n\n## 為什麼自建 CMS\n\n- 練習資料模型\n- 練習系統設計\n\n```python\nfrom fastapi import FastAPI\n\napp = FastAPI()\n```\n"
+}

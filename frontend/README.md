@@ -1,0 +1,47 @@
+# Frontend
+
+Public site: Next.js static export, served by GitHub Pages under `/personal-blog`.
+
+The build reads a Content Snapshot from `SITE_DATA_DIR` (default: `sample-site-data/`). In CI it is the private `personal-blog-content` repo (Addendum 02, PUB-002).
+
+```sh
+npm ci
+npm test            # snapshot contract and content queries
+npm run typecheck
+npm run build       # copies snapshot images, writes out/
+SITE_DATA_DIR=/path/to/personal-blog-content npm run build
+```
+
+## Snapshot format (schema_version 1, draft)
+
+```text
+manifest.json
+articles/{docId}.json
+images/{contentHash}.{ext}
+```
+
+`manifest.json`:
+
+```json
+{
+  "schema_version": 1,
+  "release_id": "<ULID>",
+  "created_at": "<ISO 8601>",
+  "articles": [{ "doc_id": "<ULID>", "version": 1 }],
+  "archived_articles": [{ "doc_id": "<ULID>" }]
+}
+```
+
+`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>`. Archived articles have no article file.
+
+The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, or a referenced image is missing.
+
+## Checking the built site
+
+```sh
+mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/personal-blog
+(cd /tmp/site && python3 -m http.server 8123) &
+scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
+```
+
+Set `BASE_PATH=""` at build time when serving from a custom domain.
