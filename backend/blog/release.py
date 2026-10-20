@@ -144,23 +144,14 @@ def latest(session: Session) -> Release | None:
 
 def create(session: Session, repo: Path, deployer: Deployer | None) -> Release | None:
     """Exports the published content and starts deploying it. Returns None
-    when nothing changed since the last release.
-
-    The release is read back from the content repo's HEAD rather than taken
-    from the export, so a release commit left by an export that crashed
-    before recording it is picked up here instead of blocking every later
-    release."""
-    exporter.export(repo)
-    result = exporter.head_release(repo)
+    when nothing changed since the last release."""
+    result = exporter.export(repo) or exporter.head_release(repo)
     if result is None or session.get(Release, result.release_id) is not None:
         return None
     release = Release(id=result.release_id, content_commit=result.commit, status=R.EXPORTED)
     session.add(release)
-    article_ids = dict(session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))).all())
-    for doc_id, version in result.versions.items():
-        # An article purged since the export has no row to point at.
-        if doc_id in article_ids:
-            session.add(ReleaseArticle(release_id=release.id, article_id=article_ids[doc_id], version=version))
+    for doc_id, article_id in session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))):
+        session.add(ReleaseArticle(release_id=release.id, article_id=article_id, version=result.versions[doc_id]))
     for older in session.scalars(select(Release).where(Release.id != release.id, Release.status.not_in(TERMINAL))):
         if older.status in RETRYABLE | {R.EXPORTED}:
             _set(older, R.SUPERSEDED, f"replaced by release {release.id}")

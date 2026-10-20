@@ -15,11 +15,9 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("articles", sa.Column("first_published_at", sa.DateTime(timezone=True)))
-    # Retention may already have deleted the first version; the oldest one left
-    # is the best date still known.
     op.execute(
-        "UPDATE articles SET first_published_at = v.at"
-        " FROM (SELECT article_id, min(published_at) AS at FROM published_versions GROUP BY article_id) v"
+        "UPDATE articles SET first_published_at = v.oldest_surviving_published_at"
+        " FROM (SELECT article_id, min(published_at) AS oldest_surviving_published_at FROM published_versions GROUP BY article_id) v"
         " WHERE v.article_id = articles.id"
     )
     op.create_check_constraint(
