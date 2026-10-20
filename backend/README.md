@@ -1,0 +1,37 @@
+# Backend
+
+Local CMS API (FastAPI + PostgreSQL), per Addendum 01 (ART-020, ART-021) and Addendum 02 (PUB-001).
+
+> **No authentication yet.** Bind only to `127.0.0.1` until admin login exists (Baseline 5.1).
+
+## Run locally
+
+```sh
+docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
+uv sync
+export DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog
+uv run alembic upgrade head
+uv run uvicorn blog.api:app --host 127.0.0.1 --port 8000
+```
+
+API docs: http://127.0.0.1:8000/docs
+
+## Test
+
+Tests drop and recreate the schema, so point them at a disposable database:
+
+```sh
+docker compose exec db createdb -U blog blog_test
+TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
+```
+
+## Draft and publish protocol
+
+| Request | Body | Result |
+|---|---|---|
+| `POST /api/articles` | `title`, `topic`, `tags`, `markdown` | 201, new `doc_id` at revision 1 |
+| `GET /api/articles/{doc_id}/draft` | | current Working Draft |
+| `PUT /api/articles/{doc_id}/draft` | draft fields + `base_revision` | Auto Save; 409 with `current_revision` if `base_revision` is stale |
+| `POST /api/articles/{doc_id}/publish` | draft fields + `base_revision` | 201, saves the draft and creates the next Published Version in one transaction |
+
+Publish sends the content the author is looking at, and bumps the revision. An Auto Save sent before the publish therefore arrives with a stale `base_revision` and is rejected instead of overwriting the published content. A database trigger rejects `UPDATE` on `published_versions`.
