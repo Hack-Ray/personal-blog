@@ -4,10 +4,11 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from sqlalchemy import select
 
 from blog import articles, release
 from blog.db import SessionLocal
-from blog.models import Release, ReleaseArticle, ReleaseStatus
+from blog.models import PublishedVersion, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
 BACKEND = articles.Taxon("backend", "Backend")
@@ -241,3 +242,20 @@ def test_github_client_requests(github):
 def test_github_client_reports_http_errors(github):
     with pytest.raises(release.ReleaseError, match="returned 404"):
         github.dispatch("abc")
+
+
+def test_going_live_cleans_up_old_versions(repos):
+    _, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        doc_id = publish(s, "v1")
+        for v in range(2, 6):
+            articles.publish(s, doc_id, v, articles.DraftContent("T", BACKEND, f"v{v}"))
+        r = release.create(s, clone, deployer)
+        deployer.finish(r.content_commit)
+        release.refresh(s, r, deployer)
+        article = articles.get_article(s, doc_id)
+        remaining = s.scalars(
+            select(PublishedVersion.version).where(PublishedVersion.article_id == article.id).order_by(PublishedVersion.version)
+        ).all()
+        assert remaining == [3, 4, 5]

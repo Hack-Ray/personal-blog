@@ -7,14 +7,16 @@ Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding
 ## Run locally
 
 ```sh
+cp .env.example .env                 # then fill in CONTENT_REPO_DIR and GITHUB_TOKEN
 docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
-export DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog
-uv run alembic upgrade head
-uv run python -m blog.auth           # set the admin password (asked twice, 12+ characters)
-(cd ../cms && npm ci && npm run build)   # CMS UI, served at /admin/
-uv run uvicorn blog.api:app --host 127.0.0.1 --port 8000
+uv run --env-file .env alembic upgrade head
+uv run --env-file .env python -m blog.auth   # set the admin password (asked twice, 12+ characters)
+(cd ../cms && npm ci && npm run build)       # CMS UI, served at /admin/
+uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
+
+`--env-file .env` loads the settings; the backend itself reads only environment variables.
 
 CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs
 
@@ -44,6 +46,10 @@ In the CMS, 網站發布 → 更新網站 (`POST /api/releases`) exports the pub
 | `CONTENT_REPO_DIR` | local clone of `personal-blog-content` with push access |
 | `GITHUB_TOKEN` | fine-grained token with Actions read/write on `personal-blog`; without it releases stop at "無法啟動部署" |
 | `DEPLOY_REPO`, `DEPLOY_WORKFLOW`, `DEPLOY_REF`, `GITHUB_API_URL` | defaults `Hack-Ray/personal-blog`, `deploy.yml`, `main`, `https://api.github.com` |
+
+## Version retention
+
+After a release goes live, and at CMS start-up, old Published Versions are deleted when all of these hold: the version is outside the article's newest 3; neither the live release nor any release still in progress contains it; a newer version was published before a release that has gone live; and the article is not pending deletion. Images those versions referenced then fall to the normal 7-day image garbage collection.
 
 ## Export a release
 

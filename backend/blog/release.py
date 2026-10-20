@@ -14,7 +14,7 @@ from typing import Protocol
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from blog import exporter
+from blog import exporter, retention
 from blog.models import Article, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
@@ -191,6 +191,8 @@ def refresh(session: Session, release: Release, deployer: Deployer | None) -> Re
     except ReleaseError as e:
         release.detail = str(e)
     session.commit()
+    if release.status == R.DEPLOYED:
+        retention.cleanup_versions(session)
     return release
 
 

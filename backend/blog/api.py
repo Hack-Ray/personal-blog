@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles, auth, exporter, images, release
+from blog import articles, auth, exporter, images, release, retention
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, PublishedVersion, Release, ReleaseStatus, WorkingDraft
 
@@ -21,6 +21,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     with SessionLocal() as session:
         now = datetime.now(UTC)
         articles.purge_expired(session, now)
+        retention.cleanup_versions(session)
         images.collect_garbage(session, now)
     yield
 
