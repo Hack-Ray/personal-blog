@@ -73,7 +73,23 @@
   - 新增文章時先填 Topic（Baseline 4.2）。Tags 以 `slug:名稱` 逗號分隔輸入。
 - **Consequences**：同源讓之後的登入可以直接用 cookie session，不需處理 CORS。
 
+### BE-007：圖片上傳、匯出與 GC
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 5.2、8.1–8.3；PUB-003、PUB-005。
+- **Decision**：
+  - 只能從編輯器上傳（選擇檔案、貼上、拖曳）。接受 PNG、JPEG、GIF、WebP，最大 10 MB；格式由檔案內容判斷。不接受 SVG。
+  - 圖片 id 為 `<sha256>.<副檔名>`；相同內容重複上傳得到相同 id。`images`（索引）與 `image_data`（BYTEA）分開，`image_data` 由 trigger 拒絕 `UPDATE`。
+  - Markdown 以 `images/<id>` 引用，與 Snapshot 路徑相同；編輯器預覽改由 `/api/images/<id>` 載入。V1 不轉檔為 WebP。
+  - `images.unreferenced_since`：上傳時為上傳時間；草稿每次寫入時，被引用的圖片設為 NULL；GC 時不再被引用者記下開始時間。距今滿 7 天才刪除。
+  - 有效引用：所有 Working Draft 與所有 Published Version（V1 尚未清理舊版本，所以等同全部保留版本）。待刪除文章的草稿與版本仍在，因此圖片在 30 天內受保護。
+  - GC 在交易中以 SHARE 鎖鎖住 `working_drafts` 與 `published_versions`，掃描與刪除之間草稿無法新增引用。
+  - GC 在 CMS 啟動時執行（取代 Baseline 8.3 的「每週五」，依 PUB-005）；可重複執行。
+  - Exporter 只匯出已匯出文章所引用的圖片；引用的圖片不存在時整次匯出失敗、不寫入。
+- **Consequences**：已部署網站的圖片存在內容 repo 中，不依賴資料庫，所以 GC 不會破壞線上網站。Draft Snapshots 實作後必須納入有效引用。
+- **Supersedes**：Baseline 8.3「每週五一次」改為 CMS 啟動時執行，寬限規則不變。
+
 ## Known gaps
 
 - CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
-- Draft Snapshots、圖片上傳與圖片 GC，以及 Exporter 完成後觸發 deploy workflow，尚未實作。
+- Draft Snapshots、舊 Published Version 清理（Baseline 6.3），以及 Exporter 完成後觸發 deploy workflow，尚未實作。
