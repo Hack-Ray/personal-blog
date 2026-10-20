@@ -1,0 +1,91 @@
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      content_sha:
+        description: Commit of personal-blog-content to build (defaults to its HEAD)
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One run at a time. A newer queued run replaces older queued ones, and a
+# running build is allowed to finish (Baseline 9.2).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CONTENT_REPO: Hack-Ray/personal-blog-content
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      content_sha: ${{ steps.content.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.CONTENT_REPO }}
+          ref: ${{ inputs.content_sha }}
+          token: ${{ secrets.CONTENT_REPO_TOKEN }}
+          path: site-data
+
+      - id: content
+        run: echo "sha=$(git -C site-data rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - run: npm test
+        working-directory: frontend
+
+      # Building also validates the snapshot: a missing article file, a version
+      # mismatch or a missing image fails here and nothing is deployed.
+      - run: npm run build
+        working-directory: frontend
+        env:
+          SITE_DATA_DIR: ${{ github.workspace }}/site-data
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: latest
+        env:
+          TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          BUILT: ${{ needs.build.outputs.content_sha }}
+        run: |
+          head=$(git ls-remote "https://x-access-token:${TOKEN}@github.com/${CONTENT_REPO}.git" HEAD | cut -f1)
+          if [ "$head" = "$BUILT" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping deploy: built content $BUILT, but content HEAD is now $head."
+          fi
+
+      - id: deployment
+        if: steps.latest.outputs.current == 'true'
+        uses: actions/deploy-pages@v4
