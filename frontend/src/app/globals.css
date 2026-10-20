@@ -53,8 +53,44 @@ a {
 }
 
 .article-list li {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.article-list li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.article-list .meta {
+  margin: 4px 0;
+}
+
+.excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  margin: 0;
+}
+
+.thumbnail {
+  flex: none;
+  width: 160px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+@media (max-width: 480px) {
+  .thumbnail {
+    width: 96px;
+  }
 }
 
 pre,

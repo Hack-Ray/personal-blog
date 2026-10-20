@@ -22,6 +22,12 @@ Technology choices and architecture are not finalized.
 - Run relevant tests before reporting completion.
 - Clearly report unverified behavior and limitations.
 
+## Cloud Sessions
+
+- Cloud sessions are for development and testing only. The author publishes from the local CMS.
+- `Hack-Ray/personal-blog-content` holds the live site's content. Read it to build or test with real content; never commit or push to it. The next deploy builds its HEAD, so any change there goes live.
+- Never trigger the `Deploy site` workflow from a cloud session.
+
 ## Safety
 
 - Never commit secrets or credentials.

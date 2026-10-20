@@ -15,6 +15,7 @@ check "topic page lists only its posts" 'p=$(body $B/topics/backend/); echo "$p"
 check "tag page lists tagged posts" 'body $B/tags/python/ | grep -q 01K7M4Y7P65BDCF8AHRTQY7ZQF'
 check "assets resolve under basePath" 'a=$(body $B/ | grep -o "/personal-blog/_next/static/[^\"]*\.css" | head -1); [ -n "$a" ] && [ "$(curl -s -o /dev/null -w %{http_code} "${B%/personal-blog}$a")" = 200 ]'
 check "snapshot image is served under basePath" 'i=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -o "src=\"/personal-blog/images/[^\"]*" | head -1 | cut -d\" -f2); [ -n "$i" ] && [ "$(curl -s -o /dev/null -w %{http_code} "${B%/personal-blog}$i")" = 200 ]'
+check "article list shows the first uploaded image and an excerpt" 'p=$(body $B/posts/); echo "$p" | grep -q "class=\"thumbnail\" src=\"/personal-blog/images/" && echo "$p" | grep -q "class=\"excerpt\""'
 check "sitemap lists published posts with absolute URLs" 'body $B/sitemap.xml | grep -q "<loc>https://hack-ray.github.io/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/</loc>"'
 check "sitemap leaves out archived posts" '! body $B/sitemap.xml | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
 check "post has a canonical URL" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "rel=\"canonical\" href=\"https://hack-ray.github.io/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/\""'
