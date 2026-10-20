@@ -2,20 +2,24 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
-import { parseDocId } from "../../../content/parse.ts";
+import type { DocId } from "../../../content/model.ts";
 import { findArticle } from "../../../content/queries.ts";
 import { ArticleMeta } from "../../article-list.tsx";
+import { staticParams } from "../../static-params.ts";
 
 type Props = { params: Promise<{ docId: string }> };
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return loadSiteContent().articles.map((a) => ({ docId: a.docId }));
+  return staticParams(
+    "docId",
+    loadSiteContent().articles.map((a) => a.docId),
+  );
 }
 
 async function article(params: Props["params"]) {
-  const found = findArticle(loadSiteContent(), parseDocId((await params).docId));
+  const found = findArticle(loadSiteContent(), (await params).docId as DocId);
   if (!found) notFound();
   return found;
 }

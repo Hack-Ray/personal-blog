@@ -3,13 +3,17 @@ import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
 import { tags, withTag } from "../../../content/queries.ts";
 import { ArticleList } from "../../article-list.tsx";
+import { staticParams } from "../../static-params.ts";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return tags(loadSiteContent()).map((t) => ({ slug: t.slug }));
+  return staticParams(
+    "slug",
+    tags(loadSiteContent()).map((t) => t.slug),
+  );
 }
 
 async function tag(params: Props["params"]) {

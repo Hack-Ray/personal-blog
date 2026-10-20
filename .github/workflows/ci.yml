@@ -24,6 +24,10 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - name: Build a site with nothing published yet
+        run: npm run build
+        env:
+          SITE_DATA_DIR: test-fixtures/empty-site-data
 
   cms:
     runs-on: ubuntu-latest
