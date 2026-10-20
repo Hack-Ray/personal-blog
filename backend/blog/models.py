@@ -140,3 +140,23 @@ class DraftSnapshot(Base):
     revision: Mapped[int] = mapped_column(Integer)
     markdown: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminCredential(Base):
+    """The single CMS administrator's password hash (Baseline 5.1)."""
+
+    __tablename__ = "admin_credentials"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminSession(Base):
+    """A signed-in browser; only the SHA-256 of its cookie token is stored."""
+
+    __tablename__ = "admin_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

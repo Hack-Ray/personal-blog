@@ -1,8 +1,9 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, type Draft } from "./api.ts";
+import { SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
+import { SignIn } from "./sign-in.tsx";
 import { isSlug } from "./taxa.ts";
 import "./styles.css";
 
@@ -73,8 +74,7 @@ function EditArticle({ docId }: { docId: string }) {
   return draft ? <Editor key={`${draft.doc_id}@${draft.revision}`} draft={draft} onReload={load} /> : <p>載入中…</p>;
 }
 
-function App() {
-  const route = useRoute();
+function Page({ route }: { route: Route }) {
   switch (route.page) {
     case "list":
       return <ArticleList />;
@@ -83,6 +83,35 @@ function App() {
     case "edit":
       return <EditArticle docId={route.docId} />;
   }
+}
+
+function App() {
+  const route = useRoute();
+  const [signedIn, setSignedIn] = useState<boolean>();
+  useEffect(() => {
+    api.session().then((s) => setSignedIn(s.signed_in), () => setSignedIn(false));
+    const onSignedOut = () => setSignedIn(false);
+    addEventListener(SIGNED_OUT, onSignedOut);
+    return () => removeEventListener(SIGNED_OUT, onSignedOut);
+  }, []);
+  // Keeps the page mounted under the sign-in overlay, so an editor whose
+  // session expired keeps its unsaved text.
+  const [everSignedIn, setEverSignedIn] = useState(false);
+  if (signedIn && !everSignedIn) setEverSignedIn(true);
+  if (signedIn === undefined) return <p>載入中…</p>;
+  return (
+    <>
+      {everSignedIn && <Page route={route} />}
+      {!signedIn && (
+        <SignIn
+          onSignedIn={() => {
+            setSignedIn(true);
+            dispatchEvent(new Event(SIGNED_IN));
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(

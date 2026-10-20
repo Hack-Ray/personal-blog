@@ -2,7 +2,7 @@
 
 Local CMS API (FastAPI + PostgreSQL), per Addendum 01 (ART-020, ART-021) and Addendum 02 (PUB-001).
 
-> **No authentication yet.** Bind only to `127.0.0.1` until admin login exists (Baseline 5.1).
+Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding to `127.0.0.1` while the CMS runs locally.
 
 ## Run locally
 
@@ -11,6 +11,7 @@ docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
 export DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog
 uv run alembic upgrade head
+uv run python -m blog.auth           # set the admin password (asked twice, 12+ characters)
 (cd ../cms && npm ci && npm run build)   # CMS UI, served at /admin/
 uv run uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
@@ -25,6 +26,14 @@ Tests drop and recreate the schema, so point them at a disposable database:
 docker compose exec db createdb -U blog blog_test
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
+
+## Sign-in
+
+- One administrator. The password is stored as a salted scrypt hash; `python -m blog.auth` sets or changes it and signs out every session.
+- `POST /api/session` with `{"password": …}` sets an `HttpOnly`, `SameSite=Strict` session cookie valid for 7 days. Only the SHA-256 of the token is stored. `DELETE /api/session` signs out.
+- Five wrong passwords in a row lock sign-in for 15 minutes.
+- Requests that change data are refused when their `Origin` header names another site.
+- Set `COOKIE_SECURE=1` once the CMS is served over HTTPS.
 
 ## Export a release
 

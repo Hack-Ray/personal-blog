@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type Draft, type DraftContent } from "./api.ts";
+import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { STATE_LABEL } from "./labels.ts";
 import { renderPreview } from "./preview.ts";
@@ -39,7 +39,12 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
 
   useEffect(() => {
     sync.current = new DraftSync(api, draft.doc_id, { revision: draft.revision, content: draft }, setStatus);
-    return () => void sync.current?.flush();
+    const retry = () => void sync.current?.flush();
+    addEventListener(SIGNED_IN, retry);
+    return () => {
+      removeEventListener(SIGNED_IN, retry);
+      void sync.current?.flush();
+    };
   }, [draft]);
 
   const { invalid } = parseTags(tagText);

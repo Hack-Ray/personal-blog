@@ -13,6 +13,7 @@ from blog import images
 from blog.api import app
 from blog.db import SessionLocal, engine
 from blog.exporter import ExportError, export
+from tests.conftest import sign_in
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 JPEG = b"\xff\xd8\xff\xe0" + b"\x01" * 32
@@ -141,7 +142,7 @@ def test_pending_deletion_keeps_images_until_purge(client):
 def test_cms_startup_collects_garbage(client):
     image_id = upload(client, PNG).json()["id"]
     set_unreferenced_since(image_id, 8)
-    with TestClient(app):
+    with sign_in(TestClient(app)):
         pass
     assert not exists(image_id)
 

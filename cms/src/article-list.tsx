@@ -51,6 +51,9 @@ export function ArticleList() {
         <a className="button" href="#/new">
           新增文章
         </a>
+        <button type="button" onClick={() => api.signOut().then(() => location.reload())}>
+          登出
+        </button>
       </div>
       <div role="tablist" className="tabs">
         <button type="button" role="tab" aria-selected={filter === "live"} onClick={() => setFilter("live")}>

@@ -5,13 +5,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles, images
+from blog import articles, auth, images
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, PublishedVersion, WorkingDraft
 
@@ -26,6 +26,25 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Personal Blog CMS", lifespan=lifespan)
+
+# Set COOKIE_SECURE=1 once the CMS is served over HTTPS.
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE") == "1"
+PUBLIC_API = {"/api/session"}
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def require_admin(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if request.method in UNSAFE_METHODS and origin and origin != f"{request.url.scheme}://{request.url.netloc}":
+            return JSONResponse({"detail": "cross-origin request refused"}, status_code=status.HTTP_403_FORBIDDEN)
+        if path not in PUBLIC_API:
+            with SessionLocal() as session:
+                if not auth.is_signed_in(session, request.cookies.get(auth.SESSION_COOKIE)):
+                    return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    return await call_next(request)
 
 SessionDep = Annotated[Session, Depends(get_session)]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)]
@@ -103,6 +122,43 @@ class ArticleOut(BaseModel):
             deleted_at=a.deleted_at,
             purge_after=a.deleted_at + articles.PENDING_DELETION_RETENTION if a.deleted_at else None,
         )
+
+
+class SignInBody(BaseModel):
+    password: str
+
+
+class SessionOut(BaseModel):
+    signed_in: bool
+
+
+@app.get("/api/session")
+def get_session_status(session: SessionDep, cms_session: Annotated[str | None, Cookie()] = None) -> SessionOut:
+    return SessionOut(signed_in=auth.is_signed_in(session, cms_session))
+
+
+@app.post("/api/session", status_code=status.HTTP_204_NO_CONTENT)
+def sign_in(body: SignInBody, response: Response, session: SessionDep) -> None:
+    if auth.throttle.locked():
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many failed attempts; try again in 15 minutes")
+    token = auth.sign_in(session, body.password)
+    if token is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "wrong password")
+    response.set_cookie(
+        auth.SESSION_COOKIE,
+        token,
+        max_age=int(auth.SESSION_TTL.total_seconds()),
+        httponly=True,
+        samesite="strict",
+        secure=COOKIE_SECURE,
+        path="/",
+    )
+
+
+@app.delete("/api/session", status_code=status.HTTP_204_NO_CONTENT)
+def sign_out(response: Response, session: SessionDep, cms_session: Annotated[str | None, Cookie()] = None) -> None:
+    auth.sign_out(session, cms_session)
+    response.delete_cookie(auth.SESSION_COOKIE, path="/")
 
 
 @app.exception_handler(articles.ArticleNotFound)

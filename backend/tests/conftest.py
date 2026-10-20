@@ -11,8 +11,11 @@ from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from blog import auth  # noqa: E402
 from blog.api import app  # noqa: E402
-from blog.db import engine  # noqa: E402
+from blog.db import SessionLocal, engine  # noqa: E402
+
+ADMIN_PASSWORD = "correct horse battery staple"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -26,9 +29,37 @@ def schema():
 def clean_tables():
     yield
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE articles, topics, tags, images, retired_doc_ids RESTART IDENTITY CASCADE"))
+        conn.execute(
+            text(
+                "TRUNCATE articles, topics, tags, images, retired_doc_ids, admin_credentials, admin_sessions"
+                " RESTART IDENTITY CASCADE"
+            )
+        )
+    auth.throttle = auth.Throttle()
+
+
+@pytest.fixture(scope="session")
+def admin_hash():
+    return auth.hash_password(ADMIN_PASSWORD)
 
 
 @pytest.fixture
-def client():
+def admin(admin_hash):
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO admin_credentials (id, password_hash) VALUES (1, :h)"), {"h": admin_hash})
+
+
+def sign_in(c: TestClient) -> TestClient:
+    r = c.post("/api/session", json={"password": ADMIN_PASSWORD})
+    assert r.status_code == 204, r.text
+    return c
+
+
+@pytest.fixture
+def anon(admin):
     return TestClient(app)
+
+
+@pytest.fixture
+def client(admin):
+    return sign_in(TestClient(app))
