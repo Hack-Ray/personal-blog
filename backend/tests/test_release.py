@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from sqlalchemy import select
 
-from blog import articles, release
+from blog import articles, exporter, release
 from blog.db import SessionLocal
 from blog.models import PublishedVersion, Release, ReleaseArticle, ReleaseStatus
 
@@ -259,3 +259,73 @@ def test_going_live_cleans_up_old_versions(repos):
             select(PublishedVersion.version).where(PublishedVersion.article_id == article.id).order_by(PublishedVersion.version)
         ).all()
         assert remaining == [3, 4, 5]
+
+
+def test_a_release_that_failed_before_committing_is_redone(repos, monkeypatch):
+    remote, clone = repos
+    real_git = exporter._git
+
+    def no_commit(repo, *args):
+        if args[0] == "commit":
+            raise subprocess.CalledProcessError(1, "git commit")
+        return real_git(repo, *args)
+
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        doc_id = publish(s)
+        monkeypatch.setattr(exporter, "_git", no_commit)
+        with pytest.raises(subprocess.CalledProcessError):
+            release.create(s, clone, deployer)
+        monkeypatch.setattr(exporter, "_git", real_git)
+
+        r = release.create(s, clone, deployer)
+
+        assert r.status == R.DISPATCHED
+        assert git(remote, "rev-parse", "HEAD") == r.content_commit
+        assert doc_id in git(remote, "ls-tree", "-r", "--name-only", "HEAD")
+
+
+def test_a_commit_the_database_never_recorded_is_released(repos, monkeypatch):
+    remote, clone = repos
+    real_export = exporter.export
+
+    def crash_after_commit(repo):
+        real_export(repo)
+        raise RuntimeError("database went away")
+
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        doc_id = publish(s)
+        monkeypatch.setattr(exporter, "export", crash_after_commit)
+        with pytest.raises(RuntimeError):
+            release.create(s, clone, deployer)
+        monkeypatch.setattr(exporter, "export", real_export)
+        orphan = git(clone, "rev-parse", "HEAD")
+
+        r = release.create(s, clone, deployer)
+
+        assert (r.content_commit, r.status) == (orphan, R.DISPATCHED)
+        assert git(remote, "rev-parse", "HEAD") == orphan
+        assert r.id == json.loads((clone / "manifest.json").read_text())["release_id"]
+        assert [a.version for a in s.query(ReleaseArticle).filter_by(release_id=r.id)] == [1]
+        assert release.create(s, clone, deployer) is None
+
+
+def test_an_article_purged_during_export_is_left_out_of_the_release_record(repos, monkeypatch):
+    _, clone = repos
+    real_export = exporter.export
+
+    with SessionLocal() as s:
+        doc_id = publish(s)
+
+        def purge_during_export(repo):
+            result = real_export(repo)
+            articles.delete(s, doc_id)
+            articles.purge(s, doc_id)
+            return result
+
+        monkeypatch.setattr(exporter, "export", purge_during_export)
+        r = release.create(s, clone, FakeDeployer())
+
+        assert r.status == R.DISPATCHED
+        assert s.query(ReleaseArticle).filter_by(release_id=r.id).count() == 0
