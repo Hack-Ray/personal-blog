@@ -29,6 +29,7 @@
 - **Status**：Accepted (delegated)，暫行
 - **Decision**：Draft 請求以 `{slug, name}` 指定 Topic／Tags；slug 不存在時自動建立，已存在時沿用既有名稱。
 - **Consequences**：Taxonomy 管理（改名、合併、刪除）仍未決定（Baseline 12）；屆時可能取代本決策。
+- **Superseded by**：BE-013（已存在的 slug 改為採用最後儲存的名稱）。
 
 ### BE-004：Content Exporter 的匯出規則
 
@@ -155,6 +156,18 @@
   - 還原以 `scripts/restore.sh`：驗證 checksum、確認後取代整個資料庫，再執行 migration。
 - **Consequences**：CMS 長時間不重啟時，期間的修改沒有新的備份；需要時可手動執行 `scripts/backup.sh`。
 
+### BE-013：Topic／Tag 以最後儲存的名稱為準
+
+- **Status**：Confirmed（使用者 2026-10-20 指定）
+- **Context**：第一篇測試文章的 Tag 名稱打錯，修正後重新發布仍顯示舊名稱，因為 BE-003 會沿用已存在 slug 的名稱。名稱出現在文章頁、Tag 頁標題與 metadata，錯誤名稱無法修正會影響 SEO。
+- **Decision**：Draft 寫入（Auto Save、Publish）帶入的 `{slug, name}` 中，slug 已存在時以本次的名稱覆寫。名稱屬於 Topic／Tag 本身，所以所有引用該 slug 的草稿與已發布版本都顯示新名稱。
+- **Consequences**：
+  - 已發布版本的 Tag／Topic 名稱會跟著改，這不違反版本不可變性：`published_version_tags` 只記錄引用，名稱不屬於版本內容。
+  - 下次「更新網站」時，Exporter 匯出新名稱，所以內容 repo 會出現新的 release commit。
+  - 同一個 slug 在兩個同時開啟的編輯器中填了不同名稱時，最後存檔的一方生效。
+  - URL 由 slug 決定，改名不會改變網址。合併、刪除 Taxonomy 仍未決定。
+- **Supersedes**：BE-003「已存在時沿用既有名稱」。
+
 ## Known gaps
 
-- 真實 GitHub API 與部署流程尚未在真實環境驗證，需先完成 `docs/setup-todo.md` 的 A 與 B 區。
+- ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 已完成 `docs/setup-todo.md` A、B 區，並以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。
