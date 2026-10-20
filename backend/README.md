@@ -11,10 +11,11 @@ docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
 export DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog
 uv run alembic upgrade head
+(cd ../cms && npm ci && npm run build)   # CMS UI, served at /admin/
 uv run uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
 
-API docs: http://127.0.0.1:8000/docs
+CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs
 
 ## Test
 

@@ -1,10 +1,13 @@
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
@@ -166,3 +169,13 @@ def restore(doc_id: str, session: SessionDep) -> ArticleOut:
 @app.post("/api/articles/{doc_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 def purge(doc_id: str, session: SessionDep) -> None:
     articles.purge(session, doc_id)
+
+
+CMS_DIST = Path(os.environ.get("CMS_DIST", Path(__file__).resolve().parents[2] / "cms" / "dist"))
+
+if CMS_DIST.is_dir():
+    app.mount("/admin", StaticFiles(directory=CMS_DIST, html=True), name="cms")
+
+    @app.get("/", include_in_schema=False)
+    def _root() -> RedirectResponse:
+        return RedirectResponse("/admin/")
