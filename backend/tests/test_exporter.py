@@ -4,10 +4,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from sqlalchemy import delete
 
 from blog import articles
 from blog.db import SessionLocal
 from blog.exporter import export
+from blog.models import PublishedVersion
 
 BACKEND = articles.Taxon("backend", "Backend")
 
@@ -61,6 +63,22 @@ def test_published_at_is_the_first_publication_date(repo):
         doc_id = articles.create_article(s, content()).article.doc_id
         first = articles.publish(s, doc_id, 1, content()).published_at
         articles.publish(s, doc_id, 2, content(markdown="edit"))
+
+    export(repo)
+
+    published_at = read(repo, f"articles/{doc_id}.json")["published_at"]
+    assert published_at == first.isoformat().replace("+00:00", "Z")
+
+
+def test_published_at_survives_retention_and_republishing(repo):
+    with SessionLocal() as s:
+        doc_id = articles.create_article(s, content()).article.doc_id
+        first = articles.publish(s, doc_id, 1, content()).published_at
+        articles.publish(s, doc_id, 2, content(markdown="edit"))
+        articles.archive(s, doc_id)
+        articles.publish(s, doc_id, 3, content(markdown="republished"))
+        s.execute(delete(PublishedVersion).where(PublishedVersion.version < 3))
+        s.commit()
 
     export(repo)
 
