@@ -61,6 +61,18 @@
 - **Consequences**：Purge 只刪除資料庫資料；已部署的靜態網站在下一次部署前仍顯示舊內容（Baseline 7.1 的最終一致性）。圖片尚未實作，Purge 與圖片 GC 的協調留待圖片功能。CMS 執行期間的定期清除尚未實作，目前只在啟動時執行。
 - **Supersedes**：Baseline 12「恢復」項目中「回到哪個狀態」的部分。
 
+### BE-006：CMS 編輯器前端
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 5.1（HackMD 式分割編輯、Auto Save）；Baseline 2.1「CMS 前後端同源或分離」未決定。
+- **Decision**：
+  - CMS 介面為獨立的 `cms/`（Vite + React + TypeScript），build 後由 FastAPI 在 `/admin/` 提供，與 API 同源。公開網站（`frontend/`）不包含任何 CMS 程式碼。
+  - Markdown 預覽使用與公開網站相同的 `marked` 版本。
+  - Auto Save 停止輸入 1 秒後送出；所有 Auto Save 與 Publish 請求經由同一個佇列依序送出（`cms/src/draft-sync.ts`），每個請求都帶上前一個回應的 revision。Publish 會等進行中的存檔完成，再送出作者目前看到的內容。
+  - 收到 409 時停止自動儲存並顯示「重新載入」；不自動合併。
+  - 新增文章時先填 Topic（Baseline 4.2）。Tags 以 `slug:名稱` 逗號分隔輸入。
+- **Consequences**：同源讓之後的登入可以直接用 cookie session，不需處理 CORS。
+
 ## Known gaps
 
 - CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
