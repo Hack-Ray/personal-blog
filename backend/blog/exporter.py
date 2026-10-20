@@ -2,7 +2,8 @@
 
 Reads the public state in one REPEATABLE READ transaction, renders the whole
 snapshot in memory, and only then touches the content repo, so a failed read
-never leaves a half-written snapshot behind.
+never leaves a half-written snapshot behind. A failed write or commit can, so
+each export first puts the snapshot paths back to HEAD.
 """
 
 import argparse
@@ -144,6 +145,35 @@ def _stage(repo: Path) -> None:
     _git(repo, "add", "--all", "--", *paths)
 
 
+def _has_head(repo: Path) -> bool:
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", "HEAD"], capture_output=True).returncode == 0
+
+
+def _reset(repo: Path) -> None:
+    """Puts the snapshot paths back to HEAD, dropping whatever an interrupted
+    export left there, so changes are always measured against the last commit."""
+    _git(repo, "rm", "-r", "--quiet", "--cached", "--ignore-unmatch", "--", *SNAPSHOT_PATHS)
+    in_head = _git(repo, "ls-tree", "--name-only", "HEAD", "--", *SNAPSHOT_PATHS).split() if _has_head(repo) else []
+    if in_head:
+        _git(repo, "checkout", "HEAD", "--", *in_head)
+    _git(repo, "clean", "-d", "--force", "--quiet", "--", *SNAPSHOT_PATHS)
+
+
+def head_release(repo: Path) -> ExportResult | None:
+    """The release HEAD holds, if HEAD is a release commit made by `export`."""
+    if not _has_head(repo):
+        return None
+    subject = _git(repo, "log", "-1", "--format=%s").strip()
+    manifest = json.loads(_git(repo, "show", "HEAD:manifest.json")) if subject.startswith("Release ") else None
+    if manifest is None or subject != f"Release {manifest['release_id']}":
+        return None
+    return ExportResult(
+        release_id=manifest["release_id"],
+        commit=_git(repo, "rev-parse", "HEAD").strip(),
+        versions={a["doc_id"]: a["version"] for a in manifest["articles"]},
+    )
+
+
 def push(repo: Path) -> None:
     _git(repo, "push", "--quiet")
 
@@ -153,6 +183,7 @@ def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
     None when the published content did not change."""
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, Session(bind=conn) as session:
         files = render_snapshot(session)
+    _reset(repo)
     if not write_snapshot(files, repo):
         return None
     manifest = json.loads(files["manifest.json"])
@@ -160,11 +191,7 @@ def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
     _git(repo, "commit", "--quiet", "-m", f"Release {manifest['release_id']}")
     if push_commit:
         push(repo)
-    return ExportResult(
-        release_id=manifest["release_id"],
-        commit=_git(repo, "rev-parse", "HEAD").strip(),
-        versions={a["doc_id"]: a["version"] for a in manifest["articles"]},
-    )
+    return head_release(repo)
 
 
 def main() -> None:
