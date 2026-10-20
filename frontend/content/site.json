@@ -1,0 +1,41 @@
+{
+  "articles": [
+    {
+      "state": "published",
+      "docId": "01K7M4Y7P65BDCF8AHRTQY7ZQF",
+      "title": "用 FastAPI 打造個人部落格的後端",
+      "topic": { "slug": "backend", "name": "Backend" },
+      "tags": [
+        { "slug": "fastapi", "name": "FastAPI" },
+        { "slug": "python", "name": "Python" }
+      ],
+      "publishedAt": "2026-10-01T09:00:00+08:00",
+      "markdown": "這是一篇範例文章。\n\n## 為什麼自建 CMS\n\n- 練習資料模型\n- 練習系統設計\n\n```python\nfrom fastapi import FastAPI\n\napp = FastAPI()\n```\n"
+    },
+    {
+      "state": "published",
+      "docId": "01K7P2B9X3QW8N5R7TZ4HJMVCD",
+      "title": "Next.js Static Export 部署到 GitHub Pages",
+      "topic": { "slug": "frontend", "name": "Frontend" },
+      "tags": [
+        { "slug": "nextjs", "name": "Next.js" },
+        { "slug": "github-pages", "name": "GitHub Pages" }
+      ],
+      "publishedAt": "2026-10-10T20:30:00+08:00",
+      "markdown": "使用 `output: 'export'` 產生純靜態檔案。\n"
+    },
+    {
+      "state": "published",
+      "docId": "01K7R6F2M8KD4S9V1YCX3BNQWE",
+      "title": "沒有標籤的短文",
+      "topic": { "slug": "backend", "name": "Backend" },
+      "tags": [],
+      "publishedAt": "2026-09-15T12:00:00+08:00",
+      "markdown": "Tags 不是必填。\n"
+    },
+    {
+      "state": "archived",
+      "docId": "01K6ZT3H5J7K9M1N3P5Q7R9S1T"
+    }
+  ]
+}
