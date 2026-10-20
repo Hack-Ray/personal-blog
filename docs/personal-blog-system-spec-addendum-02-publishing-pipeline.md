@@ -1,0 +1,97 @@
+# Personal Blog — Addendum 02：Publishing Pipeline（Snapshot-based Build）
+
+> **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)（截至 2026-10-11），[Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)
+> **日期**：2026-10-20
+> **來源**：Architecture Change Proposal B-01
+> **設計原則**：只改變 Publishing Pipeline；CMS、Article Lifecycle 與 Domain Model（含 ART-020／ART-021）不變。
+
+## Confirmed Decisions
+
+### PUB-001：CMS 與 PostgreSQL 先在本機執行，GitHub Actions 只讀取 Content Snapshot
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Context**：Baseline 2.1 未決定 GitHub Actions 如何安全存取後端；1.2 要求低成本、減少常駐後端。
+- **Decision**：
+  - V1 的 FastAPI CMS 與 PostgreSQL 在作者本機執行；之後可能遷移至 AWS。
+  - 發布流程：Publish（持久化 Published Version）→ Content Exporter 產生完整 Snapshot → 以單一 commit push → GitHub Actions 驗證並執行 Next.js Static Export → 部署至 GitHub Pages。
+  - GitHub Actions 不存取 FastAPI 或 PostgreSQL。
+  - V1 不使用 Redis、Message Queue、Object Storage、雲端 Scheduler 或獨立微服務。
+- **Consequences**：
+  - 作者電腦關機時無法發布；已部署網站不受影響（符合 Baseline 1.2）。
+  - Exporter 與 Snapshot 格式成為 CMS 與公開網站之間唯一的介面；CMS 遷移至 AWS 時 Actions／Pages 不需修改。
+  - 設定一律經由環境變數（例如 `DATABASE_URL`、匯出目錄、內容 repo 位置）；本機 PostgreSQL 以 Docker Compose 執行。
+  - CMS 僅在本機時仍須有管理員身分驗證（Baseline 5.1、第 10 節第 7 條不變）；可先只綁定 `127.0.0.1`。
+- **Supersedes**：Baseline 2.1 架構圖中「GitHub Actions 讀取發布資料」的取得方式；Baseline 12 中「後端部署平台」於 V1 定為本機。
+
+### PUB-002：Content Snapshot 存放於獨立的 private 內容 repo
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Context**：Snapshot 若 commit 至公開 repo，封存與永久刪除的內容會永久留在公開 Git 歷史，與 Baseline 7.2、7.3 衝突。
+- **Decision**：
+  - Snapshot 存放於 private repo（暫名 `personal-blog-content`）；程式碼 repo `personal-blog` 維持公開，GitHub Pages 由程式碼 repo 的 Actions 部署。
+  - 程式碼 repo 的 Actions 以唯讀 token checkout 內容 repo。
+  - 內容 repo 的 commit 歷史即為已發布 Snapshot 的版本紀錄；重試與回滾以重新建置指定 commit 完成。
+- **Consequences**：
+  - 已部署網站上曾公開的內容仍可能被第三方保存；此為公開網站固有限制，不由本決策處理。
+  - 永久刪除如需自內容 repo 歷史移除，需改寫該 private repo 歷史；具體政策列為 Open Question。
+- **Supersedes**：無。
+
+### PUB-003：Snapshot 格式與一致性
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Decision**：
+  - 內容 repo 根目錄結構：
+
+    ```text
+    manifest.json
+    articles/{docId}.json
+    images/{contentHash}.{ext}
+    ```
+
+  - `manifest.json` 至少包含：`schema_version`、`release_id`、`created_at`、`articles`（每篇的 `docId` 與 Published Version）、`archived_articles`。
+  - 只匯出公開網站需要的資料；不匯出 Working Draft、Draft Snapshots、Pending Deletion 文章、管理員資訊或其他私有資料。
+  - Exporter 在單一資料庫交易（REPEATABLE READ 或更高）中讀取，確保整份 Snapshot 對應同一時點的發布狀態。
+  - Exporter 先寫入暫存目錄，全部成功後才整份取代工作目錄內容並建立一個 commit；任何步驟失敗即不 push。
+  - 圖片檔名使用內容雜湊；相同內容永遠同名，換圖即為新檔名，不原地覆寫（Baseline 8.1）。
+  - 每次 Snapshot 都是完整全量輸出（與 Baseline 2.2 的 Full Build 一致）。
+- **Supersedes**：Baseline 8.2「GitHub Actions 依文章引用關係取得該版本圖片」改為由 Exporter 匯出圖片至 Snapshot。
+
+### PUB-004：建置驗證與部署序列化
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Decision**：
+  - Exporter push 後，由 CMS 觸發程式碼 repo 的 workflow，並帶入內容 repo 的 commit SHA。程式碼 repo 的 push 亦觸發建置，使用內容 repo 的 HEAD。
+  - Build 前驗證 Snapshot：`schema_version` 可識別、manifest 列出的每篇文章檔案存在、文章引用的每張圖片存在。驗證失敗即不部署，舊網站維持上線。
+  - 部署以 workflow `concurrency` 序列化。
+  - 部署前檢查：本次建置的內容 commit 若已不是內容 repo 的 HEAD，則略過部署（較新的建置會接手）。
+- **Supersedes**：Baseline 9.2 中尚待設計的「原子性／鎖／序列號協定」，以內容 repo 的 commit 順序與 HEAD 檢查取代。
+
+### PUB-005：本機環境下的定時工作與失敗通知
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Decision**：
+  - 每週圖片 GC 與 30 天到期永久刪除，改為「CMS 啟動時及執行中定期補跑已到期工作」；工作必須可重複執行並收斂到相同結果。Baseline 8.3 與 7.3 的保留規則不變。
+  - V1 的建置／部署失敗通知使用 GitHub 內建的 workflow 失敗 Email 通知。
+  - 舊 Published Version 與圖片的清理，仍須等新網站部署成功後才可執行（Baseline 6.3、8.3 不變）；CMS 以 GitHub API 查詢部署結果。
+- **Supersedes**：Baseline 9.3「持續失敗需以 Email 通知管理員」的實作方式於 V1 定為 GitHub 內建通知；8.3「每週五一次」改為到期補跑，寬限期規則不變。
+
+### PUB-006：備份責任
+
+- **Date**：2026-10-20
+- **Status**：Confirmed
+- **Decision**：內容 repo 只保存已發布 Snapshot，不能取代 CMS 備份。本機 PostgreSQL（含草稿、版本、圖片）需另行備份。
+- **Supersedes**：無。
+
+## Open Questions（尚未確認）
+
+- 本機 PostgreSQL 的備份方式、頻率與存放位置。
+- 永久刪除是否需要改寫內容 repo 歷史，以及何時執行。
+- `release_id` 的格式（例如 ULID）與 manifest 的完整 JSON Schema。
+- 文章 JSON 的欄位定義；目前前端 fixture（`frontend/content/site.json`）需改為讀取此格式。
+- CMS 觸發 workflow 的方式（`repository_dispatch` 或 `workflow_dispatch`）與部署結果查詢的實作。
+- 遷移至 AWS 的條件與時機。
