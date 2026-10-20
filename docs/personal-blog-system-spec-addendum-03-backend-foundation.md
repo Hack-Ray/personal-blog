@@ -39,9 +39,29 @@
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
   - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。
   - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
-- **Consequences**：`archived_articles` 目前恆為空，待 Article Lifecycle 實作後填入。觸發 deploy workflow（PUB-004）尚未實作，需先完成 `docs/setup-todo.md` 的 B4 token。
+- **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先完成 `docs/setup-todo.md` 的 B4 token。
+
+### BE-005：Article Lifecycle 狀態機
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 7.1–7.4；Baseline 12「恢復」的細部規則未決定。
+- **Decision**：
+  - `articles.state` 為 `draft`、`published`、`archived`、`pending_deletion` 之一；Permanently Deleted 以刪除資料列並把 `doc_id` 記入 `retired_doc_ids` 表示。
+  - 允許的轉換以一張表定義（`blog/articles.py` 的 `ALLOWED_FROM`）：
+    - Edit（Auto Save）與 Publish：draft、published、archived。Publish archived 文章即為 Republish，沿用 `doc_id` 並建立新版本。
+    - Archive：只限 published。
+    - Delete：draft、published、archived → pending_deletion，記錄 `deleted_at` 與 `state_before_deletion`。
+    - Restore：pending_deletion → 刪除前的狀態。
+    - Purge：只限 pending_deletion。
+  - 其他轉換回 409。所有寫入先鎖定 article 列，序列化同一篇文章的變更。
+  - 資料庫 CHECK：`pending_deletion` 狀態若且唯若 `deleted_at` 與 `state_before_deletion` 皆非空。
+  - 建立文章時產生的 ULID 若已在 `retired_doc_ids` 中則重新產生。
+  - 待刪除滿 30 天的文章在 CMS 啟動時清除（PUB-005）；可重複執行。
+  - Exporter 只匯出 published 的最新版本；archived 只列入 `archived_articles`；draft 與 pending_deletion 都不匯出。
+- **Consequences**：Purge 只刪除資料庫資料；已部署的靜態網站在下一次部署前仍顯示舊內容（Baseline 7.1 的最終一致性）。圖片尚未實作，Purge 與圖片 GC 的協調留待圖片功能。CMS 執行期間的定期清除尚未實作，目前只在啟動時執行。
+- **Supersedes**：Baseline 12「恢復」項目中「回到哪個狀態」的部分。
 
 ## Known gaps
 
 - CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
-- Article Lifecycle（Archive、Pending Deletion、Restore、永久刪除）、Draft Snapshots、圖片上傳，以及 Exporter 完成後觸發 deploy workflow，尚未實作。
+- Draft Snapshots、圖片上傳與圖片 GC，以及 Exporter 完成後觸發 deploy workflow，尚未實作。
