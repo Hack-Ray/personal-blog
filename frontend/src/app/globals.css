@@ -66,3 +66,14 @@ pre {
   padding: 12px;
   overflow-x: auto;
 }
+
+input[type="search"] {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 8px 12px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
