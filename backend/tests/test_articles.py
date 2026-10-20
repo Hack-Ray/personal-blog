@@ -30,6 +30,20 @@ def test_create_assigns_a_ulid_doc_id_and_revision_1(client):
     assert body["tags"] == [{"slug": "python", "name": "Python"}]
 
 
+def test_saving_a_new_name_for_an_existing_slug_renames_it_everywhere(client):
+    a = create(client, tags=[{"slug": "test", "name": "Old"}])
+    b = create(client, tags=[{"slug": "test", "name": "Old"}])
+    client.post(f"/api/articles/{a['doc_id']}/publish", json=draft(tags=[{"slug": "test", "name": "Old"}], base_revision=1))
+
+    renamed = draft(topic={"slug": "backend", "name": "後端"}, tags=[{"slug": "test", "name": "測試"}], base_revision=1)
+    assert client.put(f"/api/articles/{b['doc_id']}/draft", json=renamed).status_code == 200
+
+    for doc_id in (a["doc_id"], b["doc_id"]):
+        body = client.get(f"/api/articles/{doc_id}/draft").json()
+        assert body["topic"] == {"slug": "backend", "name": "後端"}
+        assert body["tags"] == [{"slug": "test", "name": "測試"}]
+
+
 def test_topic_is_required_to_create_a_draft(client):
     r = client.post("/api/articles", json={"title": "x", "markdown": "y"})
     assert r.status_code == 422
