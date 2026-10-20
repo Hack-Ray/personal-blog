@@ -88,11 +88,24 @@
 - **Decision**：內容 repo 只保存已發布 Snapshot，不能取代 CMS 備份。本機 PostgreSQL（含草稿、版本、圖片）需另行備份。
 - **Supersedes**：無。
 
+### PUB-007：永久刪除不改寫內容 repo 歷史
+
+- **Date**：2026-10-20
+- **Status**：Accepted (delegated)
+- **Context**：文章被永久刪除後，下一次「更新網站」的 Snapshot 不再包含它，網站回 404。但內容 repo 的舊 commit 仍保有它的 JSON 與圖片。
+- **Decision**：V1 不改寫內容 repo 的歷史。永久刪除只影響之後的 Snapshot。
+- **理由**：
+  - 內容 repo 是 private，舊 commit 裡只有曾經公開過的內容，沒有草稿或私人資料（PUB-003）。
+  - 改寫歷史需要 force-push。`releases.content_commit` 記錄的 commit 會消失，部署 workflow 以 commit 判斷是否過期的機制（PUB-004）也會失準。
+  - 其他人或其他電腦上的 clone 在 force-push 後必須重新 clone。
+- **Consequences**：若有內容因法律或隱私原因必須從歷史中移除，需要手動改寫內容 repo 的歷史，並同步處理本機 clone 與 `releases` 紀錄。V1 不提供這個流程。
+- **Supersedes**：無；回答本文件的 Open Question「永久刪除是否需要改寫內容 repo 歷史」。
+
 ## Open Questions（尚未確認）
 
 - ~~本機 PostgreSQL 的備份方式、頻率與存放位置。~~ 已由 Addendum 03 BE-012 決定。
-- 永久刪除是否需要改寫內容 repo 歷史，以及何時執行。
+- ~~永久刪除是否需要改寫內容 repo 歷史，以及何時執行。~~ 不改寫，見 PUB-007。
 - ~~`release_id` 的格式（例如 ULID）與 manifest 的完整 JSON Schema。~~ `release_id` 為 ULID；manifest 與文章 JSON 的欄位以前端 `frontend/src/content/parse.ts` 為準（Addendum 03 BE-004）。
 - ~~文章 JSON 的欄位定義；目前前端 fixture（`frontend/content/site.json`）需改為讀取此格式。~~ 前端已改為讀取 Snapshot（`frontend/sample-site-data/`）。
-- CMS 觸發 workflow 的方式（`repository_dispatch` 或 `workflow_dispatch`）與部署結果查詢的實作。
+- ~~CMS 觸發 workflow 的方式（`repository_dispatch` 或 `workflow_dispatch`）與部署結果查詢的實作。~~ 使用 `workflow_dispatch`，見 Addendum 03 BE-010。
 - 遷移至 AWS 的條件與時機。
