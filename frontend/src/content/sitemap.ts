@@ -13,6 +13,7 @@ export function sitemapEntries(content: SiteContent): SitemapEntry[] {
   return [
     { path: "/", lastModified: newest },
     { path: "/posts/", lastModified: newest },
+    { path: "/about/" },
     ...posts.map((a) => ({ path: `/posts/${a.docId}/`, lastModified: a.publishedAt })),
     ...topics(content).map((t) => ({ path: `/topics/${t.slug}/` })),
     ...tags(content).map((t) => ({ path: `/tags/${t.slug}/` })),

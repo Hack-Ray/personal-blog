@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/">首頁</Link>
             <Link href="/posts/">文章</Link>
             <Link href="/search/">搜尋</Link>
+            <Link href="/about/">關於</Link>
           </nav>
         </header>
         <main>{children}</main>

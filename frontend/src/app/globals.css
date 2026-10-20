@@ -77,3 +77,11 @@ input[type="search"] {
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+}

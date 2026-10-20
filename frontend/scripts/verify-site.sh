@@ -18,5 +18,7 @@ check "snapshot image is served under basePath" 'i=$(body $B/posts/01K7M4Y7P65BD
 check "sitemap lists published posts with absolute URLs" 'body $B/sitemap.xml | grep -q "<loc>https://hack-ray.github.io/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/</loc>"'
 check "sitemap leaves out archived posts" '! body $B/sitemap.xml | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
 check "post has a canonical URL" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "rel=\"canonical\" href=\"https://hack-ray.github.io/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/\""'
+check "about page links to GitHub" 'body $B/about/ | grep -q "href=\"https://github.com/Hack-Ray\""'
+check "search index excludes archived posts" '! body $B/search-index.json | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
