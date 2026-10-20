@@ -139,7 +139,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 需要先完成 `docs/setup-todo.md` 的 A 區（建立內容 repo、開啟 Pages、Actions token）與 B4（本機 token）。
 
 ```sh
-# 在 personal-blog 以外的位置，例如家目錄
+# 在 personal-blog 以外的位置，例如家目錄（A2 已 clone 過就跳過）
 git clone https://github.com/Hack-Ray/personal-blog-content.git ~/personal-blog-content
 ```
 

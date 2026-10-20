@@ -15,7 +15,15 @@
   - 位置：repo → Settings → General → Danger Zone → Change visibility。
 - [ ] **A2. 建立 private repo `Hack-Ray/personal-blog-content`。**
   - 用途：存放 Content Snapshot（PUB-002）。
-  - 可以先放一份範例 Snapshot：把 `frontend/sample-site-data/` 的內容複製到這個 repo 的根目錄並 push。這樣第一次部署就有內容可以 build。
+  - 建立後先放一份**空的** Snapshot，第一次部署才有東西可以 build（範例文章 `frontend/sample-site-data/` 不要放，否則會出現在公開網站上）：
+
+    ```sh
+    git clone https://github.com/Hack-Ray/personal-blog-content.git ~/personal-blog-content
+    cp personal-blog/frontend/test-fixtures/empty-site-data/manifest.json ~/personal-blog-content/
+    cd ~/personal-blog-content && git add manifest.json && git commit -m "Empty site" && git push
+    ```
+
+  - repo 名稱若不是 `personal-blog-content`，要同時修改 `.github/workflows/deploy.yml` 裡的 `CONTENT_REPO`。
 - [ ] **A3. 開啟 GitHub Pages。**
   - 位置：`personal-blog` → Settings → Pages → Build and deployment → Source。
   - 選 **GitHub Actions**。
@@ -38,8 +46,8 @@
 - [ ] **B3. 確認本機有 Node.js 22。**
 - [ ] **B4. 建立給本機 CMS 用的 token。**
   - 一樣用 Fine-grained token。
-  - `personal-blog-content`：**Contents: Read and write**（push Snapshot）。
-  - `personal-blog`：**Actions: Read and write**（觸發 deploy workflow、查詢部署結果）。
+  - Repository access 只選 `personal-blog`，Permissions 只給 **Actions: Read and write**（觸發 deploy workflow、查詢部署結果）。
+  - push 到 `personal-blog-content` 用的是你電腦上 git 本身的認證（SSH key 或 `gh auth login`），不是這個 token。
   - 只存在本機的 `backend/.env`，絕對不要 commit（`.gitignore` 已排除 `.env`）。
   - 在 `backend/.env` 設定 `GITHUB_TOKEN=<token>` 與 `CONTENT_REPO_DIR=<personal-blog-content 的本機 clone 路徑>`（範例見 `backend/.env.example`）。
   - 設定完成後，CMS 的「網站發布 → 更新網站」就能一鍵匯出、push 並啟動部署。
