@@ -39,6 +39,8 @@
   - `personal-blog-content`：**Contents: Read and write**（push Snapshot）。
   - `personal-blog`：**Actions: Read and write**（觸發 deploy workflow、查詢部署結果）。
   - 只存在本機的 `backend/.env`，絕對不要 commit（`.gitignore` 已排除 `.env`）。
+  - 在 `backend/.env` 設定 `GITHUB_TOKEN=<token>` 與 `CONTENT_REPO_DIR=<personal-blog-content 的本機 clone 路徑>`（範例見 `backend/.env.example`）。
+  - 設定完成後，CMS 的「網站發布 → 更新網站」就能一鍵匯出、push 並啟動部署。
 - [ ] **B5. 設定 CMS 管理員密碼。**
   - 在 `backend/` 執行 `uv run python -m blog.auth`，輸入兩次密碼（至少 12 個字元）。
   - 之後在 http://127.0.0.1:8000/admin/ 登入。忘記密碼時重新執行同一個指令即可，所有已登入的 session 會被登出。
