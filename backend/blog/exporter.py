@@ -8,6 +8,7 @@ never leaves a half-written snapshot behind.
 import argparse
 import json
 import subprocess
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,6 +27,13 @@ SNAPSHOT_PATHS = ("manifest.json", "articles", "images")
 
 class ExportError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class ExportResult:
+    release_id: str
+    commit: str
+    versions: dict[str, int]
 
 
 def _json(data: object) -> bytes:
@@ -140,19 +148,27 @@ def _stage(repo: Path) -> None:
     _git(repo, "add", "--all", "--", *paths)
 
 
-def export(repo: Path, push: bool = False) -> str | None:
-    """Exports the current public state into `repo` as one commit. Returns the
-    new release id, or None when the published content did not change."""
+def push(repo: Path) -> None:
+    _git(repo, "push", "--quiet")
+
+
+def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
+    """Exports the current public state into `repo` as one commit. Returns
+    None when the published content did not change."""
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, Session(bind=conn) as session:
         files = render_snapshot(session)
     if not write_snapshot(files, repo):
         return None
-    release_id = json.loads(files["manifest.json"])["release_id"]
+    manifest = json.loads(files["manifest.json"])
     _stage(repo)
-    _git(repo, "commit", "--quiet", "-m", f"Release {release_id}")
-    if push:
-        _git(repo, "push", "--quiet")
-    return release_id
+    _git(repo, "commit", "--quiet", "-m", f"Release {manifest['release_id']}")
+    if push_commit:
+        push(repo)
+    return ExportResult(
+        release_id=manifest["release_id"],
+        commit=_git(repo, "rev-parse", "HEAD").strip(),
+        versions={a["doc_id"]: a["version"] for a in manifest["articles"]},
+    )
 
 
 def main() -> None:
@@ -160,8 +176,8 @@ def main() -> None:
     parser.add_argument("repo", type=Path, help="local clone of personal-blog-content")
     parser.add_argument("--push", action="store_true", help="push the release commit")
     args = parser.parse_args()
-    release_id = export(args.repo, push=args.push)
-    print(f"Released {release_id}" if release_id else "No changes to publish")
+    result = export(args.repo, push_commit=args.push)
+    print(f"Released {result.release_id}" if result else "No changes to publish")
 
 
 if __name__ == "__main__":

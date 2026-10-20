@@ -3,16 +3,18 @@ import { createRoot } from "react-dom/client";
 import { SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
+import { Releases } from "./releases.tsx";
 import { SignIn } from "./sign-in.tsx";
 import { isSlug } from "./taxa.ts";
 import "./styles.css";
 
-type Route = { page: "list" } | { page: "new" } | { page: "edit"; docId: string };
+type Route = { page: "list" } | { page: "new" } | { page: "releases" } | { page: "edit"; docId: string };
 
 function parseRoute(hash: string): Route {
   const edit = /^#\/edit\/([0-9A-Z]{26})$/.exec(hash);
   if (edit) return { page: "edit", docId: edit[1]! };
-  return hash === "#/new" ? { page: "new" } : { page: "list" };
+  if (hash === "#/new") return { page: "new" };
+  return hash === "#/releases" ? { page: "releases" } : { page: "list" };
 }
 
 function useRoute(): Route {
@@ -80,6 +82,8 @@ function Page({ route }: { route: Route }) {
       return <ArticleList />;
     case "new":
       return <NewArticle />;
+    case "releases":
+      return <Releases />;
     case "edit":
       return <EditArticle docId={route.docId} />;
   }

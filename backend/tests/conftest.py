@@ -31,7 +31,7 @@ def clean_tables():
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE articles, topics, tags, images, retired_doc_ids, admin_credentials, admin_sessions"
+                "TRUNCATE articles, topics, tags, images, retired_doc_ids, admin_credentials, admin_sessions, releases"
                 " RESTART IDENTITY CASCADE"
             )
         )

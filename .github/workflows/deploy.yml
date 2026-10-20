@@ -1,4 +1,6 @@
 name: Deploy site
+# The CMS finds the run for a release by this title (backend/blog/release.py).
+run-name: Deploy content ${{ inputs.content_sha || 'HEAD' }}
 
 on:
   push:
@@ -87,5 +89,6 @@ jobs:
           fi
 
       - id: deployment
+        name: Deploy to GitHub Pages
         if: steps.latest.outputs.current == 'true'
         uses: actions/deploy-pages@v4

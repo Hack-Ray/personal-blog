@@ -160,3 +160,44 @@ class AdminSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ReleaseStatus(StrEnum):
+    EXPORTED = "exported"
+    PUSH_FAILED = "push_failed"
+    PUSHED = "pushed"
+    DISPATCH_FAILED = "dispatch_failed"
+    DISPATCHED = "dispatched"
+    BUILDING = "building"
+    DEPLOYED = "deployed"
+    SUPERSEDED = "superseded"
+    FAILED = "failed"
+
+
+class Release(Base):
+    """One exported snapshot and how far it got toward GitHub Pages
+    (Addendum 02, PUB-004). The database publish and the site deploy are
+    separate events (Baseline 9.1)."""
+
+    __tablename__ = "releases"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    content_commit: Mapped[str] = mapped_column(String(40))
+    status: Mapped[ReleaseStatus] = mapped_column(
+        Enum(ReleaseStatus, native_enum=False, length=20, values_callable=lambda e: [m.value for m in e])
+    )
+    detail: Mapped[str | None] = mapped_column(Text)
+    run_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReleaseArticle(Base):
+    """The Published Version of each article a release contains, so cleanup
+    can tell which versions the live site was built from (Baseline 6.3)."""
+
+    __tablename__ = "release_articles"
+
+    release_id: Mapped[str] = mapped_column(ForeignKey("releases.id", ondelete="CASCADE"), primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer)

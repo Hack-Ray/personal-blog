@@ -59,7 +59,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     const result = await sync.current?.publish();
     if (!result) return;
     setState("published");
-    setNotice(`已發布第 ${result.version} 版。執行 Exporter 後才會出現在網站上。`);
+    setNotice(`已發布第 ${result.version} 版。到「網站發布」更新網站後才會出現在網站上。`);
   };
 
   const latest = useRef(content);

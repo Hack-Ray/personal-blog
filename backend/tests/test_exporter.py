@@ -41,17 +41,19 @@ def test_exports_latest_published_version_and_skips_drafts(repo):
         articles.save_draft(s, doc_id, 3, content(markdown="unpublished edit"))
         articles.create_article(s, content(title="never published"))
 
-    release_id = export(repo)
+    result = export(repo)
 
     manifest = read(repo, "manifest.json")
-    assert manifest["release_id"] == release_id
+    assert manifest["release_id"] == result.release_id
+    assert result.versions == {doc_id: 2}
+    assert result.commit == git(repo, "rev-parse", "HEAD").strip()
     assert manifest["schema_version"] == 1
     assert manifest["articles"] == [{"doc_id": doc_id, "version": 2}]
     assert manifest["archived_articles"] == []
     article = read(repo, f"articles/{doc_id}.json")
     assert (article["version"], article["markdown"], article["tags"]) == (2, "v2", [])
     assert sorted(p.name for p in (repo / "articles").iterdir()) == [f"{doc_id}.json"]
-    assert git(repo, "log", "-1", "--format=%s").strip() == f"Release {release_id}"
+    assert git(repo, "log", "-1", "--format=%s").strip() == f"Release {result.release_id}"
 
 
 def test_published_at_is_the_first_publication_date(repo):
@@ -84,7 +86,7 @@ def test_new_publish_produces_a_new_release_commit(repo):
         articles.publish(s, doc_id, 2, content(markdown="edit"))
     second = export(repo)
 
-    assert second not in (None, first)
+    assert second is not None and second.release_id != first.release_id
     assert git(repo, "rev-list", "--count", "HEAD").strip() == "2"
     assert read(repo, "manifest.json")["articles"] == [{"doc_id": doc_id, "version": 2}]
 

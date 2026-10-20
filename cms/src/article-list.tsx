@@ -51,6 +51,9 @@ export function ArticleList() {
         <a className="button" href="#/new">
           新增文章
         </a>
+        <a className="button" href="#/releases">
+          網站發布
+        </a>
         <button type="button" onClick={() => api.signOut().then(() => location.reload())}>
           登出
         </button>

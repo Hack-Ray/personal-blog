@@ -35,9 +35,19 @@ TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run
 - Requests that change data are refused when their `Origin` header names another site.
 - Set `COOKIE_SECURE=1` once the CMS is served over HTTPS.
 
+## Update the site
+
+In the CMS, 網站發布 → 更新網站 (`POST /api/releases`) exports the published content into `CONTENT_REPO_DIR`, pushes it, and starts the `deploy.yml` workflow with that commit. `GET /api/releases` reads each pending release's workflow run from GitHub and records whether it went live, was superseded by a newer commit, or failed. The latest release can be retried when its push, dispatch or build failed.
+
+| Variable | Purpose |
+|---|---|
+| `CONTENT_REPO_DIR` | local clone of `personal-blog-content` with push access |
+| `GITHUB_TOKEN` | fine-grained token with Actions read/write on `personal-blog`; without it releases stop at "無法啟動部署" |
+| `DEPLOY_REPO`, `DEPLOY_WORKFLOW`, `DEPLOY_REF`, `GITHUB_API_URL` | defaults `Hack-Ray/personal-blog`, `deploy.yml`, `main`, `https://api.github.com` |
+
 ## Export a release
 
-Writes the current public state into a local clone of `personal-blog-content` as one commit (Addendum 02, PUB-003). Nothing is committed when the published content has not changed.
+The CMS does this as part of 更新網站; the command is for doing it by hand. It writes the current public state into a local clone of `personal-blog-content` as one commit (Addendum 02, PUB-003). Nothing is committed when the published content has not changed.
 
 ```sh
 uv run python -m blog.exporter ../../personal-blog-content          # commit only

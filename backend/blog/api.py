@@ -11,9 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles, auth, images
+from blog import articles, auth, exporter, images, release
 from blog.db import SessionLocal, get_session
-from blog.models import Article, ArticleState, PublishedVersion, WorkingDraft
+from blog.models import Article, ArticleState, PublishedVersion, Release, ReleaseStatus, WorkingDraft
 
 
 @asynccontextmanager
@@ -254,6 +254,55 @@ def restore_snapshot(doc_id: str, snapshot_id: int, body: RestoreBody, session: 
         return DraftOut.of(articles.restore_snapshot(session, doc_id, snapshot_id, body.base_revision))
     except articles.SnapshotNotFound as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "snapshot not found") from e
+
+
+class ReleaseOut(BaseModel):
+    id: str
+    content_commit: str
+    status: ReleaseStatus
+    detail: str | None
+    run_url: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def of(cls, r: Release) -> "ReleaseOut":
+        return cls(**{f: getattr(r, f) for f in cls.model_fields})
+
+
+class CreatedRelease(BaseModel):
+    release: ReleaseOut | None
+
+
+def _content_repo() -> Path:
+    repo = release.content_repo_from_env()
+    if repo is None or not (repo / ".git").exists():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "CONTENT_REPO_DIR must point at a clone of personal-blog-content")
+    return repo
+
+
+@app.get("/api/releases")
+def list_releases(session: SessionDep) -> list[ReleaseOut]:
+    return [ReleaseOut.of(r) for r in release.recent(session, release.deployer_from_env())]
+
+
+@app.post("/api/releases")
+def create_release(session: SessionDep) -> CreatedRelease:
+    """Exports the published content and starts the site deploy; `release`
+    is null when nothing changed since the last export."""
+    try:
+        created = release.create(session, _content_repo(), release.deployer_from_env())
+    except exporter.ExportError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    return CreatedRelease(release=ReleaseOut.of(created) if created else None)
+
+
+@app.post("/api/releases/{release_id}/retry")
+def retry_release(release_id: str, session: SessionDep) -> ReleaseOut:
+    try:
+        return ReleaseOut.of(release.retry(session, release_id, _content_repo(), release.deployer_from_env()))
+    except release.ReleaseError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
 
 
 class ImageOut(BaseModel):

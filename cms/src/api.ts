@@ -41,6 +41,27 @@ export interface Snapshot {
   created_at: string;
 }
 
+export type ReleaseStatus =
+  | "exported"
+  | "push_failed"
+  | "pushed"
+  | "dispatch_failed"
+  | "dispatched"
+  | "building"
+  | "deployed"
+  | "superseded"
+  | "failed";
+
+export interface Release {
+  id: string;
+  content_commit: string;
+  status: ReleaseStatus;
+  detail: string | null;
+  run_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: { detail?: unknown; current_revision?: number };
@@ -85,6 +106,9 @@ export const api = {
   snapshots: (docId: string) => request<Snapshot[]>("GET", `/articles/${docId}/snapshots`),
   restoreSnapshot: (docId: string, baseRevision: number, snapshotId: number) =>
     request<Draft>("POST", `/articles/${docId}/snapshots/${snapshotId}/restore`, { base_revision: baseRevision }),
+  releases: () => request<Release[]>("GET", "/releases"),
+  createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
+  retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);
