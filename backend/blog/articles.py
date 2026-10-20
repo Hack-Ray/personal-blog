@@ -193,6 +193,9 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
     _apply(session, draft, content)
     draft.revision += 1
     draft.article.state = S.PUBLISHED
+    if draft.article.first_published_at is None:
+        # now() is the transaction start, so this equals the version's published_at.
+        draft.article.first_published_at = func.now()
     latest = session.scalar(select(func.max(PublishedVersion.version)).where(PublishedVersion.article_id == draft.article_id))
     version = PublishedVersion(
         article_id=draft.article_id,

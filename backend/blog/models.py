@@ -58,6 +58,7 @@ class Article(Base):
     # Set only while pending deletion; restore returns to state_before_deletion.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     state_before_deletion: Mapped[ArticleState | None] = mapped_column(_state)
+    first_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     draft: Mapped["WorkingDraft"] = relationship(
         back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True

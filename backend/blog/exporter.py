@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
@@ -54,13 +54,9 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
         .order_by(PublishedVersion.article_id, PublishedVersion.version.desc())
         .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags))
     ).all()
-    first_published = {
-        article_id: at
-        for article_id, at in session.execute(
-            select(PublishedVersion.article_id, func.min(PublishedVersion.published_at)).group_by(PublishedVersion.article_id)
-        )
-    }
-    doc_ids = {id_: doc_id for id_, doc_id in session.execute(select(Article.id, Article.doc_id))}
+    doc_ids, first_published = {}, {}
+    for id_, doc_id, at in session.execute(select(Article.id, Article.doc_id, Article.first_published_at)):
+        doc_ids[id_], first_published[id_] = doc_id, at
     archived = sorted(session.scalars(select(Article.doc_id).where(Article.state == ArticleState.ARCHIVED)))
 
     files: dict[str, bytes] = {}
@@ -148,6 +144,35 @@ def _stage(repo: Path) -> None:
     _git(repo, "add", "--all", "--", *paths)
 
 
+def _has_head(repo: Path) -> bool:
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", "HEAD"], capture_output=True).returncode == 0
+
+
+def _discard_interrupted_export(repo: Path) -> None:
+    _git(repo, "rm", "-r", "--quiet", "--cached", "--ignore-unmatch", "--", *SNAPSHOT_PATHS)
+    in_head = _git(repo, "ls-tree", "--name-only", "HEAD", "--", *SNAPSHOT_PATHS).split() if _has_head(repo) else []
+    if in_head:
+        _git(repo, "checkout", "HEAD", "--", *in_head)
+    _git(repo, "clean", "-d", "--force", "--quiet", "--", *SNAPSHOT_PATHS)
+
+
+def head_release(repo: Path) -> ExportResult | None:
+    """The release HEAD holds, if HEAD is a release commit made by `export`."""
+    if not _has_head(repo):
+        return None
+    subject = _git(repo, "log", "-1", "--format=%s").strip()
+    if not subject.startswith("Release "):
+        return None
+    manifest = json.loads(_git(repo, "show", "HEAD:manifest.json"))
+    if subject != f"Release {manifest['release_id']}":
+        return None
+    return ExportResult(
+        release_id=manifest["release_id"],
+        commit=_git(repo, "rev-parse", "HEAD").strip(),
+        versions={a["doc_id"]: a["version"] for a in manifest["articles"]},
+    )
+
+
 def push(repo: Path) -> None:
     _git(repo, "push", "--quiet")
 
@@ -157,6 +182,7 @@ def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
     None when the published content did not change."""
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, Session(bind=conn) as session:
         files = render_snapshot(session)
+    _discard_interrupted_export(repo)
     if not write_snapshot(files, repo):
         return None
     manifest = json.loads(files["manifest.json"])
@@ -164,11 +190,7 @@ def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
     _git(repo, "commit", "--quiet", "-m", f"Release {manifest['release_id']}")
     if push_commit:
         push(repo)
-    return ExportResult(
-        release_id=manifest["release_id"],
-        commit=_git(repo, "rev-parse", "HEAD").strip(),
-        versions={a["doc_id"]: a["version"] for a in manifest["articles"]},
-    )
+    return head_release(repo)
 
 
 def main() -> None:
