@@ -3,6 +3,7 @@ import { api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { STATE_LABEL } from "./labels.ts";
 import { renderPreview } from "./preview.ts";
+import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 
 const STATUS_TEXT: Record<SyncStatus["kind"], string> = {
@@ -30,6 +31,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const [notice, setNotice] = useState("");
   const [state, setState] = useState(draft.state);
   const [uploading, setUploading] = useState(0);
+  const [showSnapshots, setShowSnapshots] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const sync = useRef<DraftSync>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +82,14 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     }
   };
 
+  const restore = async (snapshotId: number) => {
+    const restored = await sync.current?.restoreSnapshot(snapshotId);
+    if (!restored) return;
+    setContent(sync.current!.current);
+    setShowSnapshots(false);
+    setNotice("已還原快照。");
+  };
+
   const preview = useMemo(() => renderPreview(content.markdown), [content.markdown]);
 
   return (
@@ -91,6 +101,9 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           {status.kind === "error" && `：${status.message}`}
         </span>
         <span className="state">{STATE_LABEL[state]}</span>
+        <button type="button" aria-expanded={showSnapshots} onClick={() => setShowSnapshots((v) => !v)}>
+          快照
+        </button>
         <button type="button" onClick={() => fileInput.current?.click()}>
           插入圖片
         </button>
@@ -150,6 +163,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
       {invalid.length > 0 && <p className="hint">無效的 tag slug：{invalid.join("、")}</p>}
       {uploading > 0 && <p className="hint">圖片上傳中…</p>}
       {uploadError && <p className="banner">圖片上傳失敗 {uploadError}</p>}
+      {showSnapshots && <SnapshotPanel docId={draft.doc_id} onRestore={restore} />}
       <div className="split">
         <textarea
           ref={textarea}

@@ -1,4 +1,4 @@
-import { ApiError, type DraftApi, type DraftContent, type Published } from "./api.ts";
+import { ApiError, type Draft, type DraftApi, type DraftContent, type Published } from "./api.ts";
 
 export type SyncStatus =
   | { kind: "saved" }
@@ -109,6 +109,26 @@ export class DraftSync {
         this.dirty = this.content !== sent;
         this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
         return published;
+      } catch (e) {
+        this.fail(e);
+        return undefined;
+      }
+    });
+  }
+
+  /** Saves pending edits, then restores a snapshot on the server. */
+  restoreSnapshot(snapshotId: number): Promise<Draft | undefined> {
+    void this.flush();
+    return this.enqueue(async () => {
+      if (this.blocked) return undefined;
+      this.set({ kind: "saving" });
+      try {
+        const draft = await this.api.restoreSnapshot(this.docId, this.revision, snapshotId);
+        this.revision = draft.revision;
+        this.content = { title: draft.title, topic: draft.topic, tags: draft.tags, markdown: draft.markdown };
+        this.dirty = false;
+        this.set({ kind: "saved" });
+        return draft;
       } catch (e) {
         this.fail(e);
         return undefined;

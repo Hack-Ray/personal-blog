@@ -34,6 +34,13 @@ export interface Published {
   published_at: string;
 }
 
+export interface Snapshot {
+  id: number;
+  revision: number;
+  markdown: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: { detail?: unknown; current_revision?: number };
@@ -67,6 +74,9 @@ export const api = {
   remove: (docId: string) => request<ArticleSummary>("DELETE", `/articles/${docId}`),
   restore: (docId: string) => request<ArticleSummary>("POST", `/articles/${docId}/restore`),
   purge: (docId: string) => request<void>("POST", `/articles/${docId}/purge`),
+  snapshots: (docId: string) => request<Snapshot[]>("GET", `/articles/${docId}/snapshots`),
+  restoreSnapshot: (docId: string, baseRevision: number, snapshotId: number) =>
+    request<Draft>("POST", `/articles/${docId}/snapshots/${snapshotId}/restore`, { base_revision: baseRevision }),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);
@@ -74,4 +84,4 @@ export const api = {
   },
 };
 
-export type DraftApi = Pick<typeof api, "save" | "publish">;
+export type DraftApi = Pick<typeof api, "save" | "publish" | "restoreSnapshot">;

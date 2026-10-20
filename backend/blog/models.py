@@ -127,3 +127,16 @@ class ImageData(Base):
 
     image_id: Mapped[str] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
     data: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class DraftSnapshot(Base):
+    """Earlier Markdown of a Working Draft, kept for recovery while editing
+    (Baseline 6.2). Removed once the article is published."""
+
+    __tablename__ = "draft_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    markdown: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -8,7 +8,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from blog.models import Image, ImageData, PublishedVersion, WorkingDraft
+from blog.models import DraftSnapshot, Image, ImageData, PublishedVersion, WorkingDraft
 
 MAX_BYTES = 10 * 1024 * 1024
 GRACE = timedelta(days=7)
@@ -81,14 +81,15 @@ def mark_referenced(session: Session, markdown: str) -> None:
 def collect_garbage(session: Session, now: datetime) -> list[str]:
     """Deletes images with no reference for at least 7 days (Baseline 8.3).
 
-    References come from every Working Draft and every retained Published
-    Version; articles pending deletion keep both, so their images survive the
-    30-day restore window. The share locks stop drafts from gaining a
+    References come from every Working Draft, Draft Snapshot and retained
+    Published Version; articles pending deletion keep all three, so their
+    images survive the 30-day restore window. The share locks stop drafts from gaining a
     reference between the scan and the delete. Safe to run any number of times.
     """
-    session.execute(text("LOCK TABLE working_drafts, published_versions IN SHARE MODE"))
+    session.execute(text("LOCK TABLE working_drafts, draft_snapshots, published_versions IN SHARE MODE"))
     referenced: set[str] = set()
-    for (markdown,) in session.execute(select(WorkingDraft.markdown).union_all(select(PublishedVersion.markdown))):
+    sources = select(WorkingDraft.markdown).union_all(select(DraftSnapshot.markdown), select(PublishedVersion.markdown))
+    for (markdown,) in session.execute(sources):
         referenced |= refs(markdown)
 
     session.execute(update(Image).where(Image.id.in_(referenced)).values(unreferenced_since=None))

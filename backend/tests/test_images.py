@@ -98,10 +98,22 @@ def test_grace_period_starts_when_the_last_reference_goes_away(client):
     set_unreferenced_since(ref["id"], 30)
     doc_id = client.post("/api/articles", json=draft(ref["markdown"])).json()["doc_id"]
     client.put(f"/api/articles/{doc_id}/draft", json=draft("no image", base_revision=1))
+    # Publishing ends the editing cycle and drops the snapshot that still had the image.
+    client.post(f"/api/articles/{doc_id}/publish", json=draft("no image", base_revision=2))
 
     assert gc() == []
     assert gc(days_from_now=6) == []
     assert gc(days_from_now=8) == [ref["id"]]
+
+
+def test_image_kept_while_a_draft_snapshot_references_it(client):
+    ref = upload(client, PNG).json()
+    doc_id = client.post("/api/articles", json=draft(ref["markdown"])).json()["doc_id"]
+    client.put(f"/api/articles/{doc_id}/draft", json=draft("image removed", base_revision=1))
+    assert [s["markdown"] for s in client.get(f"/api/articles/{doc_id}/snapshots").json()] == [ref["markdown"]]
+    assert gc() == []
+    assert gc(days_from_now=30) == []
+    assert exists(ref["id"])
 
 
 def test_image_kept_while_a_published_version_references_it(client):

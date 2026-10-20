@@ -1,16 +1,20 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from ulid import ULID
 
 from blog import images
-from blog.models import Article, ArticleState, PublishedVersion, RetiredDocId, Tag, Topic, WorkingDraft
+from blog.models import Article, ArticleState, DraftSnapshot, PublishedVersion, RetiredDocId, Tag, Topic, WorkingDraft
 
 PENDING_DELETION_RETENTION = timedelta(days=30)
+SNAPSHOT_INTERVAL = timedelta(minutes=10)
+SNAPSHOT_BIG_CHANGE = 500
+SNAPSHOT_LIMIT = 50
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,10 @@ class RevisionConflict(Exception):
 
 
 class NotPublishable(Exception):
+    pass
+
+
+class SnapshotNotFound(Exception):
     pass
 
 
@@ -133,9 +141,39 @@ def list_articles(session: Session, state: ArticleState | None = None) -> list[A
     return list(session.scalars(query))
 
 
+def _snapshot_before_overwrite(session: Session, draft: WorkingDraft, new_markdown: str) -> None:
+    """Keeps the Markdown an Auto Save is about to replace (Baseline 6.2):
+    the first change of an editing cycle, then at most one per 10 minutes,
+    plus any single change of 500 characters or more."""
+    old = draft.markdown
+    if old == new_markdown or not old.strip():
+        return
+    last = session.scalars(
+        select(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id).order_by(DraftSnapshot.id.desc()).limit(1)
+    ).first()
+    if last is not None and last.markdown == old:
+        return
+    due = last is None or datetime.now(UTC) - last.created_at >= SNAPSHOT_INTERVAL
+    big = abs(len(new_markdown) - len(old)) >= SNAPSHOT_BIG_CHANGE
+    if not (due or big):
+        return
+    session.add(DraftSnapshot(article_id=draft.article_id, revision=draft.revision, markdown=old))
+    session.flush()
+    keep = (
+        select(DraftSnapshot.id)
+        .where(DraftSnapshot.article_id == draft.article_id)
+        .order_by(DraftSnapshot.id.desc())
+        .limit(SNAPSHOT_LIMIT)
+    )
+    session.execute(
+        sql_delete(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id, DraftSnapshot.id.not_in(keep))
+    )
+
+
 def save_draft(session: Session, doc_id: str, base_revision: int, content: DraftContent) -> WorkingDraft:
     """Auto Save. Rejects a save based on any revision but the current one."""
     draft = _locked_draft(session, doc_id, Action.EDIT, base_revision)
+    _snapshot_before_overwrite(session, draft, content.markdown)
     _apply(session, draft, content)
     draft.revision += 1
     session.commit()
@@ -163,8 +201,35 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
         markdown=draft.markdown,
     )
     session.add(version)
+    # The new version is durable once this commits, which ends the editing
+    # cycle; its snapshots are no longer needed (Baseline 6.2).
+    session.execute(sql_delete(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id))
     session.commit()
     return version
+
+
+def list_snapshots(session: Session, doc_id: str) -> list[DraftSnapshot]:
+    article = get_article(session, doc_id)
+    return list(
+        session.scalars(select(DraftSnapshot).where(DraftSnapshot.article_id == article.id).order_by(DraftSnapshot.id.desc()))
+    )
+
+
+def restore_snapshot(session: Session, doc_id: str, snapshot_id: int, base_revision: int) -> WorkingDraft:
+    """Writes a snapshot's Markdown back through Auto Save, so the content it
+    replaces is itself snapshotted and the restore can be undone."""
+    article = get_article(session, doc_id)
+    snapshot = session.get(DraftSnapshot, snapshot_id)
+    if snapshot is None or snapshot.article_id != article.id:
+        raise SnapshotNotFound(snapshot_id)
+    d = article.draft
+    content = DraftContent(
+        title=d.title,
+        topic=Taxon(d.topic.slug, d.topic.name),
+        tags=[Taxon(t.slug, t.name) for t in d.tags],
+        markdown=snapshot.markdown,
+    )
+    return save_draft(session, doc_id, base_revision, content)
 
 
 def archive(session: Session, doc_id: str) -> Article:

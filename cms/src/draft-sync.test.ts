@@ -40,6 +40,14 @@ function fakeServer() {
       published.push(c.markdown);
       return { doc_id: "D", version: published.length, revision, published_at: "" };
     },
+    async restoreSnapshot(_docId, base, snapshotId) {
+      calls.push(`restore@${base}:${snapshotId}`);
+      await gate();
+      check(base);
+      stored = { ...stored, markdown: `snapshot ${snapshotId}` };
+      revision += 1;
+      return { ...stored, doc_id: "D", state: "draft", revision, updated_at: "" };
+    },
   };
   const tick = () => new Promise((r) => setImmediate(r));
   return {
@@ -121,5 +129,18 @@ test("edits made while a save is in flight are saved afterwards", async () => {
   await server.releaseAll();
   await followUp;
   assert.equal(server.stored(), "two");
+  assert.equal(sync.status.kind, "saved");
+});
+
+test("restoring a snapshot first saves pending edits, then uses the new revision", async () => {
+  const server = fakeServer();
+  const sync = newSync(server);
+  sync.edit(content("unsaved"));
+  const restoring = sync.restoreSnapshot(7);
+  await server.releaseAll();
+  const draft = await restoring;
+  assert.deepEqual(server.calls, ["save@1:unsaved", "restore@2:7"]);
+  assert.equal(draft?.markdown, "snapshot 7");
+  assert.equal(sync.current.markdown, "snapshot 7");
   assert.equal(sync.status.kind, "saved");
 });

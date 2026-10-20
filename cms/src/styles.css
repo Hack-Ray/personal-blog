@@ -184,6 +184,39 @@ td {
   line-height: 1.7;
 }
 
+.snapshots {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.snapshots h2 {
+  font-size: 1em;
+  margin: 0 0 8px;
+}
+
+.snapshots ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.snapshots [aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.snapshot-text {
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: var(--panel);
+  padding: 8px;
+  border-radius: 6px;
+}
+
 @media (max-width: 800px) {
   .meta-fields,
   .split {

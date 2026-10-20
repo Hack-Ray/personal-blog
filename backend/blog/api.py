@@ -173,6 +173,33 @@ def purge(doc_id: str, session: SessionDep) -> None:
     articles.purge(session, doc_id)
 
 
+class SnapshotOut(BaseModel):
+    id: int
+    revision: int
+    markdown: str
+    created_at: datetime
+
+
+class RestoreBody(BaseModel):
+    base_revision: int = Field(ge=1)
+
+
+@app.get("/api/articles/{doc_id}/snapshots")
+def list_snapshots(doc_id: str, session: SessionDep) -> list[SnapshotOut]:
+    return [
+        SnapshotOut(id=s.id, revision=s.revision, markdown=s.markdown, created_at=s.created_at)
+        for s in articles.list_snapshots(session, doc_id)
+    ]
+
+
+@app.post("/api/articles/{doc_id}/snapshots/{snapshot_id}/restore")
+def restore_snapshot(doc_id: str, snapshot_id: int, body: RestoreBody, session: SessionDep) -> DraftOut:
+    try:
+        return DraftOut.of(articles.restore_snapshot(session, doc_id, snapshot_id, body.base_revision))
+    except articles.SnapshotNotFound as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "snapshot not found") from e
+
+
 class ImageOut(BaseModel):
     id: str
     markdown: str

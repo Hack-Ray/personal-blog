@@ -37,11 +37,15 @@ uv run python -m blog.exporter ../../personal-blog-content --push   # commit and
 
 Each article is exported at its latest Published Version, with `published_at` set to its first publication. Drafts and never-published articles are not exported.
 
+## Draft snapshots
+
+Before an Auto Save overwrites the draft, the Markdown it replaces is kept as a snapshot: on the first change of an editing cycle, then at most once per 10 minutes, and immediately for any change of 500 characters or more. Each article keeps its latest 50. Publishing clears them. `GET /api/articles/{doc_id}/snapshots` lists them and `POST /api/articles/{doc_id}/snapshots/{id}/restore` with `base_revision` writes one back through Auto Save, so the content it replaces is snapshotted too.
+
 ## Images
 
 `POST /api/images` (multipart `file`) stores a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes, and returns `![](images/<sha256>.<ext>)` to put in the Markdown. Uploading the same bytes again returns the same id. `GET /api/images/{id}` serves it to the editor preview. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
 
-Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft and every Published Version, which includes articles pending deletion.
+Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
 
 ## Draft and publish protocol
 
