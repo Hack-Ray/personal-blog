@@ -30,7 +30,18 @@
 - **Decision**：Draft 請求以 `{slug, name}` 指定 Topic／Tags；slug 不存在時自動建立，已存在時沿用既有名稱。
 - **Consequences**：Taxonomy 管理（改名、合併、刪除）仍未決定（Baseline 12）；屆時可能取代本決策。
 
+### BE-004：Content Exporter 的匯出規則
+
+- **Status**：Accepted (delegated)
+- **Decision**：
+  - 每篇有 Published Version 的文章匯出其最新版本；`published_at` 為該文章第一次發布的時間（Baseline 3.1 的「發表日期」）。
+  - 從未發布的文章與所有 Working Draft 內容都不匯出。
+  - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
+  - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。
+  - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
+- **Consequences**：`archived_articles` 目前恆為空，待 Article Lifecycle 實作後填入。觸發 deploy workflow（PUB-004）尚未實作，需先完成 `docs/setup-todo.md` 的 B4 token。
+
 ## Known gaps
 
 - CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
-- Article Lifecycle（Archive、Pending Deletion、Restore、永久刪除）、Draft Snapshots、圖片上傳與 Content Exporter 尚未實作。
+- Article Lifecycle（Archive、Pending Deletion、Restore、永久刪除）、Draft Snapshots、圖片上傳，以及 Exporter 完成後觸發 deploy workflow，尚未實作。
