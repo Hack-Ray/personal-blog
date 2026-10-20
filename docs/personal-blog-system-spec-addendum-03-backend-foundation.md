@@ -131,6 +131,19 @@
 - **Consequences**：真實的 GitHub API 呼叫要等 `docs/setup-todo.md` 的 A、B4 完成後才能驗證；目前以假的 GitHub API 與本機 bare repo 測試。
 - **Supersedes**：無；實作 PUB-004 的觸發方式（Addendum 02 Open Question）。
 
+### BE-011：Published Version 保留與清理
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 6.3。
+- **Decision**：一個 Published Version 只有在以下條件全部成立時才刪除：
+  1. 不在該文章最新的 3 個版本內。
+  2. 不屬於最新一筆 `deployed` release，也不屬於任何進行中（exported、pushed、dispatched、building）的 release。
+  3. 存在一個比它新、且在最新 `deployed` release 建立之前就已發布的版本（新版本確實已上線）。
+  4. 文章不在 Pending Deletion（30 天內保留所有版本以供復原）。
+  - 在 release 確認上線時，以及 CMS 啟動時執行；可重複執行。`failed`、`superseded` 的 release 不算上線。
+  - 被刪除版本引用的圖片，之後依 BE-007 的 7 天規則回收。
+- **Consequences**：部署失敗或從未部署時不會刪除任何版本，因此可能保留超過 3 版（符合 Baseline 6.3）。
+
 ## Known gaps
 
-- 舊 Published Version 清理（Baseline 6.3）尚未實作。
+- 真實 GitHub API 與部署流程尚未在真實環境驗證，需先完成 `docs/setup-todo.md` 的 A 與 B 區。
