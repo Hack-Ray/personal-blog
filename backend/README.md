@@ -24,6 +24,8 @@ CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs
 
 ## Backup and restore
 
+`scripts/start.sh` (the normal way to start the CMS) starts the database, takes a backup, applies migrations and runs the server. `backups/` is git-ignored; copy it to cloud storage.
+
 ```sh
 scripts/backup.sh                         # writes backups/blog-<UTC>.dump and .sha256
 scripts/restore.sh backups/<file>.dump    # replaces the whole database, then migrates

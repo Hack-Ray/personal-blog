@@ -48,8 +48,8 @@
   - 之後在 http://127.0.0.1:8000/admin/ 登入。忘記密碼時重新執行同一個指令即可，所有已登入的 session 會被登出。
 - [ ] **B6. 安排本機 PostgreSQL 的備份**（PUB-006）。
   - 內容 repo 只保存已發布 Snapshot，不能取代資料庫備份。
-  - 一鍵備份：`backend/scripts/backup.sh`；還原：`backend/scripts/restore.sh`。用法、排程與搬家步驟見 `docs/local-setup.md` 第 10–13 節。
-  - 要決定的事：多久備份一次（建議 cron 每天），以及備份要複製到哪裡（外接硬碟或雲端硬碟）。
+  - 用 `backend/scripts/start.sh` 啟動 CMS 時會自動備份到 `backend/backups/`（不進 git）。
+  - 你要做的：**定期把 `backend/backups/` 複製到雲端硬碟**。還原與搬家步驟見 `docs/local-setup.md` 第 10–13 節。
 
 ## C. 讓雲端 Claude session 能操作內容 repo（可選）
 

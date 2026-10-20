@@ -153,36 +153,44 @@ cd ~/personal-blog-content && git push --dry-run
 
 ## 9. 日常啟動與關閉
 
-啟動：
+啟動（每次開 CMS 都用這個）：
 
 ```sh
 cd personal-blog/backend
-docker compose up -d --wait        # 若 Docker 已自動啟動資料庫，這一步會立刻結束
-uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
+scripts/start.sh
 ```
 
-關閉：在 uvicorn 視窗按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
+`start.sh` 依序：
 
-拉了新程式碼之後：
+1. `docker compose up -d --wait` 啟動資料庫並等到可連線。
+2. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。
+3. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
+4. 啟動 CMS：http://127.0.0.1:8000/admin/
+
+關閉：按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
+
+拉了新程式碼之後，先更新套件與 CMS，再用 `start.sh` 啟動：
 
 ```sh
 uv sync
-uv run --env-file .env alembic upgrade head
 (cd ../cms && npm ci && npm run build)
+scripts/start.sh
 ```
 
 CMS 每次啟動時會自動執行到期的清理：待刪除滿 30 天的文章、已上線後不再需要的舊版本、7 天沒有引用的圖片。
 
 ## 10. 備份
 
-### 10.1 一鍵備份
+### 10.1 每次啟動自動備份，也可以手動備份
+
+用 `scripts/start.sh` 啟動時會自動備份一次。想在其他時候備份（例如大量修改之前），手動執行：
 
 ```sh
 cd personal-blog/backend
 scripts/backup.sh
 ```
 
-會在 `backend/backups/` 產生兩個檔案：
+每次備份會在 `backend/backups/` 產生兩個檔案：
 
 - `blog-<UTC 時間>.dump`：整個資料庫（PostgreSQL custom format）
 - `blog-<UTC 時間>.dump.sha256`：檢查碼，還原時用來確認檔案沒有損壞
@@ -198,11 +206,12 @@ scripts/backup.sh
 | Topic、Tag、文章狀態、退役的 docId | 程式碼（在 GitHub 上） |
 | 發布紀錄、管理員密碼雜湊、登入 session | |
 
-### 10.3 存放與排程建議
+### 10.3 存放
 
-- `backend/backups/` 已被 `.gitignore` 排除。**請把備份複製到電腦以外的地方**（外接硬碟或雲端硬碟），只放在同一台電腦上無法防止硬碟損壞。
-- 舊備份不會自動刪除，請定期手動清理。
-- macOS／Linux 可以用 cron 每天凌晨 3 點自動備份（`crontab -e` 加入一行，路徑改成你的）：
+- `backend/backups/` 已被 `.gitignore` 排除，**不會進 git**。
+- **請定期把 `backend/backups/` 裡的檔案複製到雲端硬碟**。只放在同一台電腦上無法防止硬碟損壞或遺失。`.dump` 與 `.sha256` 要一起複製。
+- 舊備份不會自動刪除。確認已存到雲端後，可以手動刪除本機較舊的檔案。
+- （選用）如果 CMS 很久才開一次，也可以用 cron 另外排程每天備份（`crontab -e` 加入一行，路徑改成你的）：
 
   ```cron
   0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1

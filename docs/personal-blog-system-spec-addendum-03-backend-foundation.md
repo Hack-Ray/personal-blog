@@ -144,6 +144,17 @@
   - 被刪除版本引用的圖片，之後依 BE-007 的 7 天規則回收。
 - **Consequences**：部署失敗或從未部署時不會刪除任何版本，因此可能保留超過 3 版（符合 Baseline 6.3）。
 
+### BE-012：本機版的備份方式
+
+- **Status**：Confirmed（使用者 2026-10-20 指定）
+- **Context**：PUB-006（內容 repo 不能取代 CMS 備份）。
+- **Decision**：
+  - 第一階段（本機版）每次以 `backend/scripts/start.sh` 啟動 CMS 時，自動以 `scripts/backup.sh` 備份整個資料庫，順序在 migration 之前。
+  - 備份檔放在 `backend/backups/`，由 `.gitignore` 排除，不進 git。
+  - 使用者自行定期把備份複製到雲端儲存。本機舊備份不自動刪除。
+  - 還原以 `scripts/restore.sh`：驗證 checksum、確認後取代整個資料庫，再執行 migration。
+- **Consequences**：CMS 長時間不重啟時，期間的修改沒有新的備份；需要時可手動執行 `scripts/backup.sh`。
+
 ## Known gaps
 
 - 真實 GitHub API 與部署流程尚未在真實環境驗證，需先完成 `docs/setup-todo.md` 的 A 與 B 區。
