@@ -25,6 +25,17 @@ docker compose exec db createdb -U blog blog_test
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
+## Export a release
+
+Writes the current public state into a local clone of `personal-blog-content` as one commit (Addendum 02, PUB-003). Nothing is committed when the published content has not changed.
+
+```sh
+uv run python -m blog.exporter ../../personal-blog-content          # commit only
+uv run python -m blog.exporter ../../personal-blog-content --push   # commit and push
+```
+
+Each article is exported at its latest Published Version, with `published_at` set to its first publication. Drafts and never-published articles are not exported.
+
 ## Draft and publish protocol
 
 | Request | Body | Result |

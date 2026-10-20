@@ -48,6 +48,10 @@ jobs:
       TEST_DATABASE_URL: postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test
     steps:
       - uses: actions/checkout@v5
+      # test_exporter runs the frontend snapshot parser on the exported files.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run pytest

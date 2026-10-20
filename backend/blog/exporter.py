@@ -1,0 +1,154 @@
+"""Content Exporter (Addendum 02, PUB-003).
+
+Reads the public state in one REPEATABLE READ transaction, renders the whole
+snapshot in memory, and only then touches the content repo, so a failed read
+never leaves a half-written snapshot behind.
+"""
+
+import argparse
+import json
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
+
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy.orm import Session, selectinload
+from ulid import ULID
+
+from blog.db import engine
+from blog.models import Article, PublishedVersion
+
+SCHEMA_VERSION = 1
+SNAPSHOT_PATHS = ("manifest.json", "articles", "images")
+
+
+def _json(data: object) -> bytes:
+    return (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode()
+
+
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def render_snapshot(session: Session) -> dict[str, bytes]:
+    """Returns the snapshot as {relative path: file bytes}."""
+    latest = session.scalars(
+        select(PublishedVersion)
+        .ext(distinct_on(PublishedVersion.article_id))
+        .order_by(PublishedVersion.article_id, PublishedVersion.version.desc())
+        .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags))
+    ).all()
+    first_published = {
+        article_id: at
+        for article_id, at in session.execute(
+            select(PublishedVersion.article_id, func.min(PublishedVersion.published_at)).group_by(PublishedVersion.article_id)
+        )
+    }
+    doc_ids = {id_: doc_id for id_, doc_id in session.execute(select(Article.id, Article.doc_id))}
+
+    files: dict[str, bytes] = {}
+    entries = []
+    for v in sorted(latest, key=lambda v: doc_ids[v.article_id]):
+        doc_id = doc_ids[v.article_id]
+        entries.append({"doc_id": doc_id, "version": v.version})
+        files[f"articles/{doc_id}.json"] = _json(
+            {
+                "doc_id": doc_id,
+                "version": v.version,
+                "title": v.title,
+                "topic": {"slug": v.topic.slug, "name": v.topic.name},
+                "tags": [{"slug": t.slug, "name": t.name} for t in v.tags],
+                "published_at": _iso(first_published[v.article_id]),
+                "markdown": v.markdown,
+            }
+        )
+    files["manifest.json"] = _json(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "release_id": str(ULID()),
+            "created_at": _iso(datetime.now(UTC)),
+            "articles": entries,
+            # Filled in once Article Lifecycle (Archive) exists.
+            "archived_articles": [],
+        }
+    )
+    return files
+
+
+def _read_current(repo: Path) -> dict[str, bytes]:
+    current = {}
+    for top in SNAPSHOT_PATHS:
+        path = repo / top
+        for f in [path] if path.is_file() else sorted(p for p in path.rglob("*") if p.is_file()):
+            current[f.relative_to(repo).as_posix()] = f.read_bytes()
+    return current
+
+
+def _without_release(manifest: bytes) -> dict:
+    data = json.loads(manifest)
+    data.pop("release_id", None)
+    data.pop("created_at", None)
+    return data
+
+
+def _same_content(new: dict[str, bytes], current: dict[str, bytes]) -> bool:
+    if new.keys() != current.keys():
+        return False
+    if any(new[k] != current[k] for k in new if k != "manifest.json"):
+        return False
+    return _without_release(new["manifest.json"]) == _without_release(current["manifest.json"])
+
+
+def write_snapshot(files: dict[str, bytes], repo: Path) -> bool:
+    """Makes the repo's snapshot paths match `files`. Returns False, writing
+    nothing, when only the release id and timestamp would change."""
+    current = _read_current(repo)
+    if _same_content(files, current):
+        return False
+    for stale in current.keys() - files.keys():
+        (repo / stale).unlink()
+    for rel, data in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_bytes(data)
+    return True
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
+
+
+def _stage(repo: Path) -> None:
+    # git add fails on a pathspec that matches nothing, e.g. images/ before the
+    # first image is published.
+    tracked = set(_git(repo, "ls-files").splitlines())
+    paths = [p for p in SNAPSHOT_PATHS if (repo / p).exists() or any(t == p or t.startswith(f"{p}/") for t in tracked)]
+    _git(repo, "add", "--all", "--", *paths)
+
+
+def export(repo: Path, push: bool = False) -> str | None:
+    """Exports the current public state into `repo` as one commit. Returns the
+    new release id, or None when the published content did not change."""
+    with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, Session(bind=conn) as session:
+        files = render_snapshot(session)
+    if not write_snapshot(files, repo):
+        return None
+    release_id = json.loads(files["manifest.json"])["release_id"]
+    _stage(repo)
+    _git(repo, "commit", "--quiet", "-m", f"Release {release_id}")
+    if push:
+        _git(repo, "push", "--quiet")
+    return release_id
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Export the published site content into the content repo.")
+    parser.add_argument("repo", type=Path, help="local clone of personal-blog-content")
+    parser.add_argument("--push", action="store_true", help="push the release commit")
+    args = parser.parse_args()
+    release_id = export(args.repo, push=args.push)
+    print(f"Released {release_id}" if release_id else "No changes to publish")
+
+
+if __name__ == "__main__":
+    main()
