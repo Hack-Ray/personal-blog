@@ -6,6 +6,8 @@ Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding
 
 ## Run locally
 
+Step-by-step guide (Docker, first run, daily use, backup and restore): [`docs/local-setup.md`](../docs/local-setup.md).
+
 ```sh
 cp .env.example .env                 # then fill in CONTENT_REPO_DIR and GITHUB_TOKEN
 docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
@@ -19,6 +21,15 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 `--env-file .env` loads the settings; the backend itself reads only environment variables.
 
 CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs
+
+## Backup and restore
+
+```sh
+scripts/backup.sh                         # writes backups/blog-<UTC>.dump and .sha256
+scripts/restore.sh backups/<file>.dump    # replaces the whole database, then migrates
+```
+
+Both default to the Docker Compose database; `--url <DATABASE_URL>` targets any PostgreSQL. See `docs/local-setup.md` sections 10–13.
 
 ## Test
 
