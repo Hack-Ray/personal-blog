@@ -7,6 +7,7 @@ const basePath = process.env.BASE_PATH ?? "/personal-blog";
 const config: NextConfig = {
   output: "export",
   basePath,
+  env: { BASE_PATH: basePath },
   trailingSlash: true,
 };
 

@@ -2,16 +2,41 @@
 
 Public site: Next.js static export, served by GitHub Pages under `/personal-blog`.
 
-Until the backend export exists, the build reads `content/site.json`. It holds only what the public site may show: published articles and archived ones (docId only). Drafts and deleted articles never appear in it, so their URLs return 404.
+The build reads a Content Snapshot from `SITE_DATA_DIR` (default: `sample-site-data/`). In CI it is the private `personal-blog-content` repo (Addendum 02, PUB-002).
 
 ```sh
 npm ci
-npm test            # content model unit tests
+npm test            # snapshot contract and content queries
 npm run typecheck
-npm run build       # writes out/
+npm run build       # copies snapshot images, writes out/
+SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 ```
 
-To check the built site, serve `out/` under `/personal-blog` and run the checks:
+## Snapshot format (schema_version 1, draft)
+
+```text
+manifest.json
+articles/{docId}.json
+images/{contentHash}.{ext}
+```
+
+`manifest.json`:
+
+```json
+{
+  "schema_version": 1,
+  "release_id": "<ULID>",
+  "created_at": "<ISO 8601>",
+  "articles": [{ "doc_id": "<ULID>", "version": 1 }],
+  "archived_articles": [{ "doc_id": "<ULID>" }]
+}
+```
+
+`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>`. Archived articles have no article file.
+
+The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, or a referenced image is missing.
+
+## Checking the built site
 
 ```sh
 mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/personal-blog

@@ -1,0 +1,21 @@
+{
+  "doc_id": "01K7P2B9X3QW8N5R7TZ4HJMVCD",
+  "version": 1,
+  "title": "Next.js Static Export 部署到 GitHub Pages",
+  "topic": {
+    "slug": "frontend",
+    "name": "Frontend"
+  },
+  "tags": [
+    {
+      "slug": "nextjs",
+      "name": "Next.js"
+    },
+    {
+      "slug": "github-pages",
+      "name": "GitHub Pages"
+    }
+  ],
+  "published_at": "2026-10-10T20:30:00+08:00",
+  "markdown": "使用 `output: 'export'` 產生純靜態檔案。\n"
+}

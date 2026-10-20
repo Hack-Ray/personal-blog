@@ -14,5 +14,6 @@ check "unknown docId is not generated" '[ "$(code $B/posts/01K7ZZZZZZZZZZZZZZZZZ
 check "topic page lists only its posts" 'p=$(body $B/topics/backend/); echo "$p" | grep -q 01K7R6F2M8KD4S9V1YCX3BNQWE && ! echo "$p" | grep -q 01K7P2B9X3QW8N5R7TZ4HJMVCD'
 check "tag page lists tagged posts" 'body $B/tags/python/ | grep -q 01K7M4Y7P65BDCF8AHRTQY7ZQF'
 check "assets resolve under basePath" 'a=$(body $B/ | grep -o "/personal-blog/_next/static/[^\"]*\.css" | head -1); [ -n "$a" ] && [ "$(curl -s -o /dev/null -w %{http_code} "${B%/personal-blog}$a")" = 200 ]'
+check "snapshot image is served under basePath" 'i=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -o "src=\"/personal-blog/images/[^\"]*" | head -1 | cut -d\" -f2); [ -n "$i" ] && [ "$(curl -s -o /dev/null -w %{http_code} "${B%/personal-blog}$i")" = 200 ]'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]

@@ -1,7 +1,7 @@
-import { marked } from "marked";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
+import { renderMarkdown } from "../../../content/markdown.ts";
 import { parseDocId } from "../../../content/parse.ts";
 import { findArticle } from "../../../content/queries.ts";
 import { ArticleMeta } from "../../article-list.tsx";
@@ -40,7 +40,7 @@ export default async function PostPage({ params }: Props) {
       <h1>{a.title}</h1>
       <ArticleMeta article={a} />
       {/* Markdown comes only from the site author through the CMS. */}
-      <div dangerouslySetInnerHTML={{ __html: marked.parse(a.markdown, { async: false }) }} />
+      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, process.env.BASE_PATH ?? "") }} />
     </article>
   );
 }

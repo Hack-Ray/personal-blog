@@ -1,14 +1,23 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { SiteContent } from "./model.ts";
-import { parseSiteContent } from "./parse.ts";
+import { ContentError, parseSnapshot } from "./parse.ts";
 
-// Until the FastAPI export exists, the build reads a local fixture.
-const CONTENT_FILE = join(process.cwd(), "content", "site.json");
+// CI checks out the private content repo and points SITE_DATA_DIR at it.
+export const SITE_DATA_DIR = resolve(process.env.SITE_DATA_DIR ?? "sample-site-data");
+
+function readJson(path: string): unknown {
+  if (!existsSync(path)) throw new ContentError(`${path}: file not found`);
+  return JSON.parse(readFileSync(path, "utf8"));
+}
 
 let cached: SiteContent | undefined;
 
 export function loadSiteContent(): SiteContent {
-  cached ??= parseSiteContent(JSON.parse(readFileSync(CONTENT_FILE, "utf8")));
+  cached ??= parseSnapshot({
+    manifest: readJson(join(SITE_DATA_DIR, "manifest.json")),
+    readArticle: (docId) => readJson(join(SITE_DATA_DIR, "articles", `${docId}.json`)),
+    hasImage: (name) => !name.includes("/") && statSync(join(SITE_DATA_DIR, "images", name), { throwIfNoEntry: false })?.isFile() === true,
+  });
   return cached;
 }
