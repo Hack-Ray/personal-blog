@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
@@ -54,13 +54,9 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
         .order_by(PublishedVersion.article_id, PublishedVersion.version.desc())
         .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags))
     ).all()
-    first_published = {
-        article_id: at
-        for article_id, at in session.execute(
-            select(PublishedVersion.article_id, func.min(PublishedVersion.published_at)).group_by(PublishedVersion.article_id)
-        )
-    }
-    doc_ids = {id_: doc_id for id_, doc_id in session.execute(select(Article.id, Article.doc_id))}
+    doc_ids, first_published = {}, {}
+    for id_, doc_id, at in session.execute(select(Article.id, Article.doc_id, Article.first_published_at)):
+        doc_ids[id_], first_published[id_] = doc_id, at
     archived = sorted(session.scalars(select(Article.doc_id).where(Article.state == ArticleState.ARCHIVED)))
 
     files: dict[str, bytes] = {}
