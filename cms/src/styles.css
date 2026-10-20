@@ -90,7 +90,8 @@ textarea {
 }
 
 .status-conflict,
-.status-error {
+.status-error,
+.status-unsaved {
   color: var(--danger);
 }
 
