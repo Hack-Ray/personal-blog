@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from ulid import ULID
 
+from blog import images
 from blog.models import Article, ArticleState, PublishedVersion, RetiredDocId, Tag, Topic, WorkingDraft
 
 PENDING_DELETION_RETENTION = timedelta(days=30)
@@ -81,6 +82,7 @@ def _apply(session: Session, draft: WorkingDraft, content: DraftContent) -> None
     draft.topic = _get_or_create(session, Topic, content.topic)
     draft.tags = [_get_or_create(session, Tag, t) for t in {t.slug: t for t in content.tags}.values()]
     draft.updated_at = func.now()
+    images.mark_referenced(session, content.markdown)
 
 
 def _locked(session: Session, doc_id: str, action: Action) -> Article:

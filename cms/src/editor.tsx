@@ -1,8 +1,8 @@
-import { marked } from "marked";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { STATE_LABEL } from "./labels.ts";
+import { renderPreview } from "./preview.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 
 const STATUS_TEXT: Record<SyncStatus["kind"], string> = {
@@ -29,7 +29,11 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const [status, setStatus] = useState<SyncStatus>({ kind: "saved" });
   const [notice, setNotice] = useState("");
   const [state, setState] = useState(draft.state);
+  const [uploading, setUploading] = useState(0);
+  const [uploadError, setUploadError] = useState("");
   const sync = useRef<DraftSync>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     sync.current = new DraftSync(api, draft.doc_id, { revision: draft.revision, content: draft }, setStatus);
@@ -51,7 +55,32 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     setNotice(`已發布第 ${result.version} 版。執行 Exporter 後才會出現在網站上。`);
   };
 
-  const preview = useMemo(() => marked.parse(content.markdown, { async: false }), [content.markdown]);
+  const latest = useRef(content);
+  latest.current = content;
+
+  const insertImages = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return;
+    setUploadError("");
+    setUploading((n) => n + images.length);
+    for (const file of images) {
+      try {
+        const { markdown } = await api.uploadImage(file);
+        const el = textarea.current;
+        const md = latest.current.markdown;
+        const at = el ? el.selectionStart : md.length;
+        const snippet = `${at > 0 && md[at - 1] !== "\n" ? "\n" : ""}${markdown}\n`;
+        update({ ...latest.current, markdown: md.slice(0, at) + snippet + md.slice(at) });
+        requestAnimationFrame(() => el?.setSelectionRange(at + snippet.length, at + snippet.length));
+      } catch (e) {
+        setUploadError(`${file.name}：${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  };
+
+  const preview = useMemo(() => renderPreview(content.markdown), [content.markdown]);
 
   return (
     <div className="editor">
@@ -62,6 +91,21 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           {status.kind === "error" && `：${status.message}`}
         </span>
         <span className="state">{STATE_LABEL[state]}</span>
+        <button type="button" onClick={() => fileInput.current?.click()}>
+          插入圖片
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          hidden
+          aria-label="選擇圖片"
+          onChange={(e) => {
+            void insertImages([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+        />
         <button type="button" onClick={publish} disabled={status.kind === "conflict" || !topicValid}>
           發布
         </button>
@@ -104,11 +148,29 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
         </Field>
       </div>
       {invalid.length > 0 && <p className="hint">無效的 tag slug：{invalid.join("、")}</p>}
+      {uploading > 0 && <p className="hint">圖片上傳中…</p>}
+      {uploadError && <p className="banner">圖片上傳失敗 {uploadError}</p>}
       <div className="split">
         <textarea
+          ref={textarea}
           aria-label="Markdown"
           value={content.markdown}
           onChange={(e) => update({ ...content, markdown: e.target.value })}
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files];
+            if (files.some((f) => f.type.startsWith("image/"))) {
+              e.preventDefault();
+              void insertImages(files);
+            }
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            const files = [...e.dataTransfer.files];
+            if (files.length > 0) {
+              e.preventDefault();
+              void insertImages(files);
+            }
+          }}
           spellCheck={false}
         />
         {/* Preview of the author's own Markdown, same renderer as the public site. */}

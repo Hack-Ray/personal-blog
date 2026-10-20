@@ -5,13 +5,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles
+from blog import articles, images
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, PublishedVersion, WorkingDraft
 
@@ -19,7 +19,9 @@ from blog.models import Article, ArticleState, PublishedVersion, WorkingDraft
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     with SessionLocal() as session:
-        articles.purge_expired(session, datetime.now(UTC))
+        now = datetime.now(UTC)
+        articles.purge_expired(session, now)
+        images.collect_garbage(session, now)
     yield
 
 
@@ -169,6 +171,32 @@ def restore(doc_id: str, session: SessionDep) -> ArticleOut:
 @app.post("/api/articles/{doc_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 def purge(doc_id: str, session: SessionDep) -> None:
     articles.purge(session, doc_id)
+
+
+class ImageOut(BaseModel):
+    id: str
+    markdown: str
+
+
+@app.post("/api/images", status_code=status.HTTP_201_CREATED)
+async def upload_image(file: UploadFile, session: SessionDep) -> ImageOut:
+    data = await file.read(images.MAX_BYTES + 1)
+    try:
+        image = images.store(session, data)
+    except images.ImageTooLarge as e:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(e)) from e
+    except images.UnsupportedImage as e:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(e)) from e
+    return ImageOut(id=image.id, markdown=f"![](images/{image.id})")
+
+
+@app.get("/api/images/{image_id}")
+def get_image(image_id: str, session: SessionDep) -> Response:
+    found = images.load(session, image_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "image not found")
+    image, data = found
+    return Response(data, media_type=image.content_type, headers={"cache-control": "private, max-age=31536000, immutable"})
 
 
 CMS_DIST = Path(os.environ.get("CMS_DIST", Path(__file__).resolve().parents[2] / "cms" / "dist"))

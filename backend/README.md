@@ -37,6 +37,12 @@ uv run python -m blog.exporter ../../personal-blog-content --push   # commit and
 
 Each article is exported at its latest Published Version, with `published_at` set to its first publication. Drafts and never-published articles are not exported.
 
+## Images
+
+`POST /api/images` (multipart `file`) stores a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes, and returns `![](images/<sha256>.<ext>)` to put in the Markdown. Uploading the same bytes again returns the same id. `GET /api/images/{id}` serves it to the editor preview. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
+
+Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft and every Published Version, which includes articles pending deletion.
+
 ## Draft and publish protocol
 
 | Request | Body | Result |

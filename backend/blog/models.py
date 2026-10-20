@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from blog.db import Base
@@ -106,3 +106,24 @@ class RetiredDocId(Base):
 
     doc_id: Mapped[str] = mapped_column(String(26), primary_key=True)
     retired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Image(Base):
+    """Index entry for an uploaded image; `id` is `<sha256>.<ext>`, so its
+    bytes can never change (Baseline 8.1)."""
+
+    __tablename__ = "images"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(40))
+    byte_size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Start of the current stretch with no reference; NULL while referenced.
+    unreferenced_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ImageData(Base):
+    __tablename__ = "image_data"
+
+    image_id: Mapped[str] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary)

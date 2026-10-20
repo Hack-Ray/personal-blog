@@ -48,8 +48,8 @@ export class ApiError extends Error {
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: body === undefined ? {} : { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: body === undefined || body instanceof FormData ? {} : { "content-type": "application/json" },
+    body: body === undefined || body instanceof FormData ? body : JSON.stringify(body),
   });
   if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
   return (res.status === 204 ? undefined : await res.json()) as T;
@@ -67,6 +67,11 @@ export const api = {
   remove: (docId: string) => request<ArticleSummary>("DELETE", `/articles/${docId}`),
   restore: (docId: string) => request<ArticleSummary>("POST", `/articles/${docId}/restore`),
   purge: (docId: string) => request<void>("POST", `/articles/${docId}/purge`),
+  uploadImage: (file: Blob) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ id: string; markdown: string }>("POST", "/images", form);
+  },
 };
 
 export type DraftApi = Pick<typeof api, "save" | "publish">;

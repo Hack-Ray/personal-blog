@@ -26,7 +26,7 @@ def schema():
 def clean_tables():
     yield
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE articles, topics, tags RESTART IDENTITY CASCADE"))
+        conn.execute(text("TRUNCATE articles, topics, tags, images, retired_doc_ids RESTART IDENTITY CASCADE"))
 
 
 @pytest.fixture

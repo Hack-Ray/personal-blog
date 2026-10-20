@@ -16,11 +16,16 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
 
+from blog import images
 from blog.db import engine
-from blog.models import Article, ArticleState, PublishedVersion
+from blog.models import Article, ArticleState, ImageData, PublishedVersion
 
 SCHEMA_VERSION = 1
 SNAPSHOT_PATHS = ("manifest.json", "articles", "images")
+
+
+class ExportError(Exception):
+    pass
 
 
 def _json(data: object) -> bytes:
@@ -52,9 +57,11 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
 
     files: dict[str, bytes] = {}
     entries = []
+    image_ids: set[str] = set()
     for v in sorted(latest, key=lambda v: doc_ids[v.article_id]):
         doc_id = doc_ids[v.article_id]
         entries.append({"doc_id": doc_id, "version": v.version})
+        image_ids |= images.refs(v.markdown)
         files[f"articles/{doc_id}.json"] = _json(
             {
                 "doc_id": doc_id,
@@ -66,6 +73,11 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
                 "markdown": v.markdown,
             }
         )
+    data = {i: d for i, d in session.execute(select(ImageData.image_id, ImageData.data).where(ImageData.image_id.in_(image_ids)))}
+    if missing := image_ids - data.keys():
+        raise ExportError(f"published articles reference missing images: {', '.join(sorted(missing))}")
+    for image_id, blob in data.items():
+        files[f"images/{image_id}"] = blob
     files["manifest.json"] = _json(
         {
             "schema_version": SCHEMA_VERSION,
