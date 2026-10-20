@@ -1,4 +1,5 @@
 import hashlib
+import io
 import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image as Pillow
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
@@ -15,9 +17,26 @@ from blog.db import SessionLocal, engine
 from blog.exporter import ExportError, export
 from tests.conftest import sign_in
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-JPEG = b"\xff\xd8\xff\xe0" + b"\x01" * 32
-WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x02" * 32
+
+
+def encode(fmt, size=(8, 4), color="red", **save):
+    out = io.BytesIO()
+    Pillow.new("RGB", size, color).save(out, fmt, **save)
+    return out.getvalue()
+
+
+def animated_gif(size):
+    out = io.BytesIO()
+    first, second = Pillow.new("RGB", size, "red"), Pillow.new("RGB", size, "blue")
+    first.save(out, "GIF", save_all=True, append_images=[second], duration=[50, 70], loop=0)
+    return out.getvalue()
+
+
+def opened(client, image_id):
+    return Pillow.open(io.BytesIO(client.get(f"/api/images/{image_id}").content))
+
+
+PNG, JPEG, WEBP = encode("PNG"), encode("JPEG"), encode("WEBP", color="blue")
 BACKEND = {"slug": "backend", "name": "Backend"}
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
@@ -48,14 +67,52 @@ def exists(image_id):
         return images.load(s, image_id) is not None
 
 
-@pytest.mark.parametrize(("data", "ext", "content_type"), [(PNG, "png", "image/png"), (JPEG, "jpg", "image/jpeg"), (WEBP, "webp", "image/webp")])
-def test_upload_names_the_image_by_its_content_hash(client, data, ext, content_type):
+@pytest.mark.parametrize("data", [PNG, JPEG, WEBP, encode("GIF")])
+def test_upload_is_stored_as_webp_named_by_its_content_hash(client, data):
     r = upload(client, data, name="whatever.gif")
     assert r.status_code == 201
-    image_id = f"{hashlib.sha256(data).hexdigest()}.{ext}"
+    served = client.get(f"/api/images/{r.json()['id']}")
+    assert served.headers["content-type"] == "image/webp"
+    assert served.content[:4] == b"RIFF" and served.content[8:12] == b"WEBP"
+    image_id = f"{hashlib.sha256(served.content).hexdigest()}.webp"
     assert r.json() == {"id": image_id, "markdown": f"![](images/{image_id})"}
-    served = client.get(f"/api/images/{image_id}")
-    assert (served.content, served.headers["content-type"]) == (data, content_type)
+
+
+def test_wide_image_shrinks_to_max_width_keeping_its_ratio(client):
+    image_id = upload(client, encode("PNG", size=(2560, 1316))).json()["id"]
+    assert opened(client, image_id).size == (1440, 740)
+
+
+def test_narrow_image_is_not_enlarged(client):
+    image_id = upload(client, encode("PNG", size=(300, 200))).json()["id"]
+    assert opened(client, image_id).size == (300, 200)
+
+
+def test_animated_gif_stays_animated(client):
+    image_id = upload(client, animated_gif((2000, 100))).json()["id"]
+    im = opened(client, image_id)
+    assert (im.is_animated, im.n_frames, im.size) == (True, 2, (1440, 72))
+
+
+def test_transparency_is_kept(client):
+    out = io.BytesIO()
+    Pillow.new("RGBA", (4, 4), (0, 0, 0, 0)).save(out, "PNG")
+    image_id = upload(client, out.getvalue()).json()["id"]
+    assert opened(client, image_id).convert("RGBA").getpixel((0, 0))[3] == 0
+
+
+def test_exif_is_dropped_and_orientation_applied(client):
+    exif = Pillow.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90° clockwise to display
+    exif[0x010F] = "Camera Maker"
+    image_id = upload(client, encode("JPEG", size=(40, 20), exif=exif)).json()["id"]
+    im = opened(client, image_id)
+    assert im.size == (20, 40)
+    assert not im.getexif()
+
+
+def test_unreadable_image_with_a_valid_signature_is_rejected(client):
+    assert upload(client, PNG[:20]).status_code == 415
 
 
 def test_uploading_the_same_bytes_twice_returns_the_same_image(client):
@@ -164,7 +221,7 @@ def test_export_includes_only_images_of_published_versions(client, tmp_path):
     export(repo)
 
     assert sorted(p.name for p in (repo / "images").iterdir()) == [used["id"]]
-    assert (repo / "images" / used["id"]).read_bytes() == PNG
+    assert (repo / "images" / used["id"]).read_bytes() == client.get(f"/api/images/{used['id']}").content
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the frontend snapshot parser")
