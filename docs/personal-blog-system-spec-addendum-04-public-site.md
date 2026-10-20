@@ -34,6 +34,17 @@
 - **Decision**：`/about/` 頁的內容來自 `frontend/src/profile.ts`（名字、標語、自我介紹、連結、經歷、作品）；空的清單不顯示該區塊。連結必須是 `https://` 或 `mailto:`（測試檢查）。
 - **Consequences**：修改介紹需要改程式碼並重新部署；若之後想從 CMS 編輯，再把同樣的資料形狀搬進 Snapshot。
 
+### FE-004：文章列表顯示第一張圖片與摘要
+
+- **Status**：Confirmed（使用者 2026-10-20 指定）
+- **Context**：文章列表原本只有標題與 metadata，看不出文章內容。
+- **Decision**：
+  - 首頁、文章列表、Topic 頁與 Tag 頁的每篇文章顯示摘要與縮圖。
+  - 摘要沿用 FE-001 的 description（Markdown 轉純文字的前 120 字），畫面上最多顯示三行，超過以省略號截斷。
+  - 縮圖是文章中第一張上傳圖片（`images/` 引用），略過程式碼區塊內的圖片與外部網址圖片；沒有圖片的文章不顯示縮圖。
+  - 縮圖寬 160px（螢幕寬 480px 以下為 96px），16:10 裁切，延遲載入。
+- **Consequences**：縮圖直接使用文章原圖（BE-014 後最寬 1440px 的 WebP），沒有另外產生小圖；文章多時可再加 build 時產生縮圖。
+
 ## Open Questions
 
 - giscus 留言：需要在 GitHub 開啟 Discussions、安裝 giscus app，並決定 mapping 方式（Baseline 3.3 建議以 `doc_id` 對應）。
