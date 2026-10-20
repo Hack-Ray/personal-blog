@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
 
 from blog.db import engine
-from blog.models import Article, PublishedVersion
+from blog.models import Article, ArticleState, PublishedVersion
 
 SCHEMA_VERSION = 1
 SNAPSHOT_PATHS = ("manifest.json", "articles", "images")
@@ -35,6 +35,8 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
     """Returns the snapshot as {relative path: file bytes}."""
     latest = session.scalars(
         select(PublishedVersion)
+        .join(Article)
+        .where(Article.state == ArticleState.PUBLISHED)
         .ext(distinct_on(PublishedVersion.article_id))
         .order_by(PublishedVersion.article_id, PublishedVersion.version.desc())
         .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags))
@@ -46,6 +48,7 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
         )
     }
     doc_ids = {id_: doc_id for id_, doc_id in session.execute(select(Article.id, Article.doc_id))}
+    archived = sorted(session.scalars(select(Article.doc_id).where(Article.state == ArticleState.ARCHIVED)))
 
     files: dict[str, bytes] = {}
     entries = []
@@ -69,8 +72,7 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
             "release_id": str(ULID()),
             "created_at": _iso(datetime.now(UTC)),
             "articles": entries,
-            # Filled in once Article Lifecycle (Archive) exists.
-            "archived_articles": [],
+            "archived_articles": [{"doc_id": d} for d in archived],
         }
     )
     return files

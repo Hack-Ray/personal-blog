@@ -45,4 +45,17 @@ Each article is exported at its latest Published Version, with `published_at` se
 | `PUT /api/articles/{doc_id}/draft` | draft fields + `base_revision` | Auto Save; 409 with `current_revision` if `base_revision` is stale |
 | `POST /api/articles/{doc_id}/publish` | draft fields + `base_revision` | 201, saves the draft and creates the next Published Version in one transaction |
 
+### Lifecycle
+
+| Request | Allowed from | Result |
+|---|---|---|
+| `GET /api/articles?state=…` | | list, e.g. the Pending Deletion area with `purge_after` |
+| `POST /api/articles/{doc_id}/archive` | published | archived; the public URL shows the archive notice |
+| `POST /api/articles/{doc_id}/publish` | draft, published, archived | publishing an archived article republishes it under the same `doc_id` |
+| `DELETE /api/articles/{doc_id}` | draft, published, archived | Pending Deletion for 30 days; editing and publishing return 409 |
+| `POST /api/articles/{doc_id}/restore` | pending deletion | back to the state it had before deletion |
+| `POST /api/articles/{doc_id}/purge` | pending deletion | permanent deletion; the `doc_id` is retired and never reused |
+
+Any other transition returns 409. Articles pending deletion for 30 days are purged when the CMS starts.
+
 Publish sends the content the author is looking at, and bumps the revision. An Auto Save sent before the publish therefore arrives with a stale `base_revision` and is rejected instead of overwriting the published content. A database trigger rejects `UPDATE` on `published_versions`.

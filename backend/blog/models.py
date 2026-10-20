@@ -1,6 +1,7 @@
 from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from blog.db import Base
@@ -37,14 +38,30 @@ published_version_tags = Table(
 )
 
 
+class ArticleState(StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+    PENDING_DELETION = "pending_deletion"
+
+
+_state = Enum(ArticleState, native_enum=False, length=20, values_callable=lambda e: [m.value for m in e])
+
+
 class Article(Base):
     __tablename__ = "articles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     doc_id: Mapped[str] = mapped_column(String(26), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    state: Mapped[ArticleState] = mapped_column(_state, default=ArticleState.DRAFT)
+    # Set only while pending deletion; restore returns to state_before_deletion.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    state_before_deletion: Mapped[ArticleState | None] = mapped_column(_state)
 
-    draft: Mapped["WorkingDraft"] = relationship(back_populates="article", uselist=False)
+    draft: Mapped["WorkingDraft"] = relationship(
+        back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class WorkingDraft(Base):
@@ -80,3 +97,12 @@ class PublishedVersion(Base):
 
     topic: Mapped[Topic] = relationship()
     tags: Mapped[list[Tag]] = relationship(secondary=published_version_tags, order_by=Tag.slug)
+
+
+class RetiredDocId(Base):
+    """doc_ids of permanently deleted articles, never assigned again (Baseline 4.1)."""
+
+    __tablename__ = "retired_doc_ids"
+
+    doc_id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    retired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

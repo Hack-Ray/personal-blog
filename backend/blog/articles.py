@@ -1,11 +1,15 @@
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import StrEnum
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from ulid import ULID
 
-from blog.models import Article, PublishedVersion, Tag, Topic, WorkingDraft
+from blog.models import Article, ArticleState, PublishedVersion, RetiredDocId, Tag, Topic, WorkingDraft
+
+PENDING_DELETION_RETENTION = timedelta(days=30)
 
 
 @dataclass(frozen=True)
@@ -22,6 +26,29 @@ class DraftContent:
     tags: list[Taxon] = field(default_factory=list)
 
 
+class Action(StrEnum):
+    EDIT = "edit"
+    PUBLISH = "publish"
+    ARCHIVE = "archive"
+    DELETE = "delete"
+    RESTORE = "restore"
+    PURGE = "purge"
+
+
+S = ArticleState
+LIVE = frozenset({S.DRAFT, S.PUBLISHED, S.ARCHIVED})
+
+# Baseline 7.1-7.4. Each action lists the states it may start from.
+ALLOWED_FROM: dict[Action, frozenset[ArticleState]] = {
+    Action.EDIT: LIVE,
+    Action.PUBLISH: LIVE,
+    Action.ARCHIVE: frozenset({S.PUBLISHED}),
+    Action.DELETE: LIVE,
+    Action.RESTORE: frozenset({S.PENDING_DELETION}),
+    Action.PURGE: frozenset({S.PENDING_DELETION}),
+}
+
+
 class ArticleNotFound(Exception):
     pass
 
@@ -34,6 +61,13 @@ class RevisionConflict(Exception):
 
 class NotPublishable(Exception):
     pass
+
+
+class InvalidTransition(Exception):
+    def __init__(self, action: Action, state: ArticleState):
+        super().__init__(f"cannot {action} an article that is {state}")
+        self.action = action
+        self.state = state
 
 
 def _get_or_create[T: (Topic, Tag)](session: Session, model: type[T], taxon: Taxon) -> T:
@@ -49,19 +83,33 @@ def _apply(session: Session, draft: WorkingDraft, content: DraftContent) -> None
     draft.updated_at = func.now()
 
 
-def _locked_draft(session: Session, doc_id: str, base_revision: int) -> WorkingDraft:
-    draft = session.scalars(
-        select(WorkingDraft).join(Article).where(Article.doc_id == doc_id).with_for_update(of=WorkingDraft)
-    ).one_or_none()
-    if draft is None:
+def _locked(session: Session, doc_id: str, action: Action) -> Article:
+    """Every write takes the article row lock first, which serializes all
+    changes to one article."""
+    article = session.scalars(select(Article).where(Article.doc_id == doc_id).with_for_update()).one_or_none()
+    if article is None:
         raise ArticleNotFound(doc_id)
+    if article.state not in ALLOWED_FROM[action]:
+        raise InvalidTransition(action, article.state)
+    return article
+
+
+def _locked_draft(session: Session, doc_id: str, action: Action, base_revision: int) -> WorkingDraft:
+    draft = _locked(session, doc_id, action).draft
     if draft.revision != base_revision:
         raise RevisionConflict(draft.revision)
     return draft
 
 
+def _new_doc_id(session: Session) -> str:
+    while True:
+        doc_id = str(ULID())
+        if session.get(RetiredDocId, doc_id) is None:
+            return doc_id
+
+
 def create_article(session: Session, content: DraftContent) -> WorkingDraft:
-    article = Article(doc_id=str(ULID()))
+    article = Article(doc_id=_new_doc_id(session), state=S.DRAFT)
     draft = WorkingDraft(article=article, revision=1)
     _apply(session, draft, content)
     session.add(article)
@@ -69,16 +117,23 @@ def create_article(session: Session, content: DraftContent) -> WorkingDraft:
     return draft
 
 
-def get_draft(session: Session, doc_id: str) -> WorkingDraft:
-    draft = session.scalars(select(WorkingDraft).join(Article).where(Article.doc_id == doc_id)).one_or_none()
-    if draft is None:
+def get_article(session: Session, doc_id: str) -> Article:
+    article = session.scalars(select(Article).where(Article.doc_id == doc_id)).one_or_none()
+    if article is None:
         raise ArticleNotFound(doc_id)
-    return draft
+    return article
+
+
+def list_articles(session: Session, state: ArticleState | None = None) -> list[Article]:
+    query = select(Article).order_by(Article.created_at.desc())
+    if state is not None:
+        query = query.where(Article.state == state)
+    return list(session.scalars(query))
 
 
 def save_draft(session: Session, doc_id: str, base_revision: int, content: DraftContent) -> WorkingDraft:
     """Auto Save. Rejects a save based on any revision but the current one."""
-    draft = _locked_draft(session, doc_id, base_revision)
+    draft = _locked_draft(session, doc_id, Action.EDIT, base_revision)
     _apply(session, draft, content)
     draft.revision += 1
     session.commit()
@@ -88,13 +143,14 @@ def save_draft(session: Session, doc_id: str, base_revision: int, content: Draft
 def publish(session: Session, doc_id: str, base_revision: int, content: DraftContent) -> PublishedVersion:
     """Saves the content the author is looking at and copies it into a new
     PublishedVersion in one transaction. Bumping the revision makes any Auto
-    Save still in flight from before the publish fail with RevisionConflict."""
+    Save still in flight from before the publish fail with RevisionConflict.
+    Publishing an archived article republishes it under the same doc_id."""
     if not content.title.strip() or not content.markdown.strip():
         raise NotPublishable("title and markdown must not be empty")
-    draft = _locked_draft(session, doc_id, base_revision)
+    draft = _locked_draft(session, doc_id, Action.PUBLISH, base_revision)
     _apply(session, draft, content)
     draft.revision += 1
-    # The draft row lock serializes publishes of one article, so max + 1 is safe.
+    draft.article.state = S.PUBLISHED
     latest = session.scalar(select(func.max(PublishedVersion.version)).where(PublishedVersion.article_id == draft.article_id))
     version = PublishedVersion(
         article_id=draft.article_id,
@@ -107,3 +163,55 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
     session.add(version)
     session.commit()
     return version
+
+
+def archive(session: Session, doc_id: str) -> Article:
+    article = _locked(session, doc_id, Action.ARCHIVE)
+    article.state = S.ARCHIVED
+    session.commit()
+    return article
+
+
+def delete(session: Session, doc_id: str) -> Article:
+    """Moves the article to Pending Deletion, keeping everything restore needs."""
+    article = _locked(session, doc_id, Action.DELETE)
+    article.state_before_deletion = article.state
+    article.state = S.PENDING_DELETION
+    article.deleted_at = func.now()
+    session.commit()
+    return article
+
+
+def restore(session: Session, doc_id: str) -> Article:
+    article = _locked(session, doc_id, Action.RESTORE)
+    article.state = article.state_before_deletion
+    article.state_before_deletion = None
+    article.deleted_at = None
+    session.commit()
+    return article
+
+
+def _purge(session: Session, article: Article) -> None:
+    session.add(RetiredDocId(doc_id=article.doc_id))
+    session.delete(article)
+
+
+def purge(session: Session, doc_id: str) -> None:
+    """Permanently deletes a pending-deletion article before its 30 days end."""
+    _purge(session, _locked(session, doc_id, Action.PURGE))
+    session.commit()
+
+
+def purge_expired(session: Session, now: datetime) -> list[str]:
+    """Permanently deletes articles pending deletion for 30 days or more.
+    Safe to run any number of times; run it on CMS start-up (PUB-005)."""
+    expired = session.scalars(
+        select(Article)
+        .where(Article.state == S.PENDING_DELETION, Article.deleted_at <= now - PENDING_DELETION_RETENTION)
+        .with_for_update(skip_locked=True)
+    ).all()
+    doc_ids = [a.doc_id for a in expired]
+    for article in expired:
+        _purge(session, article)
+    session.commit()
+    return doc_ids
