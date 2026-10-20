@@ -86,10 +86,23 @@
   - GC 在交易中以 SHARE 鎖鎖住 `working_drafts` 與 `published_versions`，掃描與刪除之間草稿無法新增引用。
   - GC 在 CMS 啟動時執行（取代 Baseline 8.3 的「每週五」，依 PUB-005）；可重複執行。
   - Exporter 只匯出已匯出文章所引用的圖片；引用的圖片不存在時整次匯出失敗、不寫入。
-- **Consequences**：已部署網站的圖片存在內容 repo 中，不依賴資料庫，所以 GC 不會破壞線上網站。Draft Snapshots 實作後必須納入有效引用。
+- **Consequences**：已部署網站的圖片存在內容 repo 中，不依賴資料庫，所以 GC 不會破壞線上網站。Draft Snapshots 已納入有效引用（BE-008）。
 - **Supersedes**：Baseline 8.3「每週五一次」改為 CMS 啟動時執行，寬限規則不變。
+
+### BE-008：Draft Snapshots
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 6.2 的間隔、變更閾值、最大筆數未決定。
+- **Decision**：
+  - 快照保存的是 Auto Save 即將覆蓋的完整 Markdown（不是 diff），並記錄當時的 revision。
+  - 觸發：本編輯週期第一次變更；之後距上一張快照滿 10 分鐘；或單次變更長度差 ≥ 500 字元（防止一次誤刪大段內容）。內容與上一張快照相同或為空白時不存。
+  - 每篇最多保留 50 張，超過時刪除最舊的。
+  - Publish 在建立 Published Version 的同一交易中刪除該文章所有快照（Baseline 6.2：持久化即可清除，不必等部署）。
+  - 還原：把快照的 Markdown 經由 Auto Save 寫回（需 `base_revision`），被取代的內容也會成為快照，因此還原可以再復原。CMS 的還原請求與 Auto Save 走同一個佇列。
+  - 快照是圖片 GC 的有效引用（BE-007）。
+- **Supersedes**：無；補足 Baseline 6.2 未決定的細節。
 
 ## Known gaps
 
 - CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
-- Draft Snapshots、舊 Published Version 清理（Baseline 6.3），以及 Exporter 完成後觸發 deploy workflow，尚未實作。
+- 舊 Published Version 清理（Baseline 6.3），以及 Exporter 完成後觸發 deploy workflow，尚未實作。
