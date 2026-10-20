@@ -39,7 +39,10 @@
   - `personal-blog-content`：**Contents: Read and write**（push Snapshot）。
   - `personal-blog`：**Actions: Read and write**（觸發 deploy workflow、查詢部署結果）。
   - 只存在本機的 `backend/.env`，絕對不要 commit（`.gitignore` 已排除 `.env`）。
-- [ ] **B5. 決定本機 PostgreSQL 的備份方式**（PUB-006）。
+- [ ] **B5. 設定 CMS 管理員密碼。**
+  - 在 `backend/` 執行 `uv run python -m blog.auth`，輸入兩次密碼（至少 12 個字元）。
+  - 之後在 http://127.0.0.1:8000/admin/ 登入。忘記密碼時重新執行同一個指令即可，所有已登入的 session 會被登出。
+- [ ] **B6. 決定本機 PostgreSQL 的備份方式**（PUB-006）。
   - 內容 repo 只保存已發布 Snapshot，不能取代資料庫備份。
   - 要決定的事：備份工具、頻率、存放位置（例如另一顆硬碟或雲端硬碟）。
 

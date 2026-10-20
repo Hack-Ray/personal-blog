@@ -102,7 +102,21 @@
   - 快照是圖片 GC 的有效引用（BE-007）。
 - **Supersedes**：無；補足 Baseline 6.2 未決定的細節。
 
+### BE-009：CMS 管理員登入
+
+- **Status**：Accepted (delegated)
+- **Context**：Baseline 5.1、第 10 節第 7 條；Baseline 12「CMS Auth」未決定。
+- **Decision**：
+  - 單一管理員，密碼以 scrypt（隨機 salt）雜湊存於 `admin_credentials`（CHECK 限制只有一筆）。以 CLI `python -m blog.auth` 設定，最少 12 字元；設定新密碼時清除所有 session。
+  - 伺服器端 session：cookie 只放隨機 token（`HttpOnly`、`SameSite=Strict`、7 天），資料庫只存 token 的 SHA-256。登入時順便清除過期 session。
+  - 除 `/api/session` 外，所有 `/api/*` 都需要登入，否則回 401。`/admin/` 靜態頁面本身不需要登入，但沒有登入就無法取得任何資料。
+  - 會修改資料的請求，若 `Origin` 不是本站則回 403（SameSite 之外的第二道 CSRF 防線）。
+  - 連續 5 次密碼錯誤後鎖定 15 分鐘（記憶體內計數，單一本機程序足夠）。
+  - `COOKIE_SECURE` 預設關閉（本機 HTTP）；以 HTTPS 提供時必須設為 `1`。
+  - CMS 在 session 過期時以覆蓋層顯示登入表單，不卸載編輯器；重新登入後自動補存未儲存的內容。
+- **Consequences**：遷移到 AWS 時需要 HTTPS 與 `COOKIE_SECURE=1`；若有多個程序，登入節流需改為共用儲存。
+- **Supersedes**：Baseline 12「CMS Auth」項目。
+
 ## Known gaps
 
-- CMS API 尚無管理員身分驗證。上線至非本機環境前必須補上（Baseline 5.1、第 10 節第 7 條）。目前只綁定 `127.0.0.1`。
 - 舊 Published Version 清理（Baseline 6.3），以及 Exporter 完成後觸發 deploy workflow，尚未實作。
