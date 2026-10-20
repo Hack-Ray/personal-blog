@@ -1,9 +1,12 @@
 """Images uploaded from the editor (Baseline 5.2, 8.1, 8.3)."""
 
 import hashlib
+import io
 import re
 from datetime import datetime, timedelta
 
+from PIL import Image as Pillow
+from PIL import ImageOps, ImageSequence
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -11,6 +14,9 @@ from sqlalchemy.orm import Session
 from blog.models import DraftSnapshot, Image, ImageData, PublishedVersion, WorkingDraft
 
 MAX_BYTES = 10 * 1024 * 1024
+# Twice the 720px article column, so screenshots stay sharp on HiDPI screens (BE-014).
+MAX_WIDTH = 1440
+WEBP_QUALITY = 85
 GRACE = timedelta(days=7)
 
 # Detected from the bytes, never from the client's filename or header.
@@ -41,12 +47,43 @@ def _sniff(data: bytes) -> tuple[str, str]:
     raise UnsupportedImage("only PNG, JPEG, GIF and WebP images are accepted")
 
 
+def _fit(frame: Pillow.Image) -> Pillow.Image:
+    frame = frame.convert("RGBA" if frame.has_transparency_data else "RGB")
+    if frame.width > MAX_WIDTH:
+        frame = frame.resize((MAX_WIDTH, max(1, round(frame.height * MAX_WIDTH / frame.width))), Pillow.Resampling.LANCZOS)
+    return frame
+
+
+def _to_webp(data: bytes) -> bytes:
+    """Shrinks to MAX_WIDTH and re-encodes as WebP, keeping animation.
+
+    Re-encoding also drops EXIF metadata such as a photo's GPS location."""
+    try:
+        with Pillow.open(io.BytesIO(data)) as im:
+            out = io.BytesIO()
+            if getattr(im, "is_animated", False):
+                frames, durations = [], []
+                for frame in ImageSequence.Iterator(im):
+                    frames.append(_fit(frame))
+                    durations.append(frame.info.get("duration", 100))
+                frames[0].save(
+                    out, "WEBP", save_all=True, append_images=frames[1:], duration=durations,
+                    loop=im.info.get("loop", 0), quality=WEBP_QUALITY,
+                )
+            else:
+                _fit(ImageOps.exif_transpose(im)).save(out, "WEBP", quality=WEBP_QUALITY)
+            return out.getvalue()
+    except (OSError, SyntaxError, ValueError, Pillow.DecompressionBombError) as e:
+        raise UnsupportedImage("the image could not be read") from e
+
+
 def store(session: Session, data: bytes) -> Image:
-    """Stores an upload. Uploading the same bytes again returns the same image."""
+    """Stores an upload as WebP. Uploading the same bytes again returns the same image."""
     if len(data) > MAX_BYTES:
         raise ImageTooLarge(f"images are limited to {MAX_BYTES // (1024 * 1024)} MB")
-    ext, content_type = _sniff(data)
-    image_id = f"{hashlib.sha256(data).hexdigest()}.{ext}"
+    _sniff(data)
+    data, content_type = _to_webp(data), "image/webp"
+    image_id = f"{hashlib.sha256(data).hexdigest()}.webp"
     inserted = session.execute(
         insert(Image)
         .values(id=image_id, content_type=content_type, byte_size=len(data))

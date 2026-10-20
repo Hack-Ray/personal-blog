@@ -29,6 +29,7 @@
 - **Status**：Accepted (delegated)，暫行
 - **Decision**：Draft 請求以 `{slug, name}` 指定 Topic／Tags；slug 不存在時自動建立，已存在時沿用既有名稱。
 - **Consequences**：Taxonomy 管理（改名、合併、刪除）仍未決定（Baseline 12）；屆時可能取代本決策。
+- **Superseded by**：BE-013（已存在的 slug 改為採用最後儲存的名稱）。
 
 ### BE-004：Content Exporter 的匯出規則
 
@@ -88,6 +89,7 @@
   - Exporter 只匯出已匯出文章所引用的圖片；引用的圖片不存在時整次匯出失敗、不寫入。
 - **Consequences**：已部署網站的圖片存在內容 repo 中，不依賴資料庫，所以 GC 不會破壞線上網站。Draft Snapshots 已納入有效引用（BE-008）。
 - **Supersedes**：Baseline 8.3「每週五一次」改為 CMS 啟動時執行，寬限規則不變。
+- **Superseded by**：BE-014（上傳時縮圖並轉成 WebP，取代「V1 不轉檔為 WebP」）。
 
 ### BE-008：Draft Snapshots
 
@@ -155,6 +157,36 @@
   - 還原以 `scripts/restore.sh`：驗證 checksum、確認後取代整個資料庫，再執行 migration。
 - **Consequences**：CMS 長時間不重啟時，期間的修改沒有新的備份；需要時可手動執行 `scripts/backup.sh`。
 
+### BE-013：Topic／Tag 以最後儲存的名稱為準
+
+- **Status**：Confirmed（使用者 2026-10-20 指定）
+- **Context**：第一篇測試文章的 Tag 名稱打錯，修正後重新發布仍顯示舊名稱，因為 BE-003 會沿用已存在 slug 的名稱。名稱出現在文章頁、Tag 頁標題與 metadata，錯誤名稱無法修正會影響 SEO。
+- **Decision**：Draft 寫入（Auto Save、Publish）帶入的 `{slug, name}` 中，slug 已存在時以本次的名稱覆寫。名稱屬於 Topic／Tag 本身，所以所有引用該 slug 的草稿與已發布版本都顯示新名稱。
+- **Consequences**：
+  - 已發布版本的 Tag／Topic 名稱會跟著改，這不違反版本不可變性：`published_version_tags` 只記錄引用，名稱不屬於版本內容。
+  - 下次「更新網站」時，Exporter 匯出新名稱，所以內容 repo 會出現新的 release commit。
+  - 同一個 slug 在兩個同時開啟的編輯器中填了不同名稱時，最後存檔的一方生效。
+  - URL 由 slug 決定，改名不會改變網址。合併、刪除 Taxonomy 仍未決定。
+- **Supersedes**：BE-003「已存在時沿用既有名稱」。
+
+### BE-014：上傳時縮圖並轉成 WebP
+
+- **Status**：Confirmed（使用者 2026-10-20 指定）
+- **Context**：第一篇測試文章上傳了 2560px 寬、368 KB 的截圖。原圖照原樣存入並發布，讀者下載的檔案遠大於需要。
+- **Decision**：
+  - 上傳的圖片寬度超過 1440px（內文欄寬 720px 的兩倍，讓 Retina 螢幕上的截圖文字保持清晰）時，等比例縮到 1440px；較窄的圖片不放大。
+  - 一律重新編碼成有損 WebP，quality 85。透明背景保留。
+  - 動態 GIF 轉成動態 WebP，保留每格的時間長度與循環設定，每格同樣縮寬。
+  - JPEG 的 EXIF 方向先套用到像素上，再丟棄所有 EXIF，所以照片的 GPS 位置等資訊不會公開。
+  - 圖片 id 改為「轉檔後內容」的 `<sha256>.webp`。上傳相同檔案仍得到相同 id。
+  - 檔案大小上限 10 MB 與可接受的格式（PNG、JPEG、GIF、WebP，以檔案內容判斷）不變。簽章正確但無法解碼的檔案回 415。
+- **Consequences**：
+  - 後端新增依賴 Pillow。
+  - 實測：2560×1316、368 KB 的 PNG 截圖轉成 1440×740、58 KB 的 WebP，耗時約 0.1 秒。
+  - 已上傳的舊圖片維持原格式，不回溯轉檔。要換成 WebP 時，重新上傳並替換文章中的引用即可。
+  - 原圖不保留，日後無法以更高解析度重新產生。
+- **Supersedes**：BE-007「V1 不轉檔為 WebP」與「圖片 id 為 `<sha256>.<副檔名>`」。
+
 ## Known gaps
 
-- 真實 GitHub API 與部署流程尚未在真實環境驗證，需先完成 `docs/setup-todo.md` 的 A 與 B 區。
+- ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 已完成 `docs/setup-todo.md` A、B 區，並以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。

@@ -80,7 +80,9 @@ class InvalidTransition(Exception):
 
 
 def _get_or_create[T: (Topic, Tag)](session: Session, model: type[T], taxon: Taxon) -> T:
-    session.execute(insert(model).values(slug=taxon.slug, name=taxon.name).on_conflict_do_nothing(index_elements=["slug"]))
+    """The name last saved for a slug wins, everywhere the slug is used (BE-003)."""
+    stmt = insert(model).values(slug=taxon.slug, name=taxon.name)
+    session.execute(stmt.on_conflict_do_update(index_elements=["slug"], set_={"name": stmt.excluded.name}))
     return session.scalars(select(model).where(model.slug == taxon.slug)).one()
 
 
