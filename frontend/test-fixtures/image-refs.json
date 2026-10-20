@@ -1,0 +1,75 @@
+[
+  {
+    "name": "plain image",
+    "markdown": "![圖](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)",
+    "refs": [
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "image with a title",
+    "markdown": "![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp \"說明\")",
+    "refs": [
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "reference-style image",
+    "markdown": "![圖][fig]\n\n[fig]: images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp",
+    "refs": [
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "image inside a link",
+    "markdown": "[![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)](https://example.com)",
+    "refs": [
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "image in a table",
+    "markdown": "| 圖 |\n|---|\n| ![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp) |",
+    "refs": [
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "fenced code block",
+    "markdown": "```md\n![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)\n```",
+    "refs": []
+  },
+  {
+    "name": "indented code block",
+    "markdown": "範例：\n\n    ![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)",
+    "refs": []
+  },
+  {
+    "name": "inline code",
+    "markdown": "寫成 `![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)` 即可",
+    "refs": []
+  },
+  {
+    "name": "plain link",
+    "markdown": "[下載](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)",
+    "refs": []
+  },
+  {
+    "name": "raw HTML img",
+    "markdown": "<img src=\"images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp\">",
+    "refs": []
+  },
+  {
+    "name": "duplicate refs",
+    "markdown": "![](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)\n\n![](images/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.webp)\n\n![again](images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)",
+    "refs": [
+      "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.webp",
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp"
+    ]
+  },
+  {
+    "name": "href not under images/",
+    "markdown": "![](https://example.com/x.png) ![](/images/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp) ![](img/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.webp)",
+    "refs": []
+  }
+]
