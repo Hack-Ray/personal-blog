@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
 import { inTopic, topics } from "../../../content/queries.ts";
 import { ArticleList } from "../../article-list.tsx";
+import { absoluteUrl } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -22,7 +23,8 @@ async function topic(params: Props["params"]) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  return { title: (await topic(params)).name };
+  const t = await topic(params);
+  return { title: t.name, alternates: { canonical: absoluteUrl(`/topics/${t.slug}/`) } };
 }
 
 export default async function TopicPage({ params }: Props) {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
 import { tags, withTag } from "../../../content/queries.ts";
 import { ArticleList } from "../../article-list.tsx";
+import { absoluteUrl } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -22,7 +23,8 @@ async function tag(params: Props["params"]) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  return { title: `#${(await tag(params)).name}` };
+  const t = await tag(params);
+  return { title: `#${t.name}`, alternates: { canonical: absoluteUrl(`/tags/${t.slug}/`) } };
 }
 
 export default async function TagPage({ params }: Props) {
