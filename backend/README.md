@@ -73,7 +73,9 @@ uv run python -m blog.exporter ../../personal-blog-content          # commit onl
 uv run python -m blog.exporter ../../personal-blog-content --push   # commit and push
 ```
 
-Each article is exported at its latest Published Version, with `published_at` set to its first publication. Drafts and never-published articles are not exported.
+Each article is exported at its latest Published Version, with `published_at` set to its first publication (`articles.first_published_at`, kept through republishing and version retention). Drafts and never-published articles are not exported.
+
+Each export first resets `manifest.json`, `articles/` and `images/` to HEAD, so files left by an interrupted export are dropped. If 更新網站 fails after the commit but before the release is recorded, pressing it again records the release from HEAD and deploys it.
 
 ## Draft snapshots
 
@@ -81,7 +83,7 @@ Before an Auto Save overwrites the draft, the Markdown it replaces is kept as a 
 
 ## Images
 
-`POST /api/images` (multipart `file`) stores a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes, and returns `![](images/<sha256>.<ext>)` to put in the Markdown. Uploading the same bytes again returns the same id. `GET /api/images/{id}` serves it to the editor preview. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
+`POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
 
 Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
 

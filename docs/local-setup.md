@@ -60,12 +60,6 @@ git clone https://github.com/Hack-Ray/personal-blog.git
 cd personal-blog
 ```
 
-在開發分支合併進 `main` 之前，先切到開發分支：
-
-```sh
-git checkout claude/chatgpt-custom-gpt-link-o50ama
-```
-
 以下指令除非特別註明，都在 `backend/` 目錄執行：
 
 ```sh

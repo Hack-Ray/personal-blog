@@ -54,7 +54,7 @@
   - `manifest.json` 至少包含：`schema_version`、`release_id`、`created_at`、`articles`（每篇的 `docId` 與 Published Version）、`archived_articles`。
   - 只匯出公開網站需要的資料；不匯出 Working Draft、Draft Snapshots、Pending Deletion 文章、管理員資訊或其他私有資料。
   - Exporter 在單一資料庫交易（REPEATABLE READ 或更高）中讀取，確保整份 Snapshot 對應同一時點的發布狀態。
-  - Exporter 先寫入暫存目錄，全部成功後才整份取代工作目錄內容並建立一個 commit；任何步驟失敗即不 push。
+  - Exporter 先寫入暫存目錄，全部成功後才整份取代工作目錄內容並建立一個 commit；任何步驟失敗即不 push。（實作改為每次匯出前把 Snapshot 路徑重設回 HEAD，見 Addendum 03 BE-016。）
   - 圖片檔名使用內容雜湊；相同內容永遠同名，換圖即為新檔名，不原地覆寫（Baseline 8.1）。
   - 每次 Snapshot 都是完整全量輸出（與 Baseline 2.2 的 Full Build 一致）。
 - **Supersedes**：Baseline 8.2「GitHub Actions 依文章引用關係取得該版本圖片」改為由 Exporter 匯出圖片至 Snapshot。
@@ -75,7 +75,8 @@
 - **Date**：2026-10-20
 - **Status**：Confirmed
 - **Decision**：
-  - 每週圖片 GC 與 30 天到期永久刪除，改為「CMS 啟動時及執行中定期補跑已到期工作」；工作必須可重複執行並收斂到相同結果。Baseline 8.3 與 7.3 的保留規則不變。
+  - 每週圖片 GC 與 30 天到期永久刪除，改為「CMS 啟動時補跑已到期工作」；工作必須可重複執行並收斂到相同結果。Baseline 8.3 與 7.3 的保留規則不變。
+  - 本機版的 CMS 只在寫作時啟動，不常駐，所以不在執行中定期排程（使用者 2026-10-20 確認）。長時間不啟動 CMS 時，到期的工作延到下次啟動才執行；這只延後刪除，不影響已部署的網站。
   - V1 的建置／部署失敗通知使用 GitHub 內建的 workflow 失敗 Email 通知。
   - 舊 Published Version 與圖片的清理，仍須等新網站部署成功後才可執行（Baseline 6.3、8.3 不變）；CMS 以 GitHub API 查詢部署結果。
 - **Supersedes**：Baseline 9.3「持續失敗需以 Email 通知管理員」的實作方式於 V1 定為 GitHub 內建通知；8.3「每週五一次」改為到期補跑，寬限期規則不變。
@@ -89,9 +90,9 @@
 
 ## Open Questions（尚未確認）
 
-- 本機 PostgreSQL 的備份方式、頻率與存放位置。
+- ~~本機 PostgreSQL 的備份方式、頻率與存放位置。~~ 已由 Addendum 03 BE-012 決定。
 - 永久刪除是否需要改寫內容 repo 歷史，以及何時執行。
-- `release_id` 的格式（例如 ULID）與 manifest 的完整 JSON Schema。
-- 文章 JSON 的欄位定義；目前前端 fixture（`frontend/content/site.json`）需改為讀取此格式。
+- ~~`release_id` 的格式（例如 ULID）與 manifest 的完整 JSON Schema。~~ `release_id` 為 ULID；manifest 與文章 JSON 的欄位以前端 `frontend/src/content/parse.ts` 為準（Addendum 03 BE-004）。
+- ~~文章 JSON 的欄位定義；目前前端 fixture（`frontend/content/site.json`）需改為讀取此格式。~~ 前端已改為讀取 Snapshot（`frontend/sample-site-data/`）。
 - CMS 觸發 workflow 的方式（`repository_dispatch` 或 `workflow_dispatch`）與部署結果查詢的實作。
 - 遷移至 AWS 的條件與時機。

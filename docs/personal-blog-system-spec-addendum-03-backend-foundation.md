@@ -35,7 +35,7 @@
 
 - **Status**：Accepted (delegated)
 - **Decision**：
-  - 每篇有 Published Version 的文章匯出其最新版本；`published_at` 為該文章第一次發布的時間（Baseline 3.1 的「發表日期」）。
+  - 每篇有 Published Version 的文章匯出其最新版本；`published_at` 為該文章第一次發布的時間（Baseline 3.1 的「發表日期」），存在 `articles.first_published_at`（BE-015）。
   - 從未發布的文章與所有 Working Draft 內容都不匯出。
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
   - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。
@@ -59,7 +59,7 @@
   - 建立文章時產生的 ULID 若已在 `retired_doc_ids` 中則重新產生。
   - 待刪除滿 30 天的文章在 CMS 啟動時清除（PUB-005）；可重複執行。
   - Exporter 只匯出 published 的最新版本；archived 只列入 `archived_articles`；draft 與 pending_deletion 都不匯出。
-- **Consequences**：Purge 只刪除資料庫資料；已部署的靜態網站在下一次部署前仍顯示舊內容（Baseline 7.1 的最終一致性）。圖片尚未實作，Purge 與圖片 GC 的協調留待圖片功能。CMS 執行期間的定期清除尚未實作，目前只在啟動時執行。
+- **Consequences**：Purge 只刪除資料庫資料；已部署的靜態網站在下一次部署前仍顯示舊內容（Baseline 7.1 的最終一致性）。Purge 與圖片 GC 的協調見 BE-007。依 PUB-005，到期清除只在 CMS 啟動時執行。
 - **Supersedes**：Baseline 12「恢復」項目中「回到哪個狀態」的部分。
 
 ### BE-006：CMS 編輯器前端
@@ -186,6 +186,31 @@
   - 已上傳的舊圖片維持原格式，不回溯轉檔。要換成 WebP 時，重新上傳並替換文章中的引用即可。
   - 原圖不保留，日後無法以更高解析度重新產生。
 - **Supersedes**：BE-007「V1 不轉檔為 WebP」與「圖片 id 為 `<sha256>.<副檔名>`」。
+
+### BE-015：首次發布時間存在文章上
+
+- **Status**：Confirmed（使用者 2026-10-20 確認為 bug）
+- **Context**：BE-004 規定 `published_at` 為第一次發布的時間，但 Exporter 取的是「資料庫中仍存在的最舊版本」的時間。BE-011 刪除舊版本後，網站上的日期會往後移，下一次「更新網站」也會因此多出一個 release commit。
+- **Decision**：
+  - `articles.first_published_at` 在文章第一次 Publish 時寫入，之後不再改變。封存後重新發布（Republish）沿用原本的時間，因為 `doc_id` 不變，對讀者是同一篇文章。
+  - Exporter 的 `published_at` 改讀這個欄位。
+  - 資料庫 CHECK：`published`、`archived` 狀態的文章必須有 `first_published_at`。
+  - Migration 0007 以每篇文章現存版本中最早的 `published_at` 回填。
+- **Consequences**：已被 BE-011 刪掉第一版的文章，回填值是剩下最早版本的時間，無法還原真正的首次發布時間。
+- **Supersedes**：無；修正 BE-004 的實作。
+
+### BE-016：中斷的「更新網站」由下一次接續完成
+
+- **Status**：Accepted (delegated)
+- **Context**：BE-010 的流程先在內容 repo commit，再寫入 `releases`。git 與資料庫無法放在同一個交易，兩步之間失敗會留下兩種狀態：寫入但未 commit 的檔案，或資料庫沒有記錄的 release commit。Exporter 以目前的檔案判斷內容有沒有變，所以兩種情況下之後的匯出都認為「沒有變更」，在內容再次修改之前無法更新網站。
+- **Decision**：
+  - 每次匯出前，先把 `manifest.json`、`articles/`、`images/` 重設回 HEAD，丟棄中斷的匯出留下的檔案。有沒有變更一律與上一個 commit 比較。PUB-003 要求「全部成功後才 commit」，這裡不另用暫存目錄，而是由下一次匯出丟棄寫到一半的檔案來達成。
+  - 匯出後，從 HEAD 讀出 release：commit 訊息為 `Release <id>` 且與 HEAD 的 `manifest.json` 中的 `release_id` 相同。資料庫還沒有這筆 release 時就建立它，然後照常 push 與啟動部署。內容 repo 的其他 commit（例如初始 commit）不會被當成 release。
+  - 匯出期間被 Purge 的文章沒有資料列可以引用，不寫入 `release_articles`。
+- **Consequences**：
+  - 任何一步失敗後，再按一次「更新網站」即可完成；不需要手動整理內容 repo。
+  - 從備份還原資料庫後，若資料庫內容與 HEAD 相同，HEAD 的 release 會被重新記錄並再部署一次相同內容。
+- **Supersedes**：無；補足 BE-010 的失敗復原。
 
 ## Known gaps
 
