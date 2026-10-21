@@ -1,7 +1,9 @@
 import json
 import subprocess
 import threading
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from sqlalchemy import select
@@ -180,15 +182,41 @@ def test_release_api_needs_a_content_repo(client, monkeypatch, repos):
     assert [r["id"] for r in client.get("/api/releases").json()] == [created["id"], empty_site["id"]]
 
 
+def fake_run(run_id, title, created_at, status="completed", conclusion="success"):
+    return {
+        "id": run_id,
+        "display_title": title,
+        "html_url": f"u{run_id}",
+        "status": status,
+        "conclusion": conclusion,
+        "created_at": created_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+
 class FakeGitHub(BaseHTTPRequestHandler):
     requests: list[tuple[str, str, dict | None, str]] = []
     responses: dict[str, tuple[int, dict | None]] = {}
+    runs: list[dict] = []
+
+    def _list_runs(self, query):
+        runs = FakeGitHub.runs
+        if "created" in query:
+            created = query["created"][0]
+            assert created.startswith(">=")
+            since = datetime.fromisoformat(created[2:])
+            runs = [r for r in runs if datetime.fromisoformat(r["created_at"]) >= since]
+        per_page, page = int(query.get("per_page", ["30"])[0]), int(query.get("page", ["1"])[0])
+        return 200, {"total_count": len(runs), "workflow_runs": runs[(page - 1) * per_page : page * per_page]}
 
     def _handle(self):
         length = int(self.headers.get("content-length") or 0)
         body = json.loads(self.rfile.read(length)) if length else None
         FakeGitHub.requests.append((self.command, self.path, body, self.headers["authorization"]))
-        code, payload = FakeGitHub.responses.get(f"{self.command} {self.path}", (404, {"message": "Not Found"}))
+        url = urlsplit(self.path)
+        if self.command == "GET" and url.path == "/repos/o/r/actions/workflows/deploy.yml/runs":
+            code, payload = self._list_runs(parse_qs(url.query))
+        else:
+            code, payload = FakeGitHub.responses.get(f"{self.command} {self.path}", (404, {"message": "Not Found"}))
         self.send_response(code)
         self.end_headers()
         if payload is not None:
@@ -202,7 +230,7 @@ class FakeGitHub(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def github():
-    FakeGitHub.requests, FakeGitHub.responses = [], {}
+    FakeGitHub.requests, FakeGitHub.responses, FakeGitHub.runs = [], {}, []
     server = HTTPServer(("127.0.0.1", 0), FakeGitHub)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield release.GitHubActions("tok", "o/r", "deploy.yml", "main", api_url=f"http://127.0.0.1:{server.server_port}")
@@ -212,20 +240,17 @@ def github():
 def test_github_client_requests(github):
     FakeGitHub.responses = {
         "POST /repos/o/r/actions/workflows/deploy.yml/dispatches": (204, None),
-        "GET /repos/o/r/actions/workflows/deploy.yml/runs?event=workflow_dispatch&per_page=30": (
-            200,
-            {
-                "workflow_runs": [
-                    {"id": 1, "display_title": "Deploy content other", "html_url": "u1", "status": "completed", "conclusion": "success"},
-                    {"id": 2, "display_title": "Deploy content abc", "html_url": "u2", "status": "in_progress", "conclusion": None},
-                ]
-            },
-        ),
         "GET /repos/o/r/actions/runs/2/jobs": (
             200,
             {"jobs": [{"steps": [{"name": "Set up job", "conclusion": "success"}]}, {"steps": [{"name": "Deploy to GitHub Pages", "conclusion": "skipped"}]}]},
         ),
     }
+    now = datetime.now(UTC)
+    FakeGitHub.runs = [
+        fake_run(1, "Deploy content other", now),
+        fake_run(2, "Deploy content abc", now - timedelta(seconds=10), status="in_progress", conclusion=None),
+        fake_run(3, "Deploy content abc", now - timedelta(seconds=20), conclusion="failure"),
+    ]
     github.dispatch("abc")
     assert github.find_run("abc") == release.Run(id=2, url="u2", status="in_progress", conclusion=None)
     assert github.find_run("missing") is None
@@ -237,6 +262,23 @@ def test_github_client_requests(github):
         {"ref": "main", "inputs": {"content_sha": "abc"}},
         "Bearer tok",
     )
+
+
+@pytest.mark.parametrize("clock_skew", [timedelta(seconds=5), timedelta(minutes=-1)])
+def test_a_release_is_found_behind_many_newer_runs(repos, github, clock_skew):
+    _, clone = repos
+    FakeGitHub.responses = {
+        "POST /repos/o/r/actions/workflows/deploy.yml/dispatches": (204, None),
+        "GET /repos/o/r/actions/runs/7/jobs": (200, {"jobs": [{"steps": [{"name": release.DEPLOY_STEP, "conclusion": "success"}]}]}),
+    }
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, github)
+        assert r.status == R.DISPATCHED
+        started = r.created_at + clock_skew
+        newer = [fake_run(100 + i, f"Deploy content other{i}", started + timedelta(minutes=i + 1)) for i in range(150)]
+        FakeGitHub.runs = [*reversed(newer), fake_run(7, f"Deploy content {r.content_commit}", started)]
+        assert release.refresh(s, r, github).status == R.DEPLOYED
 
 
 def test_github_client_reports_http_errors(github):
