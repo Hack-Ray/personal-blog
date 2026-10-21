@@ -11,8 +11,7 @@ export default function HomePage() {
   const latest = published(loadSiteContent()).slice(0, 5);
   return (
     <>
-      <h1>Personal Blog</h1>
-      <h2>最新文章</h2>
+      <h1>最新文章</h1>
       <ArticleList articles={latest} />
       <p>
         <Link href="/posts/">所有文章</Link>

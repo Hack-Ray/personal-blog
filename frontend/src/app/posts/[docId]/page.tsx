@@ -60,7 +60,7 @@ export default async function PostPage({ params }: Props) {
       <h1>{a.title}</h1>
       <ArticleMeta article={a} />
       {/* Markdown comes only from the site author through the CMS. */}
-      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
+      <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
     </article>
   );
 }

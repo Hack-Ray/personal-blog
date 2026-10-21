@@ -21,5 +21,7 @@ check "sitemap leaves out archived posts" '! body $B/sitemap.xml | grep -q 01K6Z
 check "post has a canonical URL" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "rel=\"canonical\" href=\"https://hack-ray.github.io/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/\""'
 check "about page links to GitHub" 'body $B/about/ | grep -q "href=\"https://github.com/Hack-Ray\""'
 check "search index excludes archived posts" '! body $B/search-index.json | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
+check "header search form submits q to the search page" 'f=$(body $B/ | grep -o "<form role=\"search\"[^>]*>.*</form>"); echo "$f" | grep -q "action=\"/personal-blog/search/\"" && echo "$f" | grep -q "name=\"q\""'
+check "header title links home and home has a single h1" 'body $B/ | grep -q "class=\"site-title\" href=\"/personal-blog/\"" && [ "$(body $B/ | grep -o "<h1" | wc -l)" = 1 ]'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
