@@ -105,6 +105,16 @@
 - **Consequences**：若有內容因法律或隱私原因必須從歷史中移除，需要手動改寫內容 repo 的歷史，並同步處理本機 clone 與 `releases` 紀錄。V1 不提供這個流程。
 - **Supersedes**：無；回答本文件的 Open Question「永久刪除是否需要改寫內容 repo 歷史」。
 
+### PUB-008：連結檢查、瀏覽器測試與 token 到期提醒
+
+- **Date**：2026-10-21
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Decision**：
+  - 連結檢查：`frontend/scripts/check-links.ts` 檢查 build 出來每個頁面的站內 `href`／`src` 都對應到 `out/` 中的檔案；不在 basePath 下的絕對路徑也算失效。外部網站不檢查。CI 對範例資料執行；`deploy.yml` 對真實內容執行，失敗就不部署，和缺圖相同（PUB-003）。
+  - 瀏覽器測試：`frontend/e2e/` 以 Playwright（Chromium）測試搜尋下拉、深淺色切換、程式碼複製、圖片放大、回到頂端、歸檔排序、404 與手機寬度，CI 在範例資料的 build 上執行。
+  - Token 到期：`token-expiry.yml` 每週一以 `CONTENT_REPO_TOKEN` 呼叫 GitHub API，讀回應標頭 `github-authentication-token-expiration`；剩 30 天以內或已無法讀取內容 repo 時，在本 repo 開一個 issue（已有未關閉的同類 issue 時不重複開）。CMS 的 `GITHUB_TOKEN` 不在 Actions 中，改由 CMS 的「網站發布」頁透過 `GET /api/github-token` 以同樣方式讀到期日，30 天內顯示提醒。
+- **Consequences**：token 換新後兩邊都會自動讀到新的到期日，不需要改設定。
+
 ## Open Questions（尚未確認）
 
 - ~~本機 PostgreSQL 的備份方式、頻率與存放位置。~~ 已由 Addendum 03 BE-012 決定。

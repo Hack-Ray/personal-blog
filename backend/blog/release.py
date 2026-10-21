@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from email.message import Message
 from pathlib import Path
 from typing import Protocol
 
@@ -25,6 +26,7 @@ RETRYABLE = frozenset({R.PUSH_FAILED, R.DISPATCH_FAILED, R.FAILED})
 DEPLOY_STEP = "Deploy to GitHub Pages"
 CLOCK_SKEW = timedelta(minutes=5)
 RUNS_PER_PAGE = 100
+TOKEN_EXPIRY_HEADER = "github-authentication-token-expiration"
 
 
 class ReleaseError(Exception):
@@ -52,6 +54,10 @@ class GitHubActions:
         self.token, self.repo, self.workflow, self.ref, self.api_url = token, repo, workflow, ref, api_url.rstrip("/")
 
     def _call(self, method: str, path: str, body: dict | None = None) -> dict:
+        raw, _ = self._request(method, path, body)
+        return json.loads(raw) if raw else {}
+
+    def _request(self, method: str, path: str, body: dict | None = None) -> tuple[bytes, Message]:
         request = urllib.request.Request(
             f"{self.api_url}{path}",
             method=method,
@@ -65,12 +71,17 @@ class GitHubActions:
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                raw = response.read()
+                return response.read(), response.headers
         except urllib.error.HTTPError as e:
             raise ReleaseError(f"GitHub API {method} {path} returned {e.code}") from e
         except urllib.error.URLError as e:
             raise ReleaseError(f"GitHub API unreachable: {e.reason}") from e
-        return json.loads(raw) if raw else {}
+
+    def token_expires_at(self) -> datetime | None:
+        """When the token stops working; None for a token without an expiry date."""
+        expiry = self._request("GET", f"/repos/{self.repo}")[1].get(TOKEN_EXPIRY_HEADER)
+        # GitHub sends e.g. "2027-01-18 00:00:00 UTC".
+        return datetime.strptime(expiry, "%Y-%m-%d %H:%M:%S %Z").replace(tzinfo=UTC) if expiry else None
 
     def dispatch(self, content_commit: str) -> None:
         self._call(

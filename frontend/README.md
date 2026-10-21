@@ -8,7 +8,10 @@ The build reads a Content Snapshot from `SITE_DATA_DIR` (default: `sample-site-d
 npm ci
 npm test            # snapshot contract and content queries
 npm run typecheck
-npm run build       # copies snapshot images, writes out/
+npm run build       # copies snapshot images, makes list thumbnails, writes out/
+npm run check-links # every site path a built page links to exists in out/
+npx playwright install chromium   # once
+npm run test:e2e    # browser tests against out/ (sample data)
 SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 ```
 
@@ -49,6 +52,6 @@ mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/personal-blog
 scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
 ```
 
-CI runs the same check on the sample-data build (the `Check the built site` step in `.github/workflows/ci.yml`). The checks expect the sample data, the `/personal-blog` basePath and the default `SITE_ORIGIN`.
+CI runs the same check, the link check and the browser tests (`e2e/`) on the sample-data build (`.github/workflows/ci.yml`). The deploy workflow runs the link check on the real content too, so an article linking to a missing page or image is not deployed. The checks expect the sample data, the `/personal-blog` basePath and the default `SITE_ORIGIN`.
 
 Set `BASE_PATH=""` at build time when serving from a custom domain.

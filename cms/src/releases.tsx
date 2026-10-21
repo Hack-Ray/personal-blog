@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Release, type ReleaseStatus } from "./api.ts";
+import { tokenWarning } from "./token-warning.ts";
 
 const LABEL: Record<ReleaseStatus, string> = {
   exported: "已匯出",
@@ -18,6 +19,10 @@ const time = new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "
 
 export function Releases() {
   const [releases, setReleases] = useState<Release[]>([]);
+  const [tokenNotice, setTokenNotice] = useState("");
+  useEffect(() => {
+    api.githubToken().then((t) => setTokenNotice(tokenWarning(t.expires_at, new Date())), () => {});
+  }, []);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +62,7 @@ export function Releases() {
           更新網站
         </button>
       </div>
+      {tokenNotice && <p className="banner">{tokenNotice}</p>}
       <p className="hint">把所有已發布、已封存的文章與「網站與關於」頁的內容匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
       {message && <p className="banner ok">{message}</p>}
       <table>

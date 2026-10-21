@@ -30,6 +30,8 @@ next-env.d.ts
 *.tsbuildinfo
 frontend/public/images/
 frontend/public/thumbs/
+frontend/test-results/
+frontend/playwright-report/
 
 # Database backups
 backend/backups/

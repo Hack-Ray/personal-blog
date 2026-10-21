@@ -6,7 +6,9 @@
     "dev": "node scripts/copy-snapshot-images.ts && next dev",
     "build": "node scripts/copy-snapshot-images.ts && next build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "check-links": "node scripts/check-links.ts"
   },
   "dependencies": {
     "marked": "16.4.0",
@@ -16,6 +18,7 @@
     "shiki": "4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@types/node": "22.18.0",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",

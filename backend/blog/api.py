@@ -332,6 +332,23 @@ def create_release(session: SessionDep) -> CreatedRelease:
     return CreatedRelease(release=ReleaseOut.of(created) if created else None)
 
 
+class TokenOut(BaseModel):
+    configured: bool
+    expires_at: datetime | None
+
+
+@app.get("/api/github-token")
+def github_token() -> TokenOut:
+    """The CMS's own GITHUB_TOKEN, so the releases page can warn before it expires."""
+    deployer = release.deployer_from_env()
+    if not isinstance(deployer, release.GitHubActions):
+        return TokenOut(configured=False, expires_at=None)
+    try:
+        return TokenOut(configured=True, expires_at=deployer.token_expires_at())
+    except release.ReleaseError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+
+
 @app.post("/api/releases/{release_id}/retry")
 def retry_release(release_id: str, session: SessionDep) -> ReleaseOut:
     try:

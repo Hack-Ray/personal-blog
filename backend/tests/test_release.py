@@ -196,6 +196,7 @@ def fake_run(run_id, title, created_at, status="completed", conclusion="success"
 class FakeGitHub(BaseHTTPRequestHandler):
     requests: list[tuple[str, str, dict | None, str]] = []
     responses: dict[str, tuple[int, dict | None]] = {}
+    headers: dict[str, str] = {}
     runs: list[dict] = []
 
     def _list_runs(self, query):
@@ -218,6 +219,8 @@ class FakeGitHub(BaseHTTPRequestHandler):
         else:
             code, payload = FakeGitHub.responses.get(f"{self.command} {self.path}", (404, {"message": "Not Found"}))
         self.send_response(code)
+        for name, value in FakeGitHub.headers.items():
+            self.send_header(name, value)
         self.end_headers()
         if payload is not None:
             self.wfile.write(json.dumps(payload).encode())
@@ -230,7 +233,7 @@ class FakeGitHub(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def github():
-    FakeGitHub.requests, FakeGitHub.responses, FakeGitHub.runs = [], {}, []
+    FakeGitHub.requests, FakeGitHub.responses, FakeGitHub.headers, FakeGitHub.runs = [], {}, {}, []
     server = HTTPServer(("127.0.0.1", 0), FakeGitHub)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield release.GitHubActions("tok", "o/r", "deploy.yml", "main", api_url=f"http://127.0.0.1:{server.server_port}")
@@ -279,6 +282,18 @@ def test_a_release_is_found_behind_many_newer_runs(repos, github, clock_skew):
         newer = [fake_run(100 + i, f"Deploy content other{i}", started + timedelta(minutes=i + 1)) for i in range(150)]
         FakeGitHub.runs = [*reversed(newer), fake_run(7, f"Deploy content {r.content_commit}", started)]
         assert release.refresh(s, r, github).status == R.DEPLOYED
+
+
+def test_token_expiry_comes_from_the_response_header(github):
+    FakeGitHub.responses = {"GET /repos/o/r": (200, {})}
+    assert github.token_expires_at() is None
+    FakeGitHub.headers = {release.TOKEN_EXPIRY_HEADER: "2027-01-18 08:30:00 UTC"}
+    assert github.token_expires_at() == datetime(2027, 1, 18, 8, 30, tzinfo=UTC)
+
+
+def test_the_token_endpoint_reports_an_unconfigured_token(client, monkeypatch):
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert client.get("/api/github-token").json() == {"configured": False, "expires_at": None}
 
 
 def test_github_client_reports_http_errors(github):
