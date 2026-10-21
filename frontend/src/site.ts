@@ -6,4 +6,6 @@ export const SITE_ORIGIN = process.env.SITE_ORIGIN ?? "";
 export const absoluteUrl = (path: string): string => `${SITE_ORIGIN}${BASE_PATH}${path}`;
 
 // A page's own openGraph replaces the layout's instead of merging, so pages spread this in.
-export const SITE_OG = { siteName: "Personal Blog", locale: "zh_TW", type: "website" } as const;
+// siteName is the profile's site title; this file is also imported by client components,
+// so it takes the title instead of loading the snapshot.
+export const siteOg = (siteName: string) => ({ siteName, locale: "zh_TW", type: "website" }) as const;

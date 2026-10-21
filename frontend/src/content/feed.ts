@@ -10,6 +10,7 @@ const escapeXml = (s: string) =>
 /** RSS 2.0 feed of the newest published articles; `url` maps a site path to an absolute URL. */
 export function buildFeed(content: SiteContent, url: (path: string) => string): string {
   const posts = published(content).slice(0, LIMIT);
+  const { site } = content.profile;
   const items = posts.map((a) => {
     const link = escapeXml(url(`/posts/${a.docId}/`));
     return [
@@ -29,9 +30,10 @@ export function buildFeed(content: SiteContent, url: (path: string) => string): 
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0">',
     "  <channel>",
-    "    <title>Personal Blog</title>",
+    `    <title>${escapeXml(site.title)}</title>`,
     `    <link>${escapeXml(url("/"))}</link>`,
-    "    <description>Hack-Ray 的軟體工程文章</description>",
+    // RSS requires a channel description, so an empty one falls back to the title.
+    `    <description>${escapeXml(site.description || site.title)}</description>`,
     ...built,
     ...items,
     "  </channel>",

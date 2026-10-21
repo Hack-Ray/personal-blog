@@ -16,6 +16,22 @@ const post = (n: number, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 const site = (...articles: SiteContent["articles"]): SiteContent => ({ articles, profile: DEFAULT_PROFILE });
+const withSite = (title: string, description: string): SiteContent => ({
+  articles: [],
+  profile: { ...DEFAULT_PROFILE, site: { title, description } },
+});
+
+test("the channel title and description come from the profile's site", () => {
+  const xml = buildFeed(withSite("Ray & Code", "Notes on <backend>"), url);
+  assert.match(xml, /<channel>\n    <title>Ray &amp; Code<\/title>/);
+  assert.match(xml, /<description>Notes on &lt;backend&gt;<\/description>/);
+});
+
+test("an empty site description falls back to the title, since RSS requires one", () => {
+  const xml = buildFeed(withSite("Ray's notes", ""), url);
+  assert.match(xml, /<description>Ray&apos;s notes<\/description>/);
+  assert.match(buildFeed(site(), url), /<title>Personal Blog<\/title>\n    <link>[^<]*<\/link>\n    <description>Personal Blog<\/description>/);
+});
 
 test("feed items carry absolute link, guid, RFC 822 date, summary and topic, newest first", () => {
   const xml = buildFeed(site(post(1), post(2)), url);

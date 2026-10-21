@@ -10,7 +10,7 @@ import { imagePaths } from "../../../content/parse.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
-import { absoluteUrl, BASE_PATH, SITE_OG } from "../../../site.ts";
+import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { Comments } from "./comments.tsx";
 
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: summary(a.markdown),
     alternates: { canonical: url },
     openGraph: {
-      ...SITE_OG,
+      ...siteOg(loadSiteContent().profile.site.title),
       type: "article",
       url,
       title: a.title,

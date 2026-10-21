@@ -1,29 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { absoluteUrl, BASE_PATH, SITE_OG } from "../site.ts";
+import { loadSiteContent } from "../content/load.ts";
+import { absoluteUrl, BASE_PATH, siteOg } from "../site.ts";
 import "./globals.css";
 import { THEME_SCRIPT } from "../theme.ts";
 import { HeaderSearch } from "./header-search.tsx";
 import { ThemeToggle } from "./theme-toggle.tsx";
 
-export const metadata: Metadata = {
-  title: { default: "Personal Blog", template: "%s | Personal Blog" },
-  openGraph: SITE_OG,
-};
+export function generateMetadata(): Metadata {
+  const { title, description } = loadSiteContent().profile.site;
+  return {
+    title: { default: title, template: `%s | ${title}` },
+    description: description || undefined,
+    openGraph: siteOg(title),
+  };
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const { title } = loadSiteContent().profile.site;
   return (
     <html lang="zh-Hant" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* Not metadata.alternates: every page sets its own alternates.canonical, which replaces the layout's. */}
-        <link rel="alternate" type="application/rss+xml" title="Personal Blog" href={absoluteUrl("/feed.xml")} />
+        <link rel="alternate" type="application/rss+xml" title={title} href={absoluteUrl("/feed.xml")} />
       </head>
       <body>
         <header>
           <Link href="/" className="site-title">
-            Personal Blog
+            {title}
           </Link>
           <nav>
             <Link href="/">首頁</Link>
