@@ -1,9 +1,10 @@
 import { Marked } from "marked";
-import type { DocId, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
+import type { DocId, Profile, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
 
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MARKDOWN = new Marked();
+const URL_SCHEME = /^(https:\/\/|mailto:)\S+$/;
 
 export const SCHEMA_VERSION = 1;
 
@@ -23,6 +24,17 @@ function record(value: unknown, path: string): Record<string, unknown> {
 function string(value: unknown, path: string): string {
   if (typeof value !== "string" || value.trim() === "") fail(path, "expected a non-empty string");
   return value;
+}
+
+function text(value: unknown, path: string): string {
+  if (typeof value !== "string") fail(path, "expected a string");
+  return value;
+}
+
+function url(value: unknown, path: string): string {
+  const s = string(value, path);
+  if (!URL_SCHEME.test(s)) fail(path, `"${s}" must start with https:// or mailto:`);
+  return s;
 }
 
 function array(value: unknown, path: string): unknown[] {
@@ -100,6 +112,40 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
   };
 }
 
+// Snapshots exported before the CMS managed the profile have no profile.json.
+export const DEFAULT_PROFILE: Profile = {
+  name: "Hack-Ray",
+  headline: "",
+  intro: "",
+  links: [{ label: "GitHub", url: "https://github.com/Hack-Ray" }],
+  experience: [],
+  projects: [],
+};
+
+export function parseProfile(value: unknown, path = "profile.json"): Profile {
+  const o = record(value, path);
+  const list = <T>(key: string, item: (o: Record<string, unknown>, path: string) => T): T[] =>
+    array(o[key], `${path}.${key}`).map((v, i) => item(record(v, `${path}.${key}[${i}]`), `${path}.${key}[${i}]`));
+  return {
+    name: string(o.name, `${path}.name`),
+    headline: text(o.headline, `${path}.headline`),
+    intro: text(o.intro, `${path}.intro`),
+    links: list("links", (l, p) => ({ label: string(l.label, `${p}.label`), url: url(l.url, `${p}.url`) })),
+    experience: list("experience", (e, p) => ({
+      role: string(e.role, `${p}.role`),
+      organization: text(e.organization, `${p}.organization`),
+      period: text(e.period, `${p}.period`),
+      description: text(e.description, `${p}.description`),
+    })),
+    projects: list("projects", (j, p) => ({
+      name: string(j.name, `${p}.name`),
+      ...(j.url === undefined ? {} : { url: url(j.url, `${p}.url`) }),
+      description: text(j.description, `${p}.description`),
+      tags: array(j.tags, `${p}.tags`).map((t, i) => string(t, `${p}.tags[${i}]`)),
+    })),
+  };
+}
+
 export function imagePaths(markdown: string): string[] {
   const refs: string[] = [];
   MARKDOWN.walkTokens(MARKDOWN.lexer(markdown), (token) => {
@@ -110,6 +156,8 @@ export function imagePaths(markdown: string): string[] {
 
 export interface Snapshot {
   manifest: unknown;
+  /** undefined when the snapshot has no profile.json */
+  profile?: unknown;
   readArticle(docId: DocId): unknown;
   hasImage(name: string): boolean;
 }
@@ -140,5 +188,9 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
     claim(docId);
     articles.push({ state: "archived", docId });
   }
-  return { articles };
+  const profile = snapshot.profile === undefined ? DEFAULT_PROFILE : parseProfile(snapshot.profile);
+  for (const ref of imagePaths(profile.intro)) {
+    if (!snapshot.hasImage(ref.slice("images/".length))) fail("profile.json", `references missing image ${ref}`);
+  }
+  return { articles, profile };
 }

@@ -9,7 +9,8 @@ os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import bindparam, text  # noqa: E402
+from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
 
 from blog import auth  # noqa: E402
 from blog.api import app  # noqa: E402
@@ -25,10 +26,22 @@ def schema():
     command.upgrade(config, "head")
 
 
+@pytest.fixture(scope="session")
+def profile_seed(schema):
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT content FROM profile")).scalar_one()
+
+
 @pytest.fixture(autouse=True)
-def clean_tables():
+def clean_tables(profile_seed):
     yield
     with engine.begin() as conn:
+        # The single profile row is part of the schema, so it is reset rather than truncated.
+        conn.execute(
+            text("UPDATE profile SET revision = 1, content = :seed, updated_at = now()").bindparams(
+                bindparam("seed", profile_seed, type_=JSONB)
+            )
+        )
         conn.execute(
             text(
                 "TRUNCATE articles, topics, tags, images, retired_doc_ids, admin_credentials, admin_sessions, releases"

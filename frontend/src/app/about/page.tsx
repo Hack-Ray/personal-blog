@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
-import { profile } from "../../profile.ts";
-import { absoluteUrl } from "../../site.ts";
+import { loadSiteContent } from "../../content/load.ts";
+import { renderMarkdown } from "../../content/markdown.ts";
+import { absoluteUrl, BASE_PATH } from "../../site.ts";
 
-export const metadata: Metadata = {
-  title: "關於",
-  description: profile.headline || undefined,
-  alternates: { canonical: absoluteUrl("/about/") },
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: "關於",
+    description: loadSiteContent().profile.headline || undefined,
+    alternates: { canonical: absoluteUrl("/about/") },
+  };
+}
 
 export default function AboutPage() {
-  const { name, headline, intro, links, experience, projects } = profile;
+  const { name, headline, intro, links, experience, projects } = loadSiteContent().profile;
   return (
     <>
       <h1>{name}</h1>
       {headline && <p className="meta">{headline}</p>}
-      {intro &&
-        intro
-          .split(/\n{2,}/)
-          .map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      {intro && <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(intro, BASE_PATH) }} />}
       {links.length > 0 && (
         <ul className="links">
           {links.map((l) => (

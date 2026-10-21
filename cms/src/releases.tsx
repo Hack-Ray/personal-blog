@@ -57,7 +57,7 @@ export function Releases() {
           更新網站
         </button>
       </div>
-      <p className="hint">把所有已發布、已封存的文章匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
+      <p className="hint">把所有已發布、已封存的文章與「關於」頁匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
       {message && <p className="banner ok">{message}</p>}
       <table>
         <thead>

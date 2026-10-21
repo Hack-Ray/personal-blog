@@ -76,7 +76,11 @@ uv run python -m blog.exporter ../../personal-blog-content --push   # commit and
 
 Each article is exported at its latest Published Version, with `published_at` set to its first publication (`articles.first_published_at`, kept through republishing and version retention). Drafts and never-published articles are not exported.
 
-Each export first resets `manifest.json`, `articles/` and `images/` to HEAD, so files left by an interrupted export are dropped. If 更新網站 fails after the commit but before the release is recorded, pressing it again records the release from HEAD and deploys it.
+Each export first resets `manifest.json`, `profile.json`, `articles/` and `images/` to HEAD, so files left by an interrupted export are dropped. If 更新網站 fails after the commit but before the release is recorded, pressing it again records the release from HEAD and deploys it.
+
+## About page profile
+
+`GET /api/profile` returns `{revision, content, updated_at}`; `PUT /api/profile` with `{revision, content}` saves it and bumps the revision, or returns 409 with `current_revision` when `revision` is stale. `content` is `name`, `headline`, `intro` (Markdown), `links`, `experience` and `projects`; URLs must start with `https://` or `mailto:`. The single row is created by migration 0008. The exporter writes it as `profile.json`, so a profile change alone makes a new release.
 
 ## Draft snapshots
 

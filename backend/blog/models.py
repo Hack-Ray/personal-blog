@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from blog.db import Base
@@ -202,3 +203,14 @@ class ReleaseArticle(Base):
     release_id: Mapped[str] = mapped_column(ForeignKey("releases.id", ondelete="CASCADE"), primary_key=True)
     article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True)
     version: Mapped[int] = mapped_column(Integer)
+
+
+class Profile(Base):
+    """The About page; a CHECK keeps it to the single row the migration seeds."""
+
+    __tablename__ = "profile"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    content: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

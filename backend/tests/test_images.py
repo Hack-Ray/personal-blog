@@ -184,6 +184,22 @@ def test_image_kept_while_a_published_version_references_it(client):
     assert exists(ref["id"])
 
 
+def profile_with_intro(client, intro):
+    content = {**client.get("/api/profile").json()["content"], "intro": intro}
+    r = client.put("/api/profile", json={"revision": client.get("/api/profile").json()["revision"], "content": content})
+    assert r.status_code == 200, r.text
+
+
+def test_image_kept_while_the_profile_intro_references_it(client):
+    ref = upload(client, PNG).json()
+    set_unreferenced_since(ref["id"], 30)
+    profile_with_intro(client, ref["markdown"])
+    assert gc(days_from_now=30) == []
+    profile_with_intro(client, "no image")
+    assert gc() == []
+    assert gc(days_from_now=8) == [ref["id"]]
+
+
 def test_pending_deletion_keeps_images_until_purge(client):
     ref = upload(client, PNG).json()
     doc_id = client.post("/api/articles", json=draft(ref["markdown"])).json()["doc_id"]
@@ -235,6 +251,16 @@ def test_frontend_parser_accepts_exported_images(client, tmp_path):
 
     result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_export_includes_images_of_the_profile_intro(client, tmp_path):
+    repo = _repo(tmp_path)
+    ref = upload(client, PNG).json()
+    profile_with_intro(client, f"hello\n\n{ref['markdown']}")
+
+    export(repo)
+
+    assert sorted(p.name for p in (repo / "images").iterdir()) == [ref["id"]]
 
 
 def test_export_fails_without_writing_when_an_image_is_missing(client, tmp_path):

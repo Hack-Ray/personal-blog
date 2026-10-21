@@ -25,6 +25,16 @@ export interface ArchivedArticle {
 // the public build, so their URLs fall through to the 404 page.
 export type PublicArticle = PublishedArticle | ArchivedArticle;
 
+export interface Profile {
+  name: string;
+  headline: string;
+  intro: string;
+  links: { label: string; url: string }[];
+  experience: { role: string; organization: string; period: string; description: string }[];
+  projects: { name: string; url?: string; description: string; tags: string[] }[];
+}
+
 export interface SiteContent {
   articles: PublicArticle[];
+  profile: Profile;
 }

@@ -124,6 +124,26 @@ input:focus-visible {
   min-width: 0;
 }
 
+/* The title link stretches over the whole card; topic and tag links sit above it. */
+.article-card {
+  position: relative;
+}
+
+.article-card .post-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.article-card:hover .post-link {
+  color: var(--link);
+}
+
+.article-card .meta a {
+  position: relative;
+  z-index: 1;
+}
+
 .article-list .meta {
   margin: 4px 0;
 }

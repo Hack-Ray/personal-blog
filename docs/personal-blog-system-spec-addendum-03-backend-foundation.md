@@ -38,7 +38,7 @@
   - 每篇有 Published Version 的文章匯出其最新版本；`published_at` 為該文章第一次發布的時間（Baseline 3.1 的「發表日期」），存在 `articles.first_published_at`（BE-015）。
   - 從未發布的文章與所有 Working Draft 內容都不匯出。
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
-  - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。
+  - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。（BE-017 加入 `profile.json`。）
   - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
 - **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先完成 `docs/setup-todo.md` 的 B4 token。
 
@@ -212,6 +212,22 @@
   - 任何一步失敗後，再按一次「更新網站」即可完成；不需要手動整理內容 repo。
   - 從備份還原資料庫後，若資料庫內容與 HEAD 相同，HEAD 的 release 會被重新記錄並再部署一次相同內容。
 - **Supersedes**：無；補足 BE-010 的失敗復原。
+
+### BE-017：關於頁資料與 `profile.json` 匯出
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：Addendum 04 FE-007 把關於頁改由 CMS 編輯。
+- **Decision**：
+  - 資料表 `profile` 只有一列（CHECK `id = 1`），欄位為 `revision`、`content`（JSONB）、`updated_at`。Migration 0008 建立時寫入原本 `profile.ts` 的內容，所以部署後網站不變。
+  - `GET /api/profile` 回傳 `{revision, content, updated_at}`；`PUT /api/profile` 帶 `{revision, content}`，鎖定該列後比對 revision，成功時 revision +1，不符時回 409 與 `current_revision`（與 BE-002 相同的形狀）。和其他 `/api/*` 一樣需要登入。
+  - API 以 Pydantic 驗證：字串去除前後空白；名字、連結名稱、經歷職稱、作品名稱、作品 tag 不可空白；網址必須是 `https://` 或 `mailto:` 開頭；長度上限為名字 100、標語與單行欄位 200、說明 2000、自我介紹 20000 字，每個清單最多 50 項，每個作品最多 20 個 tag。不合法回 422。
+  - Exporter 在同一交易中讀取 profile，寫成 Snapshot 根目錄的 `profile.json`，鍵的順序固定。`profile.json` 加入 Snapshot 路徑（與 `manifest.json`、`articles/`、`images/` 一起比對內容、重設回 HEAD、stage），所以只修改介紹也會產生新的 release commit。
+  - 自我介紹引用的 `images/` 圖片一起匯出，並算作圖片 GC 的有效引用（BE-007）；儲存時清除這些圖片的 `unreferenced_since`。
+  - `schema_version` 維持 1：`profile.json` 是新增的檔案，前端在沒有它時使用預設內容，舊版前端則忽略它，兩個方向都相容。
+- **Consequences**：
+  - 內容 repo 目前沒有 `profile.json`，所以此版本之後第一次「更新網站」即使文章沒有變更也會產生一個 release commit；內容與預設相同，網站不變。
+  - 關於頁沒有版本或快照紀錄；儲存即覆蓋，上線的版本以內容 repo 的 commit 歷史為準。
+- **Supersedes**：無；BE-004 的「只 stage `manifest.json`、`articles/`、`images/`」加上 `profile.json`。
 
 ## Known gaps
 

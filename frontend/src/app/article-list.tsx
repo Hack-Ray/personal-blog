@@ -28,9 +28,11 @@ export function ArticleList({ articles }: { articles: PublishedArticle[] }) {
       {articles.map((a) => {
         const image = imagePaths(a.markdown)[0];
         return (
-          <li key={a.docId}>
+          <li key={a.docId} className="article-card">
             <div>
-              <Link href={`/posts/${a.docId}/`}>{a.title}</Link>
+              <Link href={`/posts/${a.docId}/`} className="post-link">
+                {a.title}
+              </Link>
               <ArticleMeta article={a} />
               <p className="excerpt">{summary(a.markdown)}</p>
             </div>

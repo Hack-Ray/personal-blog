@@ -1,0 +1,30 @@
+{
+  "name": "Hack-Ray",
+  "headline": "後端工程師，偏好簡單、好維護的系統",
+  "intro": "我主要寫 **Python** 與 TypeScript，這個部落格記錄自建 CMS 與靜態網站的過程。\n\n- 喜歡把流程自動化\n- 相信測試是文件的一部分",
+  "links": [
+    {
+      "label": "GitHub",
+      "url": "https://github.com/Hack-Ray"
+    }
+  ],
+  "experience": [
+    {
+      "role": "後端工程師",
+      "organization": "範例科技",
+      "period": "2023 年至今",
+      "description": "設計並維護內部 API 與資料管線。"
+    }
+  ],
+  "projects": [
+    {
+      "name": "Personal Blog",
+      "url": "https://github.com/Hack-Ray/personal-blog",
+      "description": "以 FastAPI 與 Next.js 建置、透過 Snapshot 發布的個人部落格。",
+      "tags": [
+        "FastAPI",
+        "Next.js"
+      ]
+    }
+  ]
+}

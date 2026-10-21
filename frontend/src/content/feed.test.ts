@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildFeed } from "./feed.ts";
 import type { DocId, SiteContent, Slug } from "./model.ts";
+import { DEFAULT_PROFILE } from "./parse.ts";
 
 const url = (path: string) => `https://example.com/blog${path}`;
 const post = (n: number, overrides: Record<string, unknown> = {}) => ({
@@ -14,7 +15,7 @@ const post = (n: number, overrides: Record<string, unknown> = {}) => ({
   markdown: `Body ${n}`,
   ...overrides,
 });
-const site = (...articles: SiteContent["articles"]): SiteContent => ({ articles });
+const site = (...articles: SiteContent["articles"]): SiteContent => ({ articles, profile: DEFAULT_PROFILE });
 
 test("feed items carry absolute link, guid, RFC 822 date, summary and topic, newest first", () => {
   const xml = buildFeed(site(post(1), post(2)), url);

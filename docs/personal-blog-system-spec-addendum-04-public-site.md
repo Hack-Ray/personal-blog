@@ -29,10 +29,11 @@
 
 ### FE-003：個人介紹／作品集以程式碼維護
 
-- **Status**：Accepted (delegated)
+- **Status**：Superseded by FE-007
 - **Context**：Baseline 3.1、Baseline 12「Portfolio」。
 - **Decision**：`/about/` 頁的內容來自 `frontend/src/profile.ts`（名字、標語、自我介紹、連結、經歷、作品）；空的清單不顯示該區塊。連結必須是 `https://` 或 `mailto:`（測試檢查）。
 - **Consequences**：修改介紹需要改程式碼並重新部署；若之後想從 CMS 編輯，再把同樣的資料形狀搬進 Snapshot。
+- **Superseded by**：FE-007（介紹改由 CMS 編輯，經 Snapshot 發布）。
 
 ### FE-004：文章列表顯示第一張圖片與摘要
 
@@ -67,7 +68,19 @@
   - repo 與分類的 ID 寫在 `frontend/src/app/posts/[docId]/comments.tsx`；ID 為空時不顯示留言區。
 - **Consequences**：討論串在第一則留言時由 giscus 建立，標題就是 `doc_id`。留言者需要 GitHub 帳號。
 
+### FE-007：關於頁內容由 CMS 編輯
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：FE-003 把介紹寫在 `frontend/src/profile.ts`，修改需要改程式碼。作者希望和文章一樣在 CMS 編輯。
+- **Decision**：
+  - `/about/` 頁讀取 Snapshot 根目錄的 `profile.json`，資料形狀與 FE-003 相同（名字、標語、自我介紹、連結、經歷、作品）；`frontend/src/profile.ts` 刪除。
+  - 自我介紹改為 Markdown，以文章相同的 renderer 產生，可引用 `images/` 圖片。
+  - 前端解析的嚴格程度與文章相同：名字、連結名稱、經歷職稱、作品名稱不可空白；連結與作品網址必須是 `https://` 或 `mailto:`；作品沒有網址時省略 `url`；自我介紹引用的圖片必須存在。不符合時 build 失敗、不部署。
+  - Snapshot 沒有 `profile.json` 時（此功能之前匯出的內容 repo、`test-fixtures/empty-site-data`），使用與 FE-003 相同的預設內容（名字 Hack-Ray、GitHub 連結），網站不變。
+  - CMS 新增「關於」頁，以「儲存」按鈕明確存檔，不自動儲存。修改要到「網站發布 → 更新網站」才會上線。後端與匯出規則見 Addendum 03 BE-017。
+- **Consequences**：介紹的修改不再需要改程式碼。預設內容同時存在於 migration 0008 的 seed 與 `frontend/src/content/parse.ts`，後端測試檢查兩者一致。
+- **Supersedes**：FE-003。
+
 ## Open Questions
 
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。
-- `profile.ts` 的實際內容需由使用者填寫。
