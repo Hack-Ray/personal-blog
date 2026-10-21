@@ -11,9 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles, auth, exporter, images, release, retention
+from blog import articles, auth, exporter, images, profile, release, retention
 from blog.db import SessionLocal, get_session
-from blog.models import Article, ArticleState, PublishedVersion, Release, ReleaseStatus, WorkingDraft
+from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
 
 
 @asynccontextmanager
@@ -304,6 +304,39 @@ def retry_release(release_id: str, session: SessionDep) -> ReleaseOut:
         return ReleaseOut.of(release.retry(session, release_id, _content_repo(), release.deployer_from_env()))
     except release.ReleaseError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+
+
+class ProfileBody(BaseModel):
+    revision: int = Field(ge=1)
+    content: profile.ProfileContent
+
+
+class ProfileOut(BaseModel):
+    revision: int
+    content: profile.ProfileContent
+    updated_at: datetime
+
+    @classmethod
+    def of(cls, p: Profile) -> "ProfileOut":
+        return cls(revision=p.revision, content=profile.ProfileContent.model_validate(p.content), updated_at=p.updated_at)
+
+
+@app.exception_handler(profile.ProfileConflict)
+def _profile_conflict(_, exc: profile.ProfileConflict) -> JSONResponse:
+    return JSONResponse(
+        {"detail": "profile changed since revision; reload it", "current_revision": exc.current_revision},
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+@app.get("/api/profile", response_model_exclude_none=True)
+def get_profile(session: SessionDep) -> ProfileOut:
+    return ProfileOut.of(profile.get(session))
+
+
+@app.put("/api/profile", response_model_exclude_none=True)
+def save_profile(body: ProfileBody, session: SessionDep) -> ProfileOut:
+    return ProfileOut.of(profile.save(session, body.revision, body.content))
 
 
 class ImageOut(BaseModel):
