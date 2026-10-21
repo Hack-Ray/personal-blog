@@ -15,7 +15,7 @@ from blog import images
 from blog.api import app
 from blog.db import SessionLocal, engine
 from blog.exporter import ExportError, export
-from tests.conftest import sign_in
+from tests.conftest import BASE_URL, sign_in
 
 
 
@@ -215,7 +215,7 @@ def test_pending_deletion_keeps_images_until_purge(client):
 def test_cms_startup_collects_garbage(client):
     image_id = upload(client, PNG).json()["id"]
     set_unreferenced_since(image_id, 8)
-    with sign_in(TestClient(app)):
+    with sign_in(TestClient(app, base_url=BASE_URL)):
         pass
     assert not exists(image_id)
 

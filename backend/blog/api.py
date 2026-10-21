@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
@@ -46,6 +47,12 @@ async def require_admin(request: Request, call_next):
                 if not auth.is_signed_in(session, request.cookies.get(auth.SESSION_COOKIE)):
                     return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
     return await call_next(request)
+
+
+# Added last so it runs first. A web page that rebinds its own domain to
+# 127.0.0.1 reaches the CMS with that domain as Host; refusing it keeps such a
+# page from trying passwords or locking sign-in.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)]
