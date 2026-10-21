@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SiteContent } from "./model.ts";
-import { parseSnapshot } from "./parse.ts";
+import { imageRefs, parseSnapshot } from "./parse.ts";
 import { sitemapEntries } from "./sitemap.ts";
-import { firstImage, summary } from "./summary.ts";
+import { summary } from "./summary.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
 const B = "01K7M4Y7P65BDCF8AHRTQY7ZQB";
@@ -53,8 +53,8 @@ test("summary is plain text of the opening, without code, images or link syntax"
   assert.equal(summary("清單：\n\n- 一\n- 二\n1. 三"), "清單： 一 二 三");
 });
 
-test("firstImage finds the first uploaded image outside code blocks", () => {
+test("imageRefs lists uploaded images in document order, skipping code blocks", () => {
   const md = "```md\n![](images/in-code.webp)\n```\n\n![外部](https://example.com/x.png)\n\n![a](images/first.webp) ![b](images/second.webp)";
-  assert.equal(firstImage(md), "images/first.webp");
-  assert.equal(firstImage("沒有圖片"), undefined);
+  assert.deepEqual(imageRefs(md), ["images/first.webp", "images/second.webp"]);
+  assert.deepEqual(imageRefs("沒有圖片"), []);
 });

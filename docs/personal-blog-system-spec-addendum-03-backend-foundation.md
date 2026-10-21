@@ -82,6 +82,7 @@
   - 只能從編輯器上傳（選擇檔案、貼上、拖曳）。接受 PNG、JPEG、GIF、WebP，最大 10 MB；格式由檔案內容判斷。不接受 SVG。
   - 圖片 id 為 `<sha256>.<副檔名>`；相同內容重複上傳得到相同 id。`images`（索引）與 `image_data`（BYTEA）分開，`image_data` 由 trigger 拒絕 `UPDATE`。
   - Markdown 以 `images/<id>` 引用，與 Snapshot 路徑相同；編輯器預覽改由 `/api/images/<id>` 載入。V1 不轉檔為 WebP。
+  - 引用是 Markdown parser 找出的圖片 token（行內或參考式），且 href 以 `images/` 開頭。code span、code block 內的文字、一般連結與 HTML `<img>` 都不算引用。後端（GC、Exporter）與前端（Snapshot 檢查）以同一份測試資料 `frontend/test-fixtures/image-refs.json` 確保規則一致。
   - `images.unreferenced_since`：上傳時為上傳時間；草稿每次寫入時，被引用的圖片設為 NULL；GC 時不再被引用者記下開始時間。距今滿 7 天才刪除。
   - 有效引用：所有 Working Draft 與所有 Published Version（V1 尚未清理舊版本，所以等同全部保留版本）。待刪除文章的草稿與版本仍在，因此圖片在 30 天內受保護。
   - GC 在交易中以 SHARE 鎖鎖住 `working_drafts` 與 `published_versions`，掃描與刪除之間草稿無法新增引用。

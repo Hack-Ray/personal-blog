@@ -1,8 +1,9 @@
+import { Marked } from "marked";
 import type { DocId, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
 
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const IMAGE_REF = /\]\((images\/[^)\s]+)/g;
+const MARKDOWN = new Marked();
 
 export const SCHEMA_VERSION = 1;
 
@@ -99,8 +100,15 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
   };
 }
 
+/** Snapshot paths (images/<file>) of the uploaded images an article shows, in order.
+ * Text in code, plain links and raw HTML are not references; the backend applies
+ * the same rule (test-fixtures/image-refs.json). */
 export function imageRefs(markdown: string): string[] {
-  return [...markdown.matchAll(IMAGE_REF)].map((m) => m[1]!);
+  const refs: string[] = [];
+  MARKDOWN.walkTokens(MARKDOWN.lexer(markdown), (token) => {
+    if (token.type === "image" && token.href.startsWith("images/")) refs.push(token.href);
+  });
+  return refs;
 }
 
 export interface Snapshot {

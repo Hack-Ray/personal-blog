@@ -2,9 +2,9 @@
 
 import hashlib
 import io
-import re
 from datetime import datetime, timedelta
 
+from markdown_it import MarkdownIt
 from PIL import Image as Pillow
 from PIL import ImageOps, ImageSequence
 from sqlalchemy import select, text, update
@@ -28,8 +28,7 @@ SIGNATURES: list[tuple[bytes, int, str, str]] = [
     (b"WEBP", 8, "webp", "image/webp"),
 ]
 
-# Snapshot Markdown references images as images/<id> (PUB-003).
-IMAGE_REF = re.compile(r"\]\(images/([0-9a-f]{64}\.[a-z]+)\)")
+MARKDOWN = MarkdownIt("commonmark")
 
 
 class UnsupportedImage(Exception):
@@ -104,7 +103,12 @@ def load(session: Session, image_id: str) -> tuple[Image, bytes] | None:
 
 
 def refs(markdown: str) -> set[str]:
-    return set(IMAGE_REF.findall(markdown))
+    """Ids of the images the Markdown shows as images/<id> (PUB-003). Text in
+    code, plain links and raw HTML are not references; the frontend applies
+    the same rule (frontend/test-fixtures/image-refs.json)."""
+    inline = (child for token in MARKDOWN.parse(markdown) for child in token.children or [])
+    srcs = (str(t.attrGet("src")) for t in inline if t.type == "image")
+    return {src.removeprefix("images/") for src in srcs if src.startswith("images/")}
 
 
 def mark_referenced(session: Session, markdown: str) -> None:

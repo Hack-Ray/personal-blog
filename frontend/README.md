@@ -32,7 +32,7 @@ images/{contentHash}.{ext}
 }
 ```
 
-`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>`. Archived articles have no article file.
+`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
 The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, or a referenced image is missing.
 
