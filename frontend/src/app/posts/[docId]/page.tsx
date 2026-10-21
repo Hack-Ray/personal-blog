@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
 import { findArticle, neighbors } from "../../../content/queries.ts";
+import { imagePaths } from "../../../content/parse.ts";
+import { readingMinutes } from "../../../content/reading.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
-import { absoluteUrl, BASE_PATH } from "../../../site.ts";
+import { absoluteUrl, BASE_PATH, SITE_OG } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { Comments } from "./comments.tsx";
 
@@ -32,18 +35,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await article(params);
   if (a.state === "archived") return { title: "文章已封存", robots: { index: false } };
   const url = absoluteUrl(`/posts/${a.docId}/`);
+  const image = imagePaths(a.markdown)[0];
+  const images = image ? [absoluteUrl(`/${image}`)] : undefined;
   return {
     title: a.title,
     description: summary(a.markdown),
     alternates: { canonical: url },
     openGraph: {
+      ...SITE_OG,
       type: "article",
       url,
       title: a.title,
       description: summary(a.markdown),
       publishedTime: a.publishedAt.toISOString(),
       tags: a.tags.map((t) => t.name),
+      images,
     },
+    twitter: { card: images ? "summary_large_image" : "summary", title: a.title, description: summary(a.markdown), images },
   };
 }
 
@@ -57,11 +65,24 @@ export default async function PostPage({ params }: Props) {
       </>
     );
   }
+  const toc = tocHeadings(a.markdown);
   const { newer, older } = neighbors(loadSiteContent(), a.docId);
   return (
     <article>
       <h1>{a.title}</h1>
-      <ArticleMeta article={a} />
+      <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} />
+      {toc.length > 0 && (
+        <nav className="toc" aria-label="目錄">
+          <p className="toc-title">目錄</p>
+          <ul>
+            {toc.map((h) => (
+              <li key={h.id} className={h.depth === 3 ? "toc-sub" : undefined}>
+                <a href={`#${h.id}`}>{h.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
       {/* Markdown comes only from the site author through the CMS. */}
       <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
       {(newer || older) && (

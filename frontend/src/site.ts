@@ -4,3 +4,6 @@ export const SITE_ORIGIN = process.env.SITE_ORIGIN ?? "";
 
 /** Absolute URL of a site path such as "/posts/X/", basePath included. */
 export const absoluteUrl = (path: string): string => `${SITE_ORIGIN}${BASE_PATH}${path}`;
+
+// A page's own openGraph replaces the layout's instead of merging, so pages spread this in.
+export const SITE_OG = { siteName: "Personal Blog", locale: "zh_TW", type: "website" } as const;

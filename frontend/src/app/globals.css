@@ -7,8 +7,9 @@
   --link: #0969da;
 }
 
+/* Dark applies to the system preference unless light is forced, or when dark is forced. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --fg: #e6edf3;
     --muted: #9198a1;
     --bg: #0d1117;
@@ -16,6 +17,15 @@
     --code-bg: #151b23;
     --link: #4493f8;
   }
+}
+
+:root[data-theme="dark"] {
+  --fg: #e6edf3;
+  --muted: #9198a1;
+  --bg: #0d1117;
+  --border: #3d444d;
+  --code-bg: #151b23;
+  --link: #4493f8;
 }
 
 body {
@@ -79,6 +89,31 @@ header nav form {
   min-width: 0;
 }
 
+.theme-toggle {
+  flex: none;
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  color: var(--link);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
 .search-preview {
   position: absolute;
   top: calc(100% + 4px);
@@ -139,6 +174,34 @@ input:focus-visible {
 .meta {
   color: var(--muted);
   font-size: 0.9em;
+}
+
+.toc {
+  margin: 1em 0;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 0.9em;
+}
+
+.toc-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc-sub {
+  padding-left: 1.25em;
+}
+
+.article-body :is(h2, h3) {
+  scroll-margin-top: 16px;
 }
 
 .article-list {
@@ -220,10 +283,15 @@ pre {
 }
 
 @media (prefers-color-scheme: dark) {
-  .shiki,
-  .shiki span {
+  :root:not([data-theme="light"]) .shiki,
+  :root:not([data-theme="light"]) .shiki span {
     color: var(--shiki-dark);
   }
+}
+
+:root[data-theme="dark"] .shiki,
+:root[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark);
 }
 
 .article-body :not(pre) > code {

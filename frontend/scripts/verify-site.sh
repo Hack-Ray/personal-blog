@@ -5,7 +5,7 @@ check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails
 code() { curl -s -o /dev/null -w '%{http_code}' "$1"; }
 body() { curl -s "$1"; }
 check "home lists newest post first" '[ "$(body $B/ | grep -o "/personal-blog/posts/01K7[A-Z0-9]*/" | head -1)" = "/personal-blog/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/" ]'
-check "published post renders markdown" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "<h2>為什麼自建 CMS</h2>"'
+check "published post renders markdown" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "<h2 id=\"為什麼自建-cms\">為什麼自建 CMS</h2>"'
 check "published post is indexable" '! body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q noindex'
 check "archived post shows archive notice" 'body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "<h1>文章已封存</h1>"'
 check "archived post is noindex" 'body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "noindex"'
@@ -31,5 +31,13 @@ check "code blocks are highlighted for light and dark" 'p=$(body $B/posts/01K7M4
 check "article navigation links both ways in the middle and not past the newest" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "rel=\"prev\"" && echo "$p" | grep -q "rel=\"next\"" && ! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "rel=\"next\""'
 check "archived post has no article navigation" '! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "post-nav"'
 check "published post has a comments section and archived post has none" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "class=\"comments\"" && ! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "class=\"comments\""'
+check "article with an image has an absolute og:image and a large twitter card" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "property=\"og:image\" content=\"https://[^\"]*/personal-blog/images/" && echo "$p" | grep -q "name=\"twitter:card\" content=\"summary_large_image\""'
+check "article without an image has no og:image and a summary card" 'p=$(body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/); ! echo "$p" | grep -q "og:image" && echo "$p" | grep -q "name=\"twitter:card\" content=\"summary\""'
+check "article keeps the site-wide Open Graph fields" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "og:site_name\" content=\"Personal Blog" && echo "$p" | grep -q "og:locale\" content=\"zh_TW" && echo "$p" | grep -q "og:type\" content=\"article"'
+check "home uses the website Open Graph type" 'body $B/ | grep -q "og:type\" content=\"website"'
+check "article meta shows reading time and lists do not" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "約 1 分鐘" && ! body $B/posts/ | grep -q "分鐘"'
+check "long article has a table of contents whose links resolve to heading ids" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); n=0; for id in $(echo "$p" | grep -o "<nav class=\"toc\".*</nav>" | grep -o "href=\"#[^\"]*" | cut -c8-); do n=$((n+1)); echo "$p" | grep -q "<h[23] id=\"$id\"" || exit 1; done; [ $n -ge 3 ]'
+check "short article has no table of contents" '! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "class=\"toc\""'
+check "pages ship the theme init script in head and a theme toggle in the header" 'p=$(body $B/); echo "$p" | grep -q "<head>.*localStorage.getItem(.theme.*</head>" && echo "$p" | grep -q "class=\"theme-toggle\""'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]

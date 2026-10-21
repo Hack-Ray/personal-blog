@@ -81,6 +81,17 @@
 - **Consequences**：介紹的修改不再需要改程式碼。預設內容同時存在於 migration 0008 的 seed 與 `frontend/src/content/parse.ts`，後端測試檢查兩者一致。
 - **Supersedes**：FE-003。
 
+### FE-008：分享預覽、閱讀時間、目錄與手動深淺色
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：文章貼到社群沒有預覽圖，長文沒有導覽，深淺色只能跟隨系統。
+- **Decision**：
+  - 分享預覽：文章頁的 `og:image` 是第一張上傳圖片（規則同 FE-004）的絕對網址，`twitter:card` 有圖為 `summary_large_image`、沒圖為 `summary` 且不輸出 `og:image`。全站 `og:site_name` 為 Personal Blog、`og:locale` 為 `zh_TW`，非文章頁的 `og:type` 為 `website`；文章頁自己的 `openGraph` 會取代而不是合併 layout 的設定，所以由 `SITE_OG` 展開帶入。
+  - 閱讀時間：只顯示在文章頁的 metadata 列，格式「約 N 分鐘」；中日韓字元每分鐘 400 字，其他文字每分鐘 200 詞，只計純文字（不含程式碼區塊與圖片），無條件進位、最少 1 分鐘。
+  - 目錄：renderer 為 h2、h3 產生固定 `id`（保留中文、英文轉小寫、空白轉 `-`、移除標點，重複時加 `-2`、`-3`）。文章至少有 3 個 h2／h3 時，內文上方顯示「目錄」，h3 縮排在 h2 之下；連結為純 `#id`，不受 basePath 影響。
+  - 手動深淺色：頁首「關於」之後的按鈕依序切換跟隨系統、淺色、深色，選擇存在 `localStorage`，以 `<html data-theme="light|dark">` 套用，沒有屬性即跟隨系統。`<head>` 內的小段 inline script 在繪製前套用，避免閃爍。giscus 初始主題依選擇計算，切換時以 `postMessage` 通知 iframe。
+- **Consequences**：多了一段 inline script 與一個 client 元件；`localStorage` 不可用時（無痕模式等）退回跟隨系統。社群平台通常不支援 SVG 預覽圖，實際內容的圖片為 WebP（BE-014）。
+
 ## Open Questions
 
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。
