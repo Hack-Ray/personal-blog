@@ -74,8 +74,43 @@ header nav {
 }
 
 header nav form {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+.search-preview {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.search-preview p {
+  margin: 0 0 4px;
+}
+
+.search-preview ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-preview li {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.search-preview li .meta {
+  font-size: 0.8em;
 }
 
 a {
