@@ -11,7 +11,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from blog.models import DraftSnapshot, Image, ImageData, PublishedVersion, WorkingDraft
+from blog.models import DraftSnapshot, Image, ImageData, Profile, PublishedVersion, WorkingDraft
 
 MAX_BYTES = 10 * 1024 * 1024
 # Twice the 720px article column, so screenshots stay sharp on HiDPI screens (BE-014).
@@ -119,14 +119,16 @@ def mark_referenced(session: Session, markdown: str) -> None:
 def collect_garbage(session: Session, now: datetime) -> list[str]:
     """Deletes images with no reference for at least 7 days (Baseline 8.3).
 
-    References come from every Working Draft, Draft Snapshot and retained
-    Published Version; articles pending deletion keep all three, so their
+    References come from every Working Draft, Draft Snapshot, retained
+    Published Version and the profile intro; articles pending deletion keep all three, so their
     images survive the 30-day restore window. The share locks stop drafts from gaining a
     reference between the scan and the delete. Safe to run any number of times.
     """
-    session.execute(text("LOCK TABLE working_drafts, draft_snapshots, published_versions IN SHARE MODE"))
+    session.execute(text("LOCK TABLE working_drafts, draft_snapshots, published_versions, profile IN SHARE MODE"))
     referenced: set[str] = set()
-    sources = select(WorkingDraft.markdown).union_all(select(DraftSnapshot.markdown), select(PublishedVersion.markdown))
+    sources = select(WorkingDraft.markdown).union_all(
+        select(DraftSnapshot.markdown), select(PublishedVersion.markdown), select(Profile.content["intro"].astext)
+    )
     for (markdown,) in session.execute(sources):
         referenced |= refs(markdown)
 

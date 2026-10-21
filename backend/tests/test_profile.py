@@ -1,4 +1,13 @@
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
 import pytest
+
+from blog import articles
+from blog.db import SessionLocal
+from blog.exporter import export
 
 SEED = {
     "name": "Hack-Ray",
@@ -19,10 +28,23 @@ EDITED = {
         {"name": "Notes", "description": "", "tags": []},
     ],
 }
+FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
 
 def put(client, content, revision=1):
     return client.put("/api/profile", json={"revision": revision, "content": content})
+
+
+def git(repo, *args):
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
+
+
+@pytest.fixture
+def repo(tmp_path):
+    git(tmp_path, "init", "--quiet")
+    git(tmp_path, "config", "user.email", "test@example.com")
+    git(tmp_path, "config", "user.name", "Test")
+    return tmp_path
 
 
 def test_get_returns_the_seeded_profile(client):
@@ -77,3 +99,46 @@ def test_save_from_a_stale_revision_is_rejected(client):
 def test_profile_requires_sign_in(anon):
     assert anon.get("/api/profile").status_code == 401
     assert put(anon, EDITED).status_code == 401
+
+
+def test_export_writes_profile_json(client, repo):
+    put(client, EDITED)
+    export(repo)
+    assert json.loads((repo / "profile.json").read_text()) == EDITED
+    assert "profile.json" in git(repo, "ls-files").split()
+
+
+def test_a_profile_only_change_is_new_content(client, repo):
+    first = export(repo)
+    assert export(repo) is None
+    put(client, EDITED)
+    second = export(repo)
+    assert second is not None and second.release_id != first.release_id
+    assert git(repo, "rev-list", "--count", "HEAD").strip() == "2"
+
+
+def test_interrupted_profile_write_is_discarded(client, repo):
+    export(repo)
+    (repo / "profile.json").write_text("{}")
+    assert export(repo) is None
+    assert json.loads((repo / "profile.json").read_text()) == SEED
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the frontend snapshot parser")
+def test_frontend_parses_the_exported_profile_and_falls_back_to_the_seed(client, repo):
+    with SessionLocal() as s:
+        doc_id = articles.create_article(s, articles.DraftContent("T", articles.Taxon("backend", "Backend"), "m")).article.doc_id
+        articles.publish(s, doc_id, 1, articles.DraftContent("T", articles.Taxon("backend", "Backend"), "m"))
+    put(client, EDITED)
+    export(repo)
+
+    def parsed():
+        r = subprocess.run(
+            ["node", "scripts/check-snapshot.ts", str(repo), "--profile"], cwd=FRONTEND, capture_output=True, text=True
+        )
+        assert r.returncode == 0, r.stderr
+        return json.loads(r.stdout.splitlines()[1])
+
+    assert parsed() == EDITED
+    (repo / "profile.json").unlink()
+    assert parsed() == SEED

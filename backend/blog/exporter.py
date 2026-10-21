@@ -19,10 +19,11 @@ from ulid import ULID
 
 from blog import images
 from blog.db import engine
-from blog.models import Article, ArticleState, ImageData, PublishedVersion
+from blog.models import Article, ArticleState, ImageData, Profile, PublishedVersion
+from blog.profile import ProfileContent
 
 SCHEMA_VERSION = 1
-SNAPSHOT_PATHS = ("manifest.json", "articles", "images")
+SNAPSHOT_PATHS = ("manifest.json", "profile.json", "articles", "images")
 
 
 class ExportError(Exception):
@@ -77,9 +78,13 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
                 "markdown": v.markdown,
             }
         )
+    # Validated again so the file has the model's key order, not JSONB's.
+    profile = ProfileContent.model_validate(session.get_one(Profile, 1).content)
+    files["profile.json"] = _json(profile.public())
+    image_ids |= images.refs(profile.intro)
     data = {i: d for i, d in session.execute(select(ImageData.image_id, ImageData.data).where(ImageData.image_id.in_(image_ids)))}
     if missing := image_ids - data.keys():
-        raise ExportError(f"published articles reference missing images: {', '.join(sorted(missing))}")
+        raise ExportError(f"published content references missing images: {', '.join(sorted(missing))}")
     for image_id, blob in data.items():
         files[f"images/{image_id}"] = blob
     files["manifest.json"] = _json(
