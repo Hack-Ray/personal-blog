@@ -125,7 +125,8 @@ export class DraftSync {
       try {
         const draft = await this.api.restoreSnapshot(this.docId, this.revision, snapshotId);
         this.revision = draft.revision;
-        this.content = { title: draft.title, topic: draft.topic, tags: draft.tags, markdown: draft.markdown };
+        const { title, topic, tags, markdown, excerpt, cover, series } = draft;
+        this.content = { title, topic, tags, markdown, excerpt, cover, series };
         this.dirty = false;
         this.set({ kind: "saved" });
         return draft;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ApiError, type DraftApi, type DraftContent } from "./api.ts";
+import { ApiError, EMPTY_METADATA, type DraftApi, type DraftContent } from "./api.ts";
 import { DraftSync } from "./draft-sync.ts";
 
 const content = (markdown: string): DraftContent => ({
@@ -8,6 +8,7 @@ const content = (markdown: string): DraftContent => ({
   topic: { slug: "backend", name: "Backend" },
   tags: [],
   markdown,
+  ...EMPTY_METADATA,
 });
 
 /** Mimics the backend's revision check; each call waits until released. */

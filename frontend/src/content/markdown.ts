@@ -1,5 +1,6 @@
 import { Marked, type Tokens } from "marked";
 import { createHighlighter } from "shiki";
+import { SITE_ORIGIN } from "../site.ts";
 import { inlineText, slugger } from "./headings.ts";
 
 const LANGS = [
@@ -29,6 +30,8 @@ function highlight(code: string, info: string | undefined): string {
 const codeBlock = (pre: string) =>
   `<div class="code-block">${pre}<button type="button" class="copy-code" hidden>複製</button></div>\n`;
 
+const isExternal = (href: string) => /^https?:\/\//i.test(href) && !(SITE_ORIGIN && href.startsWith(`${SITE_ORIGIN}/`));
+
 // Snapshot Markdown references images as images/<file>; the build copies them
 // to public/images, which is served under the site's basePath.
 export function renderMarkdown(markdown: string, basePath: string): string {
@@ -36,6 +39,14 @@ export function renderMarkdown(markdown: string, basePath: string): string {
   const marked = new Marked({
     renderer: {
       code: ({ text, lang }) => codeBlock(highlight(text, lang)),
+      // Links to other sites open in a new tab; a link around an image gets no marker.
+      link({ href, title, tokens }) {
+        const inner = this.parser.parseInline(tokens);
+        const attrs = `href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""}`;
+        if (!isExternal(href)) return `<a ${attrs}>${inner}</a>`;
+        const onlyImage = tokens.every((t) => t.type === "image");
+        return `<a ${attrs} target="_blank" rel="noopener noreferrer"${onlyImage ? "" : ' class="external"'}>${inner}</a>`;
+      },
       // marked leaves the alt text unescaped.
       image: ({ href, title, text }) =>
         `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy">`,

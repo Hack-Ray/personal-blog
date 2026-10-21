@@ -17,5 +17,10 @@
     }
   ],
   "published_at": "2026-10-01T09:00:00+08:00",
-  "markdown": "這是一篇範例文章。\n\n![FastAPI 示意圖](images/2eafe1e529eb920d5ae6cff2e5a4a62b79dfb00a6586323819121629973ab500.svg)\n\n## 為什麼自建 CMS\n\n- 練習資料模型\n- 練習系統設計\n\n```python\nfrom fastapi import FastAPI\n\napp = FastAPI()\n```\n\n### 資料模型\n\n用 Snapshot 把內容交給前端。\n\n## 發布流程\n\n作者在本機 CMS 按下更新網站。\n"
+  "markdown": "這是一篇範例文章。\n\n![FastAPI 示意圖](images/2eafe1e529eb920d5ae6cff2e5a4a62b79dfb00a6586323819121629973ab500.svg)\n\n## 為什麼自建 CMS\n\n- 練習資料模型\n- 練習系統設計\n\n```python\nfrom fastapi import FastAPI\n\napp = FastAPI()\n```\n\n### 資料模型\n\n用 Snapshot 把內容交給前端。\n\n## 發布流程\n\n作者在本機 CMS 按下更新網站。\n\n![匯出 Snapshot](images/a67f52c10cb215df0256da4d18ded6f443ba5c665d78aed9195ab8bf293391c3.webp)\n\n詳見 [FastAPI 官方文件](https://fastapi.tiangolo.com/)。\n",
+  "cover": "images/a67f52c10cb215df0256da4d18ded6f443ba5c665d78aed9195ab8bf293391c3.webp",
+  "series": {
+    "slug": "build-a-cms",
+    "name": "自建 CMS"
+  }
 }

@@ -28,7 +28,7 @@ export function buildIndex(content: SiteContent): SearchDoc[] {
     topic: a.topic.name,
     tags: a.tags.map((t) => t.name),
     publishedAt: a.publishedAt.toISOString(),
-    text: plainText(a.markdown).slice(0, TEXT_LIMIT),
+    text: [a.excerpt, plainText(a.markdown)].filter(Boolean).join(" ").slice(0, TEXT_LIMIT),
   }));
 }
 

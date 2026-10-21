@@ -5,15 +5,15 @@ import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
-import { findArticle, neighbors, related } from "../../../content/queries.ts";
-import { imagePaths } from "../../../content/parse.ts";
+import { findArticle, inSeries, neighbors, related } from "../../../content/queries.ts";
 import { readingMinutes } from "../../../content/reading.ts";
-import { summary } from "../../../content/summary.ts";
+import { coverOf, excerptOf } from "../../../content/card.ts";
 import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { ArticleBody } from "../../article-body.tsx";
 import { Comments } from "./comments.tsx";
+import { ReadingProgress } from "./reading-progress.tsx";
 
 type Props = { params: Promise<{ docId: string }> };
 
@@ -36,23 +36,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await article(params);
   if (a.state === "archived") return { title: "文章已封存", robots: { index: false } };
   const url = absoluteUrl(`/posts/${a.docId}/`);
-  const image = imagePaths(a.markdown)[0];
+  const image = coverOf(a);
   const images = image ? [absoluteUrl(`/${image}`)] : undefined;
   return {
     title: a.title,
-    description: summary(a.markdown),
+    description: excerptOf(a),
     alternates: { canonical: url },
     openGraph: {
       ...siteOg(loadSiteContent().profile.site.title),
       type: "article",
       url,
       title: a.title,
-      description: summary(a.markdown),
+      description: excerptOf(a),
       publishedTime: a.publishedAt.toISOString(),
+      modifiedTime: a.updatedAt?.toISOString(),
       tags: a.tags.map((t) => t.name),
       images,
     },
-    twitter: { card: images ? "summary_large_image" : "summary", title: a.title, description: summary(a.markdown), images },
+    twitter: { card: images ? "summary_large_image" : "summary", title: a.title, description: excerptOf(a), images },
   };
 }
 
@@ -69,10 +70,33 @@ export default async function PostPage({ params }: Props) {
   const toc = tocHeadings(a.markdown);
   const { newer, older } = neighbors(loadSiteContent(), a.docId);
   const relatedArticles = related(loadSiteContent(), a.docId);
+  const series = a.series && inSeries(loadSiteContent(), a.series.slug);
   return (
     <article>
+      <ReadingProgress />
       <h1>{a.title}</h1>
-      <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} />
+      <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} showUpdated />
+      {a.series && series && (
+        <nav className="series" aria-label={`系列：${a.series.name}`}>
+          <p className="series-title">
+            系列：{a.series.name}
+            <span className="meta">
+              {` 第 ${series.findIndex((s) => s.docId === a.docId) + 1} 篇，共 ${series.length} 篇`}
+            </span>
+          </p>
+          <ol>
+            {series.map((s) => (
+              <li key={s.docId}>
+                {s.docId === a.docId ? (
+                  <span aria-current="page">{s.title}</span>
+                ) : (
+                  <Link href={`/posts/${s.docId}/`}>{s.title}</Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
       {toc.length > 0 && (
         <nav className="toc" aria-label="目錄">
           <p className="toc-title">目錄</p>

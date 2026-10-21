@@ -67,3 +67,43 @@ export function related(content: SiteContent, docId: DocId, limit = 3): Publishe
     .slice(0, limit)
     .map(({ a }) => a);
 }
+
+/** Pinned published articles, most recently pinned first. */
+export function pinned(content: SiteContent): PublishedArticle[] {
+  return published(content)
+    .filter((a) => a.pinnedAt)
+    .sort((a, b) => b.pinnedAt!.getTime() - a.pinnedAt!.getTime());
+}
+
+/** The published articles of a series in reading order, oldest first. */
+export function inSeries(content: SiteContent, slug: Slug): PublishedArticle[] {
+  return published(content)
+    .filter((a) => a.series?.slug === slug)
+    .reverse();
+}
+
+export const PAGE_SIZE = 10;
+
+/** Page `n` (from 1) of published articles, newest first, and the page count (at least 1). */
+export function page(content: SiteContent, n: number): { articles: PublishedArticle[]; pages: number } {
+  const list = published(content);
+  return { articles: list.slice((n - 1) * PAGE_SIZE, n * PAGE_SIZE), pages: Math.max(1, Math.ceil(list.length / PAGE_SIZE)) };
+}
+
+export type Archive = { year: number; months: { month: number; articles: PublishedArticle[] }[] }[];
+
+/** Articles grouped by year, then month, in the given time zone, keeping their order. */
+export function archive(articles: PublishedArticle[], timeZone: string): Archive {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric" });
+  const years: Archive = [];
+  for (const a of articles) {
+    const p = Object.fromEntries(parts.formatToParts(a.publishedAt).map((x) => [x.type, x.value]));
+    const year = Number(p.year);
+    const month = Number(p.month);
+    if (years.at(-1)?.year !== year) years.push({ year, months: [] });
+    const months = years.at(-1)!.months;
+    if (months.at(-1)?.month !== month) months.push({ month, articles: [] });
+    months.at(-1)!.articles.push(a);
+  }
+  return years;
+}

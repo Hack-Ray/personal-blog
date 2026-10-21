@@ -13,7 +13,15 @@ export interface PublishedArticle {
   topic: Taxon;
   tags: Taxon[];
   publishedAt: Date;
+  /** The latest publication, when the article was published more than once. */
+  updatedAt?: Date;
   markdown: string;
+  /** Written by the author; when absent, lists and previews use the start of the Markdown. */
+  excerpt?: string;
+  /** An images/ path the Markdown references; when absent, its first image is the cover. */
+  cover?: string;
+  series?: Taxon;
+  pinnedAt?: Date;
 }
 
 export interface ArchivedArticle {

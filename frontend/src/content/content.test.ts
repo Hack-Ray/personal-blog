@@ -4,7 +4,9 @@ import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
 import { ContentError, DEFAULT_PROFILE, DEFAULT_SITE, parseSnapshot, type Snapshot } from "./parse.ts";
-import { findArticle, inTopic, neighbors, published, related, tags, taxonCounts, topics, withTag } from "./queries.ts";
+import { archive, findArticle, inSeries, inTopic, neighbors, page, PAGE_SIZE, pinned, published, related, tags, taxonCounts, topics, withTag } from "./queries.ts";
+import { coverOf, excerptOf, thumbnailOf } from "./card.ts";
+import { sitemapEntries } from "./sitemap.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
 const B = "01K7M4Y7P65BDCF8AHRTQY7ZQB";
@@ -313,4 +315,143 @@ test("related ranks a shared topic above one shared tag and skips unrelated arti
   assert.deepEqual(ids(A), [D, C, B]);
   assert.deepEqual(ids(A, 1), [D]);
   assert.deepEqual(ids(E), []);
+});
+
+const IMG = "images/cover.webp";
+
+test("optional article fields are read when present and left out when absent", () => {
+  const series = { slug: "build-a-cms", name: "自建 CMS" };
+  const content = parseSnapshot(
+    snapshot({
+      images: ["cover.webp"],
+      files: {
+        [A]: articleFile(A, {
+          markdown: `![](${IMG})`,
+          updated_at: "2026-10-05T00:00:00Z",
+          excerpt: "Short",
+          cover: IMG,
+          series,
+          pinned_at: "2026-10-06T00:00:00Z",
+        }),
+        [B]: articleFile(B),
+      },
+    }),
+  );
+  const [a, b] = [A, B].map((id) => findArticle(content, id as DocId));
+  assert.ok(a?.state === "published" && b?.state === "published");
+  assert.equal(a.updatedAt?.toISOString(), "2026-10-05T00:00:00.000Z");
+  assert.equal(a.pinnedAt?.toISOString(), "2026-10-06T00:00:00.000Z");
+  assert.deepEqual([a.excerpt, a.cover, a.series], ["Short", IMG, series]);
+  for (const key of ["updatedAt", "excerpt", "cover", "series", "pinnedAt"]) assert.ok(!(key in b), key);
+});
+
+test("rejects a cover the article does not contain and malformed optional fields", () => {
+  const bad = (overrides: Record<string, unknown>) => () =>
+    parseSnapshot(snapshot({ images: ["cover.webp"], files: { [A]: articleFile(A, overrides) } }));
+  assert.throws(bad({ cover: IMG }), /articles\/.*\.json\.cover: "images\/cover\.webp" is not an image the article contains/);
+  assert.throws(bad({ excerpt: " " }), /\.excerpt: expected a non-empty string/);
+  assert.throws(bad({ updated_at: "yesterday" }), /\.updated_at: expected an ISO 8601 date/);
+  assert.throws(bad({ series: { slug: "Bad", name: "x" } }), /\.series\.slug/);
+  assert.throws(bad({ pinned_at: 1 }), /\.pinned_at/);
+});
+
+test("the author's excerpt and cover win over the ones derived from the Markdown", () => {
+  const content = parseSnapshot(
+    snapshot({
+      images: ["first.webp", "cover.webp"],
+      files: {
+        [A]: articleFile(A, { markdown: `Opening text\n\n![](images/first.webp) ![](${IMG})`, excerpt: "Short", cover: IMG }),
+        [B]: articleFile(B, { markdown: "Opening text\n\n![](images/first.webp)" }),
+      },
+    }),
+  );
+  const [a, b] = [A, B].map((id) => findArticle(content, id as DocId));
+  assert.ok(a?.state === "published" && b?.state === "published");
+  assert.deepEqual([excerptOf(a), coverOf(a)], ["Short", IMG]);
+  assert.deepEqual([excerptOf(b), coverOf(b)], ["Opening text", "images/first.webp"]);
+});
+
+test("raster images get a WebP thumbnail and SVGs are used as is", () => {
+  assert.equal(thumbnailOf("images/abc.png"), "thumbs/abc.webp");
+  assert.equal(thumbnailOf("images/abc.webp"), "thumbs/abc.webp");
+  assert.equal(thumbnailOf("images/abc.svg"), "images/abc.svg");
+});
+
+test("pinned lists pinned articles, most recently pinned first", () => {
+  const content = parseSnapshot(
+    snapshot({
+      files: {
+        [A]: articleFile(A, { pinned_at: "2026-10-01T00:00:00Z" }),
+        [B]: articleFile(B),
+        [C]: articleFile(C, { pinned_at: "2026-10-02T00:00:00Z" }),
+      },
+    }),
+  );
+  assert.deepEqual(pinned(content).map((a) => a.docId), [C, A]);
+});
+
+test("inSeries lists the series oldest first and leaves out other articles", () => {
+  const series = { slug: "s", name: "S" };
+  const content = parseSnapshot(
+    snapshot({
+      files: {
+        [A]: articleFile(A, { series, published_at: "2026-03-01T00:00:00Z" }),
+        [B]: articleFile(B, { series, published_at: "2026-01-01T00:00:00Z" }),
+        [C]: articleFile(C),
+      },
+    }),
+  );
+  assert.deepEqual(inSeries(content, "s" as Slug).map((a) => a.docId), [B, A]);
+});
+
+const ulid = (i: number) => `01K7M4Y7P65BDCF8AHRTQY${String(i).padStart(4, "0")}`;
+
+test("page splits published articles newest first into pages of PAGE_SIZE", () => {
+  const files = Object.fromEntries(
+    Array.from({ length: PAGE_SIZE + 2 }, (_, i) => [ulid(i), articleFile(ulid(i), { published_at: new Date(Date.UTC(2026, 0, i + 1)).toISOString() })]),
+  );
+  const content = parseSnapshot(snapshot({ files }));
+  assert.equal(page(content, 1).pages, 2);
+  assert.equal(page(content, 1).articles.length, PAGE_SIZE);
+  assert.deepEqual(page(content, 2).articles.map((a) => a.docId), [ulid(1), ulid(0)]);
+  assert.equal(page(parseSnapshot(snapshot({})), 1).pages, 1);
+});
+
+test("archive groups by year and month in the given time zone, keeping the order", () => {
+  const content = parseSnapshot(
+    snapshot({
+      files: {
+        // 2026-01-01 08:00 in Taipei
+        [A]: articleFile(A, { published_at: "2026-01-01T00:00:00Z" }),
+        // 2026-01-01 01:00 in Taipei, still 2025 in UTC
+        [B]: articleFile(B, { published_at: "2025-12-31T17:00:00Z" }),
+        [C]: articleFile(C, { published_at: "2025-11-15T00:00:00Z" }),
+      },
+    }),
+  );
+  const flat = archive(published(content), "Asia/Taipei").map((y) => [y.year, y.months.map((m) => [m.month, m.articles.map((a) => a.docId)])]);
+  assert.deepEqual(flat, [
+    [2026, [[1, [A, B]]]],
+    [2025, [[11, [C]]]],
+  ]);
+  const oldest = archive(published(content).toReversed(), "Asia/Taipei").map((y) => [y.year, y.months.map((m) => m.articles.map((a) => a.docId))]);
+  assert.deepEqual(oldest, [
+    [2025, [[C]]],
+    [2026, [[B, A]]],
+  ]);
+});
+
+test("the sitemap uses the update time of an updated article", () => {
+  const content = parseSnapshot(snapshot({ files: { [A]: articleFile(A, { updated_at: "2026-10-05T00:00:00Z" }) } }));
+  const entry = sitemapEntries(content).find((e) => e.path === `/posts/${A}/`);
+  assert.equal(entry?.lastModified?.toISOString(), "2026-10-05T00:00:00.000Z");
+});
+
+test("links to other sites open in a new tab and only text links get the external marker", () => {
+  assert.equal(
+    renderMarkdown("[a](https://example.com/x)", ""),
+    '<p><a href="https://example.com/x" target="_blank" rel="noopener noreferrer" class="external">a</a></p>\n',
+  );
+  assert.match(renderMarkdown("[![x](images/d.png)](https://e.com)", ""), /<a href="https:\/\/e\.com" target="_blank" rel="noopener noreferrer"><img/);
+  assert.equal(renderMarkdown("[b](/posts/X/) [c](#top)", ""), '<p><a href="/posts/X/">b</a> <a href="#top">c</a></p>\n');
 });

@@ -1,6 +1,6 @@
 {
   "doc_id": "01K7R6F2M8KD4S9V1YCX3BNQWE",
-  "version": 1,
+  "version": 2,
   "title": "沒有標籤的短文",
   "topic": {
     "slug": "backend",
@@ -8,5 +8,12 @@
   },
   "tags": [],
   "published_at": "2026-09-15T12:00:00+08:00",
-  "markdown": "Tags 不是必填。\n"
+  "updated_at": "2026-10-12T08:00:00+08:00",
+  "markdown": "Tags 不是必填。\n",
+  "excerpt": "自建 CMS 系列的第一篇：先決定什麼不做。",
+  "series": {
+    "slug": "build-a-cms",
+    "name": "自建 CMS"
+  },
+  "pinned_at": "2026-10-15T08:00:00+08:00"
 }

@@ -10,7 +10,14 @@ export interface DraftContent {
   topic: Taxon;
   tags: Taxon[];
   markdown: string;
+  /** "" lets the public site use the start of the article. */
+  excerpt: string;
+  /** An image id the Markdown references; null means its first image. */
+  cover: string | null;
+  series: Taxon | null;
 }
+
+export const EMPTY_METADATA = { excerpt: "", cover: null, series: null } satisfies Partial<DraftContent>;
 
 export interface Draft extends DraftContent {
   doc_id: string;
@@ -23,6 +30,7 @@ export interface ArticleSummary {
   doc_id: string;
   state: ArticleState;
   title: string;
+  pinned: boolean;
   deleted_at: string | null;
   purge_after: string | null;
 }
@@ -116,6 +124,7 @@ export const api = {
     request<Draft>("PUT", `/articles/${docId}/draft`, { ...content, base_revision: baseRevision }),
   publish: (docId: string, baseRevision: number, content: DraftContent) =>
     request<Published>("POST", `/articles/${docId}/publish`, { ...content, base_revision: baseRevision }),
+  setPinned: (docId: string, pinned: boolean) => request<ArticleSummary>("PUT", `/articles/${docId}/pinned`, { pinned }),
   archive: (docId: string) => request<ArticleSummary>("POST", `/articles/${docId}/archive`),
   remove: (docId: string) => request<ArticleSummary>("DELETE", `/articles/${docId}`),
   restore: (docId: string) => request<ArticleSummary>("POST", `/articles/${docId}/restore`),

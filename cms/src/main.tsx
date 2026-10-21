@@ -1,6 +1,6 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
+import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
 import { ProfilePage } from "./profile-page.tsx";
@@ -37,7 +37,7 @@ function NewArticle() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const d = await api.create({ title, topic, tags: [], markdown: "" });
+      const d = await api.create({ title, topic, tags: [], markdown: "", ...EMPTY_METADATA });
       location.replace(`#/edit/${d.doc_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

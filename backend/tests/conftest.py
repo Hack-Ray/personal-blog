@@ -46,7 +46,7 @@ def clean_tables(profile_seed):
         )
         conn.execute(
             text(
-                "TRUNCATE articles, topics, tags, images, retired_doc_ids, admin_credentials, admin_sessions, releases"
+                "TRUNCATE articles, topics, tags, series, images, retired_doc_ids, admin_credentials, admin_sessions, releases"
                 " RESTART IDENTITY CASCADE"
             )
         )

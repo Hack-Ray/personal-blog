@@ -120,6 +120,25 @@
   - 頁尾：`profile.json` 的 `site` 新增 `footer`（上限 200 字，可空白）。不為空時頁尾顯示此文字，空白時顯示「© 年份 名字」。頁尾連結改為關於頁的連結清單，最後是 RSS。沒有 `footer` 鍵（此功能之前匯出的內容）時視為空白。CMS「網站與關於」的「網站」區塊新增「頁尾文字」。
 - **Consequences**：頁尾不再寫死 Hack-Ray 與 GitHub 連結，預設內容（FE-007）下網站外觀不變。此版本之後第一次「更新網站」時 `profile.json` 會多出 `footer`。
 
+### FE-011：文章摘要、封面、系列、置頂、更新日期與瀏覽輔助
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：第二輪擴充清單的「公開網站」一組。
+- **Decision**：
+  - 文章檔新增可省略的鍵（BE-018）：`updated_at`、`excerpt`、`cover`、`series: {slug, name}`、`pinned_at`。沒有設定時不輸出，之前匯出的內容不受影響，`schema_version` 維持 1。`cover` 必須是文章 Markdown 中的 `images/` 圖片，否則 build 失敗。
+  - 摘要：有 `excerpt` 時用於列表、meta description、分享預覽與 RSS，並併入搜尋內容；沒有時沿用自動擷取的前 120 字。
+  - 封面：有 `cover` 時取代「第一張上傳圖片」規則（FE-004、FE-008），用於列表縮圖與 `og:image`。
+  - 縮圖：build 時以 sharp 為每張點陣圖產生寬 320px 的 WebP 到 `thumbs/`，列表使用縮圖，文章內文仍用原圖；SVG 直接使用原圖。sharp 原為 Next.js 的選用相依套件，改為明確的 devDependency 並固定版本。
+  - 更新日期：文章頁的 metadata 列在發布日期後顯示「更新於」；sitemap 的 `lastmod` 與 `article:modified_time` 使用更新時間。列表不顯示更新日期。
+  - 系列：文章頁標題下方顯示系列名稱、本篇是第幾篇與全部篇目（依發布時間由舊到新），本篇不加連結。
+  - 置頂：首頁先列出置頂文章（最近置頂的在前，標「置頂」），再列出最新 5 篇未置頂文章。`/posts/` 不受影響。
+  - 分頁：`/posts/` 每頁 10 篇，第 2 頁起為 `/posts/page/<n>/`，只有一頁時不顯示分頁列。分頁後不再於 `/posts/` 切換排序；Baseline 3.1 的新到舊／舊到新排序改由歸檔頁提供。
+  - 歸檔：`/archive/` 依年、月分組列出所有已發布文章（以台北時間判斷年月），可切換新到舊／舊到新；`/posts/` 頂部有連結。歸檔與各分頁加入 sitemap。
+  - 閱讀進度與回到頂端：文章頁頂端有細進度條；捲動超過一個畫面高度後右下角出現回到頂端按鈕，使用者偏好減少動態時不使用平滑捲動。
+  - 外部連結：內文中 `http(s)://` 開頭、且不是本站網址的連結在新分頁開啟（`rel="noopener noreferrer"`），文字連結後加 ↗；只包住圖片的連結不加標記。
+  - 404：顯示搜尋框與最新 5 篇文章。最新文章在瀏覽器端從 `search-index.json` 讀取，因為每一頁的 payload 都含有 404 頁，在 build 時寫入會讓所有頁面都帶著這份清單。
+- **Consequences**：摘要、封面與系列屬於文章版本，修改後要重新發布；重新發布會產生「更新於」。置頂不需要重新發布，下次「更新網站」生效。
+
 ## Open Questions
 
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。

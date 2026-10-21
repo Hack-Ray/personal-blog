@@ -24,6 +24,14 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String(100))
 
 
+class Series(Base):
+    __tablename__ = "series"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
+
+
 working_draft_tags = Table(
     "working_draft_tags",
     Base.metadata,
@@ -60,6 +68,9 @@ class Article(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     state_before_deletion: Mapped[ArticleState | None] = mapped_column(_state)
     first_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Pinned articles lead the home page, most recently pinned first. Not
+    # versioned, so pinning needs no new Published Version.
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     draft: Mapped["WorkingDraft"] = relationship(
         back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True
@@ -76,10 +87,15 @@ class WorkingDraft(Base):
     title: Mapped[str] = mapped_column(Text)
     topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"))
     markdown: Mapped[str] = mapped_column(Text)
+    excerpt: Mapped[str] = mapped_column(Text, default="")
+    # An image id the Markdown references, e.g. "<sha256>.webp".
+    cover: Mapped[str | None] = mapped_column(String(80))
+    series_id: Mapped[int | None] = mapped_column(ForeignKey("series.id"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     article: Mapped[Article] = relationship(back_populates="draft")
     topic: Mapped[Topic] = relationship()
+    series: Mapped[Series | None] = relationship()
     tags: Mapped[list[Tag]] = relationship(secondary=working_draft_tags, order_by=Tag.slug)
 
 
@@ -95,9 +111,13 @@ class PublishedVersion(Base):
     title: Mapped[str] = mapped_column(Text)
     topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"))
     markdown: Mapped[str] = mapped_column(Text)
+    excerpt: Mapped[str] = mapped_column(Text, default="")
+    cover: Mapped[str | None] = mapped_column(String(80))
+    series_id: Mapped[int | None] = mapped_column(ForeignKey("series.id"))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     topic: Mapped[Topic] = relationship()
+    series: Mapped[Series | None] = relationship()
     tags: Mapped[list[Tag]] = relationship(secondary=published_version_tags, order_by=Tag.slug)
 
 

@@ -22,7 +22,10 @@ const sameContent = (a: DraftContent, b: DraftContent) =>
   a.markdown === b.markdown &&
   sameTaxon(a.topic, b.topic) &&
   a.tags.length === b.tags.length &&
-  a.tags.every((t, i) => sameTaxon(t, b.tags[i]!));
+  a.tags.every((t, i) => sameTaxon(t, b.tags[i]!)) &&
+  a.excerpt === b.excerpt &&
+  a.cover === b.cover &&
+  (a.series && b.series ? sameTaxon(a.series, b.series) : a.series === b.series);
 
 export function statusLabel(
   status: SyncStatus,
