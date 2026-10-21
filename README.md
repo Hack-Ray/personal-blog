@@ -14,7 +14,7 @@
 網站內容不在這個 repo，而在 private repo `Hack-Ray/personal-blog-content`。發布流程：
 
 1. 在 CMS 按「發布」：在資料庫建立一個新的 Published Version。這一步不會改變網站。
-2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章匯出成 Snapshot（`manifest.json`、`articles/`、`images/`），commit 並 push 到內容 repo，再啟動 `Deploy site` workflow。
+2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章與關於頁匯出成 Snapshot（`manifest.json`、`profile.json`、`articles/`、`images/`），commit 並 push 到內容 repo，再啟動 `Deploy site` workflow。
 3. `.github/workflows/deploy.yml` 以這份 Snapshot 建置 `frontend/`，部署到 GitHub Pages。
 
 後端與前端之間只透過 Snapshot 溝通，格式以 `frontend/src/content/parse.ts` 為準；後端測試會用它驗證匯出結果。

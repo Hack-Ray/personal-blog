@@ -47,9 +47,12 @@
 
     ```text
     manifest.json
+    profile.json
     articles/{docId}.json
     images/{contentHash}.{ext}
     ```
+
+    （`profile.json` 由 Addendum 03 BE-017 加入，是關於頁的內容。）
 
   - `manifest.json` 至少包含：`schema_version`、`release_id`、`created_at`、`articles`（每篇的 `docId` 與 Published Version）、`archived_articles`。
   - 只匯出公開網站需要的資料；不匯出 Working Draft、Draft Snapshots、Pending Deletion 文章、管理員資訊或其他私有資料。

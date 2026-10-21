@@ -1,10 +1,10 @@
 # CMS
 
-Admin UI for the local CMS: article list with the Pending Deletion area, and a split Markdown editor with live preview and Auto Save. FastAPI serves the build at `/admin/` (see `backend/README.md`).
+Admin UI for the local CMS: article list with the Pending Deletion area, a split Markdown editor with live preview and Auto Save, and the 關於 page form (saved with an explicit 儲存 button). FastAPI serves the build at `/admin/` (see `backend/README.md`).
 
 ```sh
 npm ci
-npm test         # draft sync and tag parsing
+npm test         # draft sync, tag parsing and the profile form
 npm run build    # typecheck, then write dist/
 npm run dev      # Vite dev server; proxies /api to 127.0.0.1:8000
 ```

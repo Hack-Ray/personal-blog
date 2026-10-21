@@ -16,6 +16,7 @@ SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 
 ```text
 manifest.json
+profile.json            optional
 articles/{docId}.json
 images/{contentHash}.{ext}
 ```
@@ -34,7 +35,9 @@ images/{contentHash}.{ext}
 
 `articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
-The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, or a referenced image is missing.
+`profile.json` is the About page: `name`, `headline`, `intro` (Markdown), `links` (`label`, `url`), `experience` (`role`, `organization`, `period`, `description`) and `projects` (`name`, optional `url`, `description`, `tags`). Links and project URLs must start with `https://` or `mailto:`. A snapshot without it gets the default profile in `src/content/parse.ts` (name and GitHub link), which matches what the backend seeds.
+
+The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, `profile.json` is malformed, or a referenced image is missing.
 
 ## Checking the built site
 
