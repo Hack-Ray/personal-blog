@@ -35,10 +35,11 @@ Both default to the Docker Compose database; `--url <DATABASE_URL>` targets any 
 
 ## Test
 
-Tests drop and recreate the schema, so point them at a disposable database:
+Tests drop and recreate the schema, so point them at a disposable database. The snapshot contract tests run the frontend parser with Node 22, so install the frontend dependencies first:
 
 ```sh
 docker compose exec db createdb -U blog blog_test
+(cd ../frontend && npm ci)
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
