@@ -29,5 +29,6 @@ check "pages advertise the feed" 'body $B/ | grep -q "rel=\"alternate\" type=\"a
 check "code blocks are highlighted for light and dark" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "<pre class=\"shiki" && echo "$p" | grep -q "style=\"--shiki-light:#[0-9A-Fa-f]*;--shiki-dark:#"'
 check "article navigation links both ways in the middle and not past the newest" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "rel=\"prev\"" && echo "$p" | grep -q "rel=\"next\"" && ! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "rel=\"next\""'
 check "archived post has no article navigation" '! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "post-nav"'
+check "published post has a comments section and archived post has none" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "class=\"comments\"" && ! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "class=\"comments\""'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]

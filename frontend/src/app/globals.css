@@ -232,6 +232,10 @@ pre {
   max-width: 48%;
 }
 
+.comments {
+  margin-top: 2em;
+}
+
 .post-nav .next {
   margin-left: auto;
   text-align: right;

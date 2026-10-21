@@ -56,8 +56,18 @@
   - `/feed.xml` 為 RSS 2.0，內容是最新 20 篇已發佈文章（標題、連結、發佈時間、FE-001 的摘要、Topic）。`lastBuildDate` 取最新文章的發佈時間而不是 build 時間，讓輸出可重現。每頁 `<head>` 帶 feed 的 autodiscovery 連結。
 - **Consequences**：build 時多載入 shiki 與語法檔，build 時間略增；清單外的語言不會高亮，需要時再擴充清單。Feed 只放摘要，讀者需點回網站閱讀全文。
 
+### FE-006：giscus 留言
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：Baseline 3.2、3.3 已決定留言交給 giscus，對應方式待定。
+- **Decision**：
+  - 已發布文章底部載入 giscus，討論串放在 `Hack-Ray/personal-blog` 的 Announcements 分類；封存頁不顯示。
+  - mapping 用 `specific`，字串是文章的 `doc_id`，並開啟嚴格匹配。改標題、網域或 basePath 都不會換到另一個討論串。
+  - 主題跟隨系統深淺模式，介面語言 zh-TW，延遲載入。
+  - repo 與分類的 ID 寫在 `frontend/src/app/posts/[docId]/comments.tsx`；ID 為空時不顯示留言區。
+- **Consequences**：討論串在第一則留言時由 giscus 建立，標題就是 `doc_id`。留言者需要 GitHub 帳號。
+
 ## Open Questions
 
-- giscus 留言：需要在 GitHub 開啟 Discussions、安裝 giscus app，並決定 mapping 方式（Baseline 3.3 建議以 `doc_id` 對應）。
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。
 - `profile.ts` 的實際內容需由使用者填寫。
