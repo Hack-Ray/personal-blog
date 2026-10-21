@@ -86,11 +86,27 @@
 - **Status**：Confirmed（使用者 2026-10-21 指定）
 - **Context**：文章貼到社群沒有預覽圖，長文沒有導覽，深淺色只能跟隨系統。
 - **Decision**：
-  - 分享預覽：文章頁的 `og:image` 是第一張上傳圖片（規則同 FE-004）的絕對網址，`twitter:card` 有圖為 `summary_large_image`、沒圖為 `summary` 且不輸出 `og:image`。全站 `og:site_name` 為 Personal Blog、`og:locale` 為 `zh_TW`，非文章頁的 `og:type` 為 `website`；文章頁自己的 `openGraph` 會取代而不是合併 layout 的設定，所以由 `SITE_OG` 展開帶入。
+  - 分享預覽：文章頁的 `og:image` 是第一張上傳圖片（規則同 FE-004）的絕對網址，`twitter:card` 有圖為 `summary_large_image`、沒圖為 `summary` 且不輸出 `og:image`。全站 `og:site_name` 為網站名稱（FE-009，原為固定的 Personal Blog）、`og:locale` 為 `zh_TW`，非文章頁的 `og:type` 為 `website`；文章頁自己的 `openGraph` 會取代而不是合併 layout 的設定，所以由 `siteOg()` 展開帶入。
   - 閱讀時間：只顯示在文章頁的 metadata 列，格式「約 N 分鐘」；中日韓字元每分鐘 400 字，其他文字每分鐘 200 詞，只計純文字（不含程式碼區塊與圖片），無條件進位、最少 1 分鐘。
   - 目錄：renderer 為 h2、h3 產生固定 `id`（保留中文、英文轉小寫、空白轉 `-`、移除標點，重複時加 `-2`、`-3`）。文章至少有 3 個 h2／h3 時，內文上方顯示「目錄」，h3 縮排在 h2 之下；連結為純 `#id`，不受 basePath 影響。
   - 手動深淺色：頁首「關於」之後的按鈕依序切換跟隨系統、淺色、深色，選擇存在 `localStorage`，以 `<html data-theme="light|dark">` 套用，沒有屬性即跟隨系統。`<head>` 內的小段 inline script 在繪製前套用，避免閃爍。giscus 初始主題依選擇計算，切換時以 `postMessage` 通知 iframe。
 - **Consequences**：多了一段 inline script 與一個 client 元件；`localStorage` 不可用時（無痕模式等）退回跟隨系統。社群平台通常不支援 SVG 預覽圖，實際內容的圖片為 WebP（BE-014）。
+
+### FE-009：網站名稱與簡介由 CMS 編輯
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：網站名稱「Personal Blog」與 RSS 的頻道說明寫死在前端程式碼，修改需要改程式碼並重新部署。
+- **Decision**：
+  - `profile.json` 新增 `site: {title, description}`，與關於頁一起由 CMS 編輯、經同一條 Snapshot 流程發布（FE-007、Addendum 03 BE-017）。
+  - `title`（網站名稱）不可空白；`description`（網站簡介）可為空字串。
+  - 網站名稱用於：預設頁面標題與標題範本（`文章 | <網站名稱>`）、頁首的網站名稱、RSS 自動探索 `<link rel="alternate">` 的 `title`、`og:site_name`、RSS 頻道的 `<title>`。
+  - 網站簡介不為空時，作為 layout 的 `description` meta（首頁與沒有自己 description 的頁面沿用）與 RSS 頻道的 `<description>`。RSS 2.0 要求頻道一定要有說明，所以簡介為空時 RSS 改用網站名稱；原本寫死的「Hack-Ray 的軟體工程文章」移除。
+  - `site` 在檔案中可省略：沒有 `profile.json`，或 `profile.json` 沒有 `site`（此功能之前匯出的內容 repo）時，使用 `{title: "Personal Blog", description: ""}`，網站不變。`site` 不是物件、名稱空白或欄位型別錯誤時 build 失敗。
+  - CMS 的「關於」頁改名為「網站與關於」（路由仍是 `#/profile`），最上方新增「網站」區塊，有「網站名稱」與「網站簡介」兩個欄位；驗證、未儲存提示與 409 衝突處理和頁面其他欄位相同。
+- **Consequences**：
+  - 預設值同時存在於後端 `blog/profile.py` 的 `DEFAULT_SITE_TITLE` 與 `frontend/src/content/parse.ts` 的 `DEFAULT_SITE`；後端測試以前端 parser 解析匯出的 `profile.json`，檢查兩者一致。
+  - 此版本之後第一次「更新網站」時，`profile.json` 會多出 `site`，即使沒有其他修改也會產生一個 release commit；內容與預設相同，網站不變。
+  - 頁尾的 `© Hack-Ray` 與 GitHub 連結仍寫死，不在此範圍。
 
 ## Open Questions
 

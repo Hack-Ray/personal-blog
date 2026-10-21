@@ -40,6 +40,11 @@ jobs:
         run: npm run build
         env:
           SITE_DATA_DIR: test-fixtures/empty-site-data
+      - name: Without profile.json the site keeps the default title
+        run: |
+          grep -q 'class="site-title" href="/personal-blog/">Personal Blog</a>' out/index.html
+          grep -q '<title>Personal Blog</title>' out/index.html
+          grep -q '<title>Personal Blog</title>' out/feed.xml
 
   cms:
     runs-on: ubuntu-latest

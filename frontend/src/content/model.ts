@@ -32,6 +32,8 @@ export interface Profile {
   links: { label: string; url: string }[];
   experience: { role: string; organization: string; period: string; description: string }[];
   projects: { name: string; url?: string; description: string; tags: string[] }[];
+  /** The site name and description for page titles, the header and the RSS feed; description may be "". */
+  site: { title: string; description: string };
 }
 
 export interface SiteContent {

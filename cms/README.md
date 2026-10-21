@@ -1,6 +1,6 @@
 # CMS
 
-Admin UI for the local CMS: article list with the Pending Deletion area, a split Markdown editor with live preview and Auto Save, and the 關於 page form (saved with an explicit 儲存 button). FastAPI serves the build at `/admin/` (see `backend/README.md`).
+Admin UI for the local CMS: article list with the Pending Deletion area, a split Markdown editor with live preview and Auto Save, and the 網站與關於 page form for the site name, description and About page (saved with an explicit 儲存 button). FastAPI serves the build at `/admin/` (see `backend/README.md`).
 
 ```sh
 npm ci

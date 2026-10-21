@@ -26,5 +26,9 @@
         "Next.js"
       ]
     }
-  ]
+  ],
+  "site": {
+    "title": "Hack-Ray 的技術筆記",
+    "description": "後端、自動化與自建 CMS 的軟體工程文章"
+  }
 }

@@ -11,6 +11,7 @@ export interface ProfileForm {
   experience: { role: string; organization: string; period: string; description: string }[];
   /** url is "" for none; tags is the comma-separated input */
   projects: { name: string; url: string; description: string; tags: string }[];
+  site: { title: string; description: string };
 }
 
 export const EMPTY_ROW = {
@@ -31,6 +32,7 @@ export function toForm(p: Profile): ProfileForm {
     links: p.links.map((l) => ({ ...l })),
     experience: p.experience.map((e) => ({ ...e })),
     projects: p.projects.map((j) => ({ name: j.name, url: j.url ?? "", description: j.description, tags: j.tags.join(", ") })),
+    site: { ...p.site },
   };
 }
 
@@ -53,6 +55,7 @@ export function fromForm(f: ProfileForm): Profile {
       description: t(j.description),
       tags: parseTagList(j.tags),
     })),
+    site: { title: t(f.site.title), description: t(f.site.description) },
   };
 }
 
@@ -62,6 +65,7 @@ export function validate(f: ProfileForm): Record<string, string> {
   const blank = (s: string) => s.trim() === "";
   const badUrl = (s: string) => !URL_SCHEME.test(s.trim());
   const URL_RULE = "網址必須以 https:// 或 mailto: 開頭";
+  if (blank(f.site.title)) errors["site.title"] = "網站名稱不可空白";
   if (blank(f.name)) errors.name = "名字不可空白";
   f.links.forEach((l, i) => {
     if (blank(l.label)) errors[`links.${i}.label`] = `連結 ${i + 1}：名稱不可空白`;
