@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { type SearchDoc, search } from "../../content/search.ts";
-import { BASE_PATH } from "../../site.ts";
+import { loadIndex } from "./load-index.ts";
 import { onQueryChange, readQuery } from "./query.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: "Asia/Taipei" });
@@ -17,9 +17,7 @@ export function SearchResults() {
     const sync = () => setLoadedQuery(readQuery());
     sync();
     const unsubscribe = onQueryChange(sync);
-    fetch(`${BASE_PATH}/search-index.json`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(setIndex, () => setFailed(true));
+    loadIndex().then(setIndex, () => setFailed(true));
     return unsubscribe;
   }, []);
 
