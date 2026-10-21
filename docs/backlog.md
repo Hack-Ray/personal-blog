@@ -1,37 +1,340 @@
 # 待辦事項
 
-這份清單記錄已知但還沒修的問題。完成一項就勾選，並寫上處理它的規格編號或 commit。新發現的問題加在最後。
+這份清單記錄已知但還沒修的問題。完成一項就勾選，並寫上處理它的規格編號或 commit。新發現的問題加在對應分類的最後。
 
-## CMS
+2026-10-21 依 `main` 4c8a432 全面盤點一次，分四個面向：登入與請求安全、發布流程、部署與維運、CMS 與公開網站。每一項都附上程式位置；標 **推測** 的項目是依程式碼推論，沒有實際執行驗證。
 
-- [x] **Topic 不合法時，修改沒有儲存，狀態卻顯示「已儲存」。**
-  `cms/src/editor.tsx` 只在 Topic 的 slug 與名稱都合法時才呼叫 `DraftSync.edit`。不合法時修改只留在畫面上，狀態停在「已儲存」，關掉分頁就會遺失。
-  處理：狀態改為顯示「未儲存」並說明原因；Topic 修正後自動儲存。
-  已修正：狀態由 `cms/src/editor-status.ts` 決定，顯示「未儲存：Topic 不合法」；修正 Topic 的那次輸入就會連同先前的修改一起儲存。
+優先順序：
 
-## 圖片
+- **必修**：不修就不能上 AWS，或已經會造成資料遺失或錯誤狀態。
+- **高**：上線前應該修。
+- **中**、**低**：排進之後的工作。
 
-- [x] **前後端判斷「文章引用了哪些圖片」的規則不一致。**
-  後端 `backend/blog/images.py` 與前端 `frontend/src/content/parse.ts` 各用一個 regex 掃 Markdown，規則不同：
-  - 帶 title 的圖片 `![](images/<id> "說明")`：後端不算引用，所以不匯出也可能被 GC 刪除；前端算引用，因此 build 失敗。
-  - code block 裡的範例文字 `](images/...)`：兩邊都算引用。對不到圖片時，匯出或 build 會失敗。
-  處理：兩邊都改用 Markdown parser 找出圖片 token，並以一份共用的測試資料驗證兩邊結果相同。
-  已修正：後端 `images.refs()` 用 markdown-it-py、前端 `imagePaths()` 用 marked，兩邊都只算 href 以 `images/` 開頭的圖片 token；`frontend/test-fixtures/image-refs.json` 由兩邊的測試共用（BE-007）。
+## 需要先決定的事
 
-## 網站發布
+以下決定會影響第二節的優先順序與做法。
 
-- [x] **`GET /api/releases` 只在最近 30 個 workflow run 中找對應的 run。**
-  `backend/blog/release.py` 的 `GitHubActions.find_run` 用 `per_page=30` 列出 run。run 一多就找不到，release 會一直停在 `dispatched`。
-  處理：只查詢 release 建立之後的 run（GitHub API 的 `created` 篩選）。
-  已處理：只列出 release 建立前 5 分鐘之後建立的 run，並逐頁查到最後一頁，見 Addendum 03 BE-010。
+- [ ] **CMS 上 AWS 後的存取控制。** 只有作者使用 CMS，建議不要直接開放到公開網路。
+  - 不開公網，用 VPN（Tailscale）或 SSM port forwarding 連線：最安全，使用方式最接近現在的本機。
+  - 身分驗證代理（Cloudflare Access、AWS Verified Access 或 ALB + Cognito）：瀏覽器可直接開，多一層 MFA。
+  - 只靠程式自己的登入：不建議。選這個時，A3、A4、A10、A11、A15 都要升為必修。
+- [ ] **發布方式。** 二選一：
+  - 在容器裡維護內容 repo 的 git clone。
+  - 改用 GitHub Git Data API 直接建立 commit，不需要本機 clone，CMS 可以不保存狀態。建議用這個（見 A5）。
+- [ ] **GitHub 憑證。** 目前 CMS 用兩個 token：一個觸發 workflow，一個 push 內容 repo（後者現在借用作者電腦上的 git 帳號）。建議改成一個 GitHub App，token 會自動輪替（見 A12）。
+- [ ] **運算服務。** 候選：ECS Fargate、App Runner、EC2 或 Lightsail。
+  - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
+- [ ] **文章是否允許原始 HTML。** 決定後才能定 G1、G8 的過濾規則。
 
-## CI 與部署
+## 一、現在就該修
 
-- [x] **部署前少了兩項檢查。**
-  `.github/workflows/deploy.yml` 沒有執行 `npm run typecheck`。`frontend/scripts/verify-site.sh` 只能手動執行，不在 CI 中。
-  處理：`deploy.yml` 加上 typecheck；CI 的 frontend job 以範例資料建置後，啟動本機伺服器並執行 `verify-site.sh`。
-  已處理：`deploy.yml` 在 build 前執行 typecheck；CI 的 frontend job 新增「Check the built site」步驟，任一檢查失敗即讓 job 失敗。
+這些問題和是否上 AWS 無關。
 
-## 規格
+- [ ] **G1（高）CMS 預覽會執行文章裡的 HTML 與 `javascript:` 連結。**
+  - 證據：
+    - `cms/src/editor.tsx:236` 和 `cms/src/profile-page.tsx:179` 用 `dangerouslySetInnerHTML` 輸出預覽。
+    - `cms/src/preview.ts:52` 只判斷是否為外部連結，沒有限制 scheme。
+    - 實測 `[x](javascript:alert(1))` 與 `<img src=x onerror=...>` 都會原樣輸出。
+  - 影響：貼上的內容一顯示預覽就會執行 script。script 和 CMS 同源，帶著 session 可以發布、刪除文章，或觸發「更新網站」。
+  - 處理：
+    - 預覽輸出先過濾。可以用 DOMPurify，或讓 renderer 跳脫 `html` token，並只允許 `https:`、`mailto:`、`#` 和相對路徑。
+    - `/admin/` 加 CSP（見 A10）。
+- [ ] **G2（高）文章編輯器沒有離開提示，存檔失敗也不會重試。**
+  - 證據：
+    - 只有 `profile-page.tsx:82` 註冊了 `beforeunload`，`editor.tsx` 沒有。
+    - `cms/src/draft-sync.ts` 存檔失敗後把狀態設回 dirty，但不排程重試，要等下一次按鍵才會再存。
+    - Topic 不合法時，修改完全不送出（`editor.tsx:54`）。
+  - 影響：以下三種情況，關掉分頁就會遺失修改：
+    - 最後 1 秒內的輸入。
+    - Topic 不合法期間寫的所有內容。
+    - 存檔失敗後沒有再打字。
+  - 處理：
+    - 狀態不是「已儲存」時加 `beforeunload` 提示。
+    - 非 401、409 的錯誤，以退避間隔自動重試。
+- [ ] **G3（高）重試失敗的 release 時，會被舊的 workflow run 判成失敗。**
+  - 證據：
+    - `backend/blog/release.py:201`：`find_run` 以 `release.created_at` 為起點，挑名稱符合的最新 run。
+    - 重試會重新觸發同一個 commit，但沒有記錄新 run 的 id（`release.py:157` 只清掉 `run_url`）。
+    - CMS 按下重試後會立刻重新讀取 release 狀態。
+  - 影響（**推測**）：GitHub 建立新 run 有幾秒延遲。這段時間內只找得到舊的失敗 run，release 就被標成 `failed`。`failed` 之後不再更新，所以網站實際上線了，CMS 仍顯示失敗。
+  - 處理：`releases` 加 `run_id` 欄位，重試時忽略舊的 run id。找到 run id 後，改用 `GET /actions/runs/{id}` 直接查狀態。
+- [ ] **G4（中）停在 `exported` 或 `pushed` 的 release 無法重試，也無法被取代。**
+  - 證據：
+    - `release.py:25`：`RETRYABLE` 只有 `push_failed`、`dispatch_failed`、`failed`。
+    - `create` 只會把 `exported` 和可重試的狀態標成 `superseded`。
+    - HEAD 已有對應的 release 時，「更新網站」會回應沒有變更。
+  - 影響：push 完、觸發部署前程式結束，該 release 永遠停在 `pushed`，那批內容不會上線。CMS 每 15 秒輪詢一次，而且一直輪詢下去。這次 release 的版本也會一直被版本清理排除。
+  - 處理：`RETRYABLE` 加上 `exported` 與 `pushed`（`_advance` 已能處理這兩個狀態）；`create` 也取代 `pushed`。
+- [ ] **G5（中）開著的編輯器存檔時，會還原分類的改名或合併。**
+  - 證據：
+    - `backend/blog/articles.py:105`：每次存檔都以 `on_conflict_do_update` 寫回編輯器手上的分類名稱。
+    - `backend/blog/taxa.py` 改名、合併時不會遞增草稿的 revision。
+  - 影響：在分類頁把「Backend」改名後，另一個分頁的編輯器下一次自動存檔，就把名稱改回去，已發布的版本也一起受影響。合併時，舊的 slug 會被重新建立。
+  - 處理：改名、合併時遞增受影響草稿的 revision，讓舊分頁收到 409 後重新載入。
+- [ ] **G6（中）草稿衝突時按「重新載入」，會直接丟掉本機修改。**
+  - 證據：`editor.tsx:135-141` 的提示沒有說明會捨棄修改，也沒有確認步驟。設定頁的同類提示有寫（`profile-page.tsx:144`）。
+  - 處理：重新載入前先確認，並把本機的 Markdown 複製到剪貼簿或存成快照。
+- [ ] **G7（中）排隊中被取消的 workflow run 被記成失敗。**
+  - 證據：
+    - `deploy.yml` 的 `concurrency` 會讓較新的 run 取代排隊中的舊 run。
+    - `release.py:207-208` 把所有非 `success` 的結果都記成 `failed`。
+  - 處理：結果為 `cancelled` 時記成 `superseded`。
+- [ ] **G8（中）公開網站不過濾文章裡的原始 HTML 與 `javascript:` 連結。**
+  - 證據：
+    - `frontend/src/content/markdown.ts:45-46` 和 CMS 預覽一樣，不檢查 scheme。
+    - `frontend/src/app/article-body.tsx:116-117` 用 `dangerouslySetInnerHTML` 輸出。
+  - 影響：能寫入內容 repo 或 CMS 的人，可以在每位讀者的頁面執行 script。公開網站沒有存放機密，所以影響限於頁面被竄改。
+  - 處理：
+    - 依「文章是否允許原始 HTML」的決定，在 build 時過濾或跳脫。
+    - `frontend/src/content/parse.ts` 遇到 `javascript:` 或 `data:` 連結時讓 build 失敗。
+- [ ] **G9（中）文章目錄的標題 id 可能重複，或和頁面上原有的 id 相同。**
+  - 證據：
+    - `frontend/src/content/headings.ts:39-41` 只收集最上層的標題，`markdown.ts:60-64` 卻會替引言區塊、清單裡的標題也分配 id。
+    - 頁面本身已經有 `id="toc"`（`article-toc.tsx:31`）。
+    - 實測 `headings("> ## Setup\n\n## Setup\n\n## TOC")` 會產生 `setup` 與 `toc` 兩個 id，與 renderer 分配的不一致。
+  - 處理：讓目錄和 renderer 用同一套方式收集標題，並避開頁面已經使用的 id。
+- [ ] **G10（中）建置與相依套件的版本沒有固定。**
+  - 證據：
+    - workflow 用 `node-version: 22`，但直接執行 `.ts` 需要 Node 22.18 以上。repo 裡沒有 `.nvmrc` 或 `engines`。
+    - Python 只寫 `>=3.12`，沒有 `.python-version`。
+    - Python 沒有 ruff 之類的 lint。
+    - 沒有 Dependabot。
+    - `frontend` 與 `cms` 各自固定 `marked` 和 `shiki` 的版本，沒有檢查兩邊是否一致。
+  - 處理：
+    - 加 `.nvmrc` 與 `.python-version`，CI 讀取這兩個檔案。
+    - 加 `ruff check`。
+    - 加 `.github/dependabot.yml`。
+    - 加一項檢查，確認兩邊的共用套件版本相同。
+- [ ] **G11（低）`deploy.yml` 的權限比需要的大，CI 也重複執行。**
+  - 證據：
+    - `deploy.yml:14-17` 在最上層授予 `pages: write` 與 `id-token: write`，所以 `build` job 也拿得到。
+    - `ci.yml` 對每次 push 都執行，再加上 `pull_request`，同一個分支會跑兩次。
+    - `deploy.yml` 的 `build` job 又重跑了 `npm test` 和 `typecheck`。
+  - 處理：
+    - 兩個權限只授予 `deploy` job。
+    - `ci.yml` 的 `push` 只限 `main`。
+    - 刪掉 `build` job 裡重複的步驟。
+- [ ] **G12（低）本機啟動與還原腳本。**
+  - `backend/scripts/start.sh:18-23`：備份失敗時仍然執行 migration。應改成備份失敗且有待執行的 migration 時，停止啟動。
+  - `backend/scripts/restore.sh:49-52`：沒有讀取 `.env`，資料庫埠改過時，migration 會連到錯誤的資料庫。
+  - `docs/local-setup.md:110` 寫 migration 到 `0006`，實際已有 10 個。
+- [ ] **G13（低）CMS 小問題。**
+  - 發布頁的錯誤訊息用綠色的成功樣式顯示（`cms/src/releases.tsx:524,547`）。
+  - 設定頁切換到其他頁面時，未儲存的修改沒有提示（`profile-page.tsx:79-84`）。
+  - 登入畫面沒有擋住後面的頁面：缺 `inert` 和 `aria-modal`（`main.tsx:594-601`）。
+  - 登出失敗時沒有任何提示（`article-list.tsx:104`）。
+  - 發布時沒有檢查文章引用的圖片是否存在。目前要到匯出時才失敗，而且整站都無法發布（`articles.py:364`）。
+- [ ] **G14（低）公開網站小問題。**
+  - 深色模式沒有設定 `color-scheme`，原生輸入框和捲軸仍是淺色（`frontend/src/app/globals.css`）。
+  - 圖片放大只能用滑鼠點；小圖放大後會模糊（`article-body.tsx:36`、`globals.css:591-595`）。
+  - 複製按鈕和頁首搜尋的結果數量，沒有用 `aria-live` 通知螢幕閱讀器。
+  - 摘要沒有去除原始 HTML 標籤，而且以 UTF-16 截斷，可能把 emoji 切壞（`frontend/src/content/summary.ts`）。
+  - RSS 缺 `atom:link rel="self"`；列表頁和首頁沒有預設的分享圖。
+  - 搜尋索引每篇最多保留 5000 字，而且一次全部載入。文章多時會變大，404 頁只顯示 5 個標題也要載入整份（`frontend/src/content/search.ts`）。
+  - 「關於」頁與頁尾用內容當 React key，內容重複時會出現警告。
 
+## 二、上 AWS 前必修
+
+除非另外註明，這些項目在本機都不成立或影響很小。
+
+### 必修
+
+- [ ] **A1 Host 白名單寫死成 localhost。**
+  - 證據：`backend/blog/api.py:55`，`allowed_hosts=["127.0.0.1", "localhost"]`。
+  - 影響：所有經過網域或 Load Balancer 的請求都會收到 400，健康檢查也會失敗。
+  - 處理：
+    - 白名單改從環境變數 `ALLOWED_HOSTS` 讀取，預設維持現值，不允許 `*`，以保留對 DNS rebinding 的防護。
+    - 健康檢查使用不經過這項檢查的路徑（見 A16）。
+- [ ] **A2 放在 HTTPS proxy 後面時，Origin 檢查會拒絕所有寫入，包括登入。**
+  - 證據：`api.py:43` 用 `request.url.scheme` 和 `netloc` 組出預期的 Origin。uvicorn 預設只信任來自 127.0.0.1 的 `X-Forwarded-Proto`。
+  - 影響：瀏覽器送出 `Origin: https://…`，伺服器卻組出 `http://…`，所有寫入都回 403。
+  - 處理：改成和設定值 `CMS_ORIGIN` 比對。`FORWARDED_ALLOW_IPS` 只設定為 proxy 所在的網段。
+- [ ] **A3 任何人都能讓作者無法登入。**
+  - 證據：
+    - `backend/blog/auth.py:60-81` 的 `Throttle` 存在記憶體裡，全站共用一個計數。
+    - `api.py:168` 在鎖定期間連正確的密碼也拒絕。
+  - 影響：
+    - 每 15 分鐘送 5 次錯誤密碼，作者就永遠無法登入，只能重啟程式。
+    - 有多個 instance 時，可以嘗試的次數乘上 instance 數。
+    - 先檢查再計數的寫法，在併發請求下會讓實際嘗試次數超過 5 次。
+  - 處理：
+    - 失敗紀錄存進資料庫，依來源 IP 計算，改用退避而不是全站鎖定。
+    - 計數在檢查密碼之前原子地遞增。
+    - 有外層存取控制時，可以降為「高」。
+- [ ] **A4 只有一組密碼，沒有第二道驗證。**
+  - 證據：`auth.py:88-100`。
+  - 影響：密碼外洩後，攻擊者可以發布內容、永久刪除文章，並部署網站。
+  - 處理：見「需要先決定的事」的存取控制。也可以另外加 TOTP，但工作量較大。
+- [ ] **A5 發布依賴本機的內容 repo clone，而且沒有序列化。**
+  - 證據：
+    - `release.py:130-132` 讀取 `CONTENT_REPO_DIR`。
+    - `backend/blog/exporter.py` 會 `git commit`、`git push`，但從不 fetch，也只和 working tree 比較。
+    - git 身分和 push 憑證都沿用作者電腦上的設定（`docs/setup-todo.md:55`）。
+    - `api.py:324-332` 的「更新網站」在請求內同步執行，沒有任何鎖。
+  - 影響：
+    - 新容器沒有 clone，回 503；沒有 git 身分，`git commit` 失敗。
+    - 兩個 instance，或本機與雲端同時使用時，push 會因為 non-fast-forward 被拒絕，而且重試也永遠失敗。
+    - 兩次同時發布會互相刪掉對方寫到一半的檔案，或寫入相同的主鍵而回 500。
+    - Load Balancer 的閒置逾時（ALB 預設 60 秒）比 push 還短時，作者看到逾時，可能再按一次（**推測**）。
+  - 處理：
+    - 建議：改用 GitHub Git Data API 建立 commit，以「parent 必須是目前的 HEAD」為條件更新 ref。這樣 CMS 不需要本機 clone。
+    - 發布與重試用 Postgres advisory lock 序列化，鎖被佔用時回 409。
+    - 改成背景工作，請求立刻回 202。
+    - git 子程序加逾時。
+- [ ] **A6 沒有 CMS 的容器映像檔和部署流程，也沒有指定由誰執行 migration。**
+  - 證據：
+    - repo 裡沒有 Dockerfile。
+    - `backend/compose.yaml` 只有資料庫。
+    - `deploy.yml` 只部署公開網站。
+    - migration 只在 `start.sh` 裡、備份之後執行。
+  - 處理：
+    - 寫 multi-stage Dockerfile：先用 Node 建置 `cms/dist`，再 `uv sync --locked --no-dev`；包含 git，以非 root 執行。
+    - 每次部署前，用一次性的工作先備份，再執行 `alembic upgrade head`。
+    - 只跑一個 instance。
+- [ ] **A7 定期維護只在程式啟動時執行。**
+  - 證據：`api.py:20-27` 的 lifespan 是 `purge_expired`、`cleanup_versions`、`collect_garbage` 唯一的定期呼叫點。
+  - 影響：
+    - CMS 長時間執行時，待刪除超過 30 天的文章不會被清除；`purge_after` 已經過期，資料仍然留著。
+    - 圖片 GC 也不會執行。
+    - 多個 instance 同時啟動時，`collect_garbage` 會鎖住四張表，擋住所有存檔。
+  - 處理：
+    - 把三個工作移到 `python -m blog.maintenance`，用 EventBridge 排程執行。
+    - PUB-005「只在 CMS 啟動時執行」改為「本機在啟動時執行，雲端用排程執行」。
+- [ ] **A8 CMS 長時間執行時沒有備份。**
+  - 證據：備份只在 `start.sh:17-20` 執行，而且放在本機資料夾。
+  - 處理：
+    - RDS 開啟自動備份、point-in-time recovery 與刪除保護。
+    - 定期執行 `pg_dump`，存到有版本控制、加密的 S3。
+    - 定期練習還原。
+
+### 高
+
+- [ ] **A9 `COOKIE_SECURE` 和 `DATABASE_URL` 缺設定時，會默默用不安全的預設值。**
+  - 證據：
+    - `api.py:33` 只有在環境變數為 `"1"` 時才設 Secure。
+    - `backend/blog/db.py` 缺 `DATABASE_URL` 時，退回 `blog:blog@127.0.0.1`。
+  - 處理：
+    - 非本機環境預設開啟 Secure，cookie 改名為 `__Host-cms_session`，並加 HSTS。
+    - 缺 `DATABASE_URL` 時直接啟動失敗。
+- [ ] **A10 `/admin/` 與 `/api/` 沒有安全標頭，OpenAPI 文件也公開。**
+  - 證據：
+    - 實測 `/admin/` 只回傳 content-type 等基本標頭。
+    - `api.py:30` 沒有關閉 `docs_url`、`redoc_url`、`openapi_url`，不登入就能存取 `/docs`、`/openapi.json`。
+  - 處理：
+    - 加一個 middleware，輸出 CSP（`script-src 'self'`、`frame-ancestors 'none'` 等）、`X-Content-Type-Options`、`Referrer-Policy` 和 HSTS。
+    - 文件頁預設關閉，只在本機開啟。
+- [ ] **A11 未登入的請求就能消耗大量 CPU 與記憶體。**
+  - 證據：
+    - 每次檢查密碼，scrypt 約用 32 MiB 記憶體（`auth.py:25`）。
+    - 密碼欄位沒有長度上限（`api.py:154`）。
+    - 請求內容沒有大小上限。
+  - 處理：
+    - 密碼加 `max_length`。
+    - 驗證密碼的併發數量設上限。
+    - 在 proxy 設定請求大小上限，並依 IP 限流。
+- [ ] **A12 三個憑證裡只有一個有到期提醒。**
+  - 證據：
+    - `.github/workflows/token-expiry.yml` 只檢查 `CONTENT_REPO_TOKEN`。
+    - CMS 的 `GITHUB_TOKEN` 只在打開發布頁時檢查。
+    - 推送內容 repo 的憑證完全沒有檢查。
+  - 處理：
+    - 建議改成一個 GitHub App，存進 Secrets Manager。
+    - 或改成排程檢查並寄信通知。
+    - 環境變數 `GITHUB_TOKEN` 改名為 `CMS_GITHUB_TOKEN`，避免和 `gh` 等工具使用的變數衝突。
+
+### 中
+
+- [ ] **A13 `GET /api/releases` 在讀取時呼叫 GitHub 並寫入資料庫。**
+  - 證據：`release.py:194-225`：每次輪詢都會刷新最近 20 筆 release，在交易中呼叫 GitHub（每次最長 30 秒），並觸發版本清理。
+  - 影響：
+    - 併發輪詢會占滿資料庫連線池。
+    - 找不到 run 的 release 會永遠輪詢下去。
+    - 較慢的請求可能用舊資料蓋掉較新的狀態（**推測**）。
+  - 處理：
+    - 刷新改成背景工作，或改為 `POST`。
+    - 呼叫 GitHub 前先結束資料庫交易。
+    - 用條件式 `UPDATE` 寫入狀態。
+    - 超過一段時間仍找不到 run 就停止。
+    - 搭配 G3 的 `run_id`。
+- [ ] **A14 同步工作卡住 event loop。**
+  - 證據：
+    - `api.py:444-448` 的 `async def upload_image` 在 event loop 上執行 Pillow 解碼和 WebP 編碼。
+    - `api.py:39-47` 的 async middleware 每次請求都做一次同步的資料庫查詢。
+    - 動畫 GIF 的所有影格都放在記憶體裡（`backend/blog/images.py:63-67`）。
+  - 處理：
+    - `upload_image` 改成一般的 `def`。
+    - 限制影格數與總像素數，並調低 `MAX_IMAGE_PIXELS`。
+    - 登入檢查改成 dependency，或放到 threadpool 執行。
+- [ ] **A15 session 固定 7 天有效，沒有閒置逾時，也無法從介面登出其他裝置。**
+  - 證據：`auth.py:20` 的 `SESSION_TTL`，`is_signed_in` 不會延長，也不檢查閒置時間。
+  - 處理：
+    - 加 `last_seen_at`，設定閒置逾時，並縮短絕對有效期限。
+    - 加「登出所有裝置」。
+- [ ] **A16 沒有健康檢查、應用程式 log 和稽核紀錄。**
+  - 證據：`api.py` 沒有 `/healthz`；`backend/blog` 沒有用 `logging`。
+  - 處理：
+    - 加 `GET /healthz`，執行 `SELECT 1`。
+    - log 輸出到 stdout，再送進 CloudWatch，並設定 5xx 告警。
+    - 登入成功與失敗、發布、永久刪除都寫結構化紀錄。
+- [ ] **A17 資料庫連線沒有針對 RDS 設定。**
+  - 證據：`backend/blog/db.py` 用 `create_engine(database_url())`，沒有 `pool_pre_ping`，也沒有 TLS 驗證。
+  - 處理：
+    - 加 `pool_pre_ping=True` 與 `pool_recycle`。
+    - 連線字串加 `sslmode=verify-full`。
+- [ ] **A18 備份與還原腳本不適合雲端。**
+  - 證據：
+    - `backup.sh:32` 與 `restore.sh:43-44` 把含密碼的連線字串放在命令列參數。
+    - 用本機的 `pg_dump`，版本必須和 RDS 相同。
+  - 處理：
+    - 密碼改用 `PGPASSWORD` 或 IAM token 傳入。
+    - 用和 RDS 同一個大版本的 `postgres` 映像檔執行備份。
+- [ ] **A19 匯出時要把所有圖片讀進記憶體。**
+  - 證據：
+    - `exporter.py:322` 一次載入所有引用到的圖片。
+    - `_read_current` 會再把 repo 裡的圖片全部讀一遍。
+  - 影響：記憶體用量約是網站圖片總量的 2 倍，小型容器可能被 OOM 終止，release 也會跟著卡住。
+  - 處理：
+    - 用 hash 比對檔案，不讀出內容。
+    - 一次只讀一張圖片。
+    - 之後可以考慮把圖片移到 S3。
+
+### 低
+
+- [ ] **A20 錯誤訊息可能帶出內部細節。** `release.py:148` 把 git stderr 原樣存進 `detail` 並回傳。remote URL 含 token 時可能外洩。處理：先去掉 URL 裡的帳號密碼再存。
+- [ ] **A21 CMS 的 API 路徑寫成絕對路徑。** `cms/src/api.ts:426` 的 `/api`，以及預覽和封面的圖片網址。CMS 必須放在網域根目錄。處理：從 `import.meta.env.BASE_URL` 推導路徑，或規定 CMS 使用獨立的網域。
+- [ ] **A22 沒有限流。** 除了登入以外，所有端點都沒有限流，包括「更新網站」。處理：在 proxy 或 WAF 依 IP 限流，「更新網站」加冷卻時間。
+
+## 三、自訂網域與 CDN 的準備
+
+公開網站留在 GitHub Pages，前面加自訂網域與 CDN 時需要處理。
+
+- [ ] **D1 部署流程沒有設定 `BASE_PATH` 與 `SITE_ORIGIN`，檢查腳本也寫死 `/personal-blog`。**
+  - 證據：
+    - `frontend/next.config.ts:57-58` 的預設值。
+    - `deploy.yml` 只設定 `SITE_DATA_DIR`。
+    - `ci.yml`、`verify-site.sh`、`check-links.ts`、`playwright.config.ts` 都寫死 `/personal-blog`。
+  - 處理：在 repo variables 或 job 層級設定這兩個變數，讓建置和所有檢查都讀同一個值。
+- [ ] **D2 GitHub Pages 前面加 CDN 時的憑證設計。**
+  - DNS 指向 CDN 時，Pages 無法自行申請憑證。二選一：
+    - 先讓 Pages 用自訂網域取得憑證，再把 CDN 放到前面。
+    - CDN 直接以 `hack-ray.github.io/personal-blog` 為來源，並設定 `BASE_PATH=""`。缺點是舊網址會繼續存在，形成重複內容；canonical 可以緩解。
+  - 兩種做法都要在 GitHub 驗證網域，防止子網域被搶用（**推測**）。
+- [ ] **D3 CDN 快取規則與部署後清除快取。**
+  - 有 hash 的檔案可以長期快取：`_next/static/*`、`images/*`、`thumbs/*`。
+  - HTML、`feed.xml`、`sitemap.xml`、`search-index.json` 要設短的 TTL，或在部署後清除快取。
+  - 目前 release 以 Pages 部署成功判定為 `deployed`，不代表 CDN 已經更新。
+- [ ] **D4 沒有 `robots.txt`。** 換成自訂網域後才有意義。處理：加 `frontend/src/app/robots.ts`，指向 sitemap。
+- [ ] **D5 RSS 的 GUID 是文章網址。**
+  - 證據：`frontend/src/content/feed.ts:20`。
+  - 影響：換網域後，訂閱者的閱讀器會把每篇文章當成新文章再顯示一次。
+  - 處理：換網域之前，或和換網域同時，改用以 docId 為基礎、`isPermaLink="false"` 的 GUID。
+- [ ] **D6 文章裡寫死的舊網址會變成外部連結。** `markdown.ts:33` 只把開頭是目前 `SITE_ORIGIN` 的連結視為站內連結。處理：換網域前，搜尋內容 repo 裡的舊網址並改成相對路徑。
+- [ ] **D7 公開網站的 CSP。** 在 CDN 加安全標頭時，要考慮三件事：內嵌的 `THEME_SCRIPT`（`frontend/src/app/layout.tsx:26`）需要 hash、giscus 需要 `frame-src https://giscus.app`、Next 本身會輸出內嵌 script。
+
+## 已完成
+
+- [x] **Topic 不合法時，修改沒有儲存，狀態卻顯示「已儲存」。** 狀態由 `cms/src/editor-status.ts` 決定，顯示「未儲存：Topic 不合法」。存檔的缺口另見 G2。
+- [x] **前後端判斷「文章引用了哪些圖片」的規則不一致。** 兩邊都改用 Markdown parser，並共用 `frontend/test-fixtures/image-refs.json`（BE-007）。
+- [x] **`GET /api/releases` 只在最近 30 個 workflow run 中找對應的 run。** 改為只列出 release 建立前 5 分鐘之後的 run，並逐頁查找（BE-010）。重試的問題另見 G3。
+- [x] **部署前少了兩項檢查。** `deploy.yml` 在 build 前執行 typecheck，CI 執行 `verify-site.sh`。
 - [x] **永久刪除是否改寫內容 repo 歷史。** 不改寫，見 Addendum 02 PUB-007。
