@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
+import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
 import { renderPreview } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
-
-const STATUS_TEXT: Record<SyncStatus["kind"], string> = {
-  saved: "已儲存",
-  dirty: "尚未儲存",
-  saving: "儲存中…",
-  publishing: "發布中…",
-  conflict: "草稿已在其他地方被修改",
-  error: "儲存失敗",
-};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -48,11 +40,12 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   }, [draft]);
 
   const { invalid } = parseTags(tagText);
-  const topicValid = isSlug(content.topic.slug) && content.topic.name.trim() !== "";
+  const topicValid = unsavedReason(content) === undefined;
+  const label = statusLabel(status, content, sync.current?.current ?? draft);
 
   const update = (next: DraftContent) => {
     setContent(next);
-    if (isSlug(next.topic.slug) && next.topic.name.trim()) sync.current?.edit(next);
+    if (unsavedReason(next) === undefined) sync.current?.edit(next);
   };
 
   const publish = async () => {
@@ -101,9 +94,8 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     <div className="editor">
       <div className="toolbar">
         <a href="#/">← 文章列表</a>
-        <span className={`status status-${status.kind}`} role="status">
-          {STATUS_TEXT[status.kind]}
-          {status.kind === "error" && `：${status.message}`}
+        <span className={`status status-${label.kind}`} role="status">
+          {label.text}
         </span>
         <span className="state">{STATE_LABEL[state]}</span>
         <button type="button" aria-expanded={showSnapshots} onClick={() => setShowSnapshots((v) => !v)}>

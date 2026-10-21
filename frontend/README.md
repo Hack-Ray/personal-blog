@@ -32,7 +32,7 @@ images/{contentHash}.{ext}
 }
 ```
 
-`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>`. Archived articles have no article file.
+`articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
 The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, or a referenced image is missing.
 
@@ -43,5 +43,7 @@ mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/personal-blog
 (cd /tmp/site && python3 -m http.server 8123) &
 scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
 ```
+
+CI runs the same check on the sample-data build (the `Check the built site` step in `.github/workflows/ci.yml`). The checks expect the sample data, the `/personal-blog` basePath and the default `SITE_ORIGIN`.
 
 Set `BASE_PATH=""` at build time when serving from a custom domain.

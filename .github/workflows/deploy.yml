@@ -55,6 +55,9 @@ jobs:
       - run: npm test
         working-directory: frontend
 
+      - run: npm run typecheck
+        working-directory: frontend
+
       # Building also validates the snapshot: a missing article file, a version
       # mismatch or a missing image fails here and nothing is deployed.
       - run: npm run build

@@ -82,6 +82,7 @@
   - 只能從編輯器上傳（選擇檔案、貼上、拖曳）。接受 PNG、JPEG、GIF、WebP，最大 10 MB；格式由檔案內容判斷。不接受 SVG。
   - 圖片 id 為 `<sha256>.<副檔名>`；相同內容重複上傳得到相同 id。`images`（索引）與 `image_data`（BYTEA）分開，`image_data` 由 trigger 拒絕 `UPDATE`。
   - Markdown 以 `images/<id>` 引用，與 Snapshot 路徑相同；編輯器預覽改由 `/api/images/<id>` 載入。V1 不轉檔為 WebP。
+  - 引用是 Markdown parser 找出的圖片 token（行內或參考式），且 href 以 `images/` 開頭。code span、code block 內的文字、一般連結與 HTML `<img>` 都不算引用。後端（GC、Exporter）與前端（Snapshot 檢查）以同一份測試資料 `frontend/test-fixtures/image-refs.json` 確保規則一致。
   - `images.unreferenced_since`：上傳時為上傳時間；草稿每次寫入時，被引用的圖片設為 NULL；GC 時不再被引用者記下開始時間。距今滿 7 天才刪除。
   - 有效引用：所有 Working Draft 與所有 Published Version（V1 尚未清理舊版本，所以等同全部保留版本）。待刪除文章的草稿與版本仍在，因此圖片在 30 天內受保護。
   - GC 在交易中以 SHARE 鎖鎖住 `working_drafts` 與 `published_versions`，掃描與刪除之間草稿無法新增引用。
@@ -127,7 +128,7 @@
   - CMS「網站發布 → 更新網站」依序：匯出 Snapshot 並 commit → push 到內容 repo → 以 `workflow_dispatch` 啟動 `deploy.yml`，輸入該 commit。
   - 每次匯出記為一筆 `releases`，並以 `release_articles` 記錄其中每篇文章的版本（供 Baseline 6.3 的版本清理使用）。
   - Release 狀態：`exported → pushed → dispatched → building → deployed`；也可能是 `superseded`（被較新的 commit 取代，部署步驟被跳過）或 `push_failed`／`dispatch_failed`／`failed`。
-  - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run；以 job 中 `Deploy to GitHub Pages` 步驟是否被跳過，判斷是已上線還是被取代。
+  - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run：只列出 release 建立時間前 5 分鐘（容許本機與 GitHub 的時鐘誤差）之後建立的 run，逐頁查詢，同名的 run 取最新的一個（重試會再啟動一次）；以 job 中 `Deploy to GitHub Pages` 步驟是否被跳過，判斷是已上線還是被取代。
   - 只有最新一筆 release 可以重試；重試會從失敗的那一步繼續。新 release 建立時，較舊且停在失敗狀態的 release 標記為 superseded。
   - 狀態在開啟「網站發布」頁面時向 GitHub 查詢；有未完成的 release 時每 15 秒更新一次。V1 不自動重試，失敗通知沿用 GitHub 的 Email（PUB-005）。
 - **Consequences**：真實的 GitHub API 呼叫要等 `docs/setup-todo.md` 的 A、B4 完成後才能驗證；目前以假的 GitHub API 與本機 bare repo 測試。

@@ -35,10 +35,11 @@ Both default to the Docker Compose database; `--url <DATABASE_URL>` targets any 
 
 ## Test
 
-Tests drop and recreate the schema, so point them at a disposable database:
+Tests drop and recreate the schema, so point them at a disposable database. The snapshot contract tests run the frontend parser with Node 22, so install the frontend dependencies first:
 
 ```sh
 docker compose exec db createdb -U blog blog_test
+(cd ../frontend && npm ci)
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
@@ -83,7 +84,7 @@ Before an Auto Save overwrites the draft, the Markdown it replaces is kept as a 
 
 ## Images
 
-`POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
+`POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. An article references an image when its Markdown contains an image (inline or reference-style) whose URL starts with `images/`. Text in code, plain links and raw HTML `<img>` do not count. The frontend applies the same rule, and both test suites check it against `frontend/test-fixtures/image-refs.json`. The exporter copies every image the exported articles reference into `images/`, and fails without writing anything if one is missing.
 
 Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
 

@@ -6,8 +6,10 @@ import json
 import os
 import subprocess
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
@@ -21,6 +23,8 @@ R = ReleaseStatus
 TERMINAL = frozenset({R.DEPLOYED, R.SUPERSEDED, R.FAILED})
 RETRYABLE = frozenset({R.PUSH_FAILED, R.DISPATCH_FAILED, R.FAILED})
 DEPLOY_STEP = "Deploy to GitHub Pages"
+CLOCK_SKEW = timedelta(minutes=5)
+RUNS_PER_PAGE = 100
 
 
 class ReleaseError(Exception):
@@ -37,7 +41,7 @@ class Run:
 
 class Deployer(Protocol):
     def dispatch(self, content_commit: str) -> None: ...
-    def find_run(self, content_commit: str) -> Run | None: ...
+    def find_run(self, content_commit: str, since: datetime) -> Run | None: ...
     def deploy_step_conclusion(self, run_id: int) -> str | None: ...
 
 
@@ -75,12 +79,20 @@ class GitHubActions:
             {"ref": self.ref, "inputs": {"content_sha": content_commit}},
         )
 
-    def find_run(self, content_commit: str) -> Run | None:
-        runs = self._call("GET", f"/repos/{self.repo}/actions/workflows/{self.workflow}/runs?event=workflow_dispatch&per_page=30")
-        for r in runs.get("workflow_runs", []):
-            if r.get("display_title") == f"Deploy content {content_commit}":
-                return Run(id=r["id"], url=r["html_url"], status=r["status"], conclusion=r.get("conclusion"))
-        return None
+    def find_run(self, content_commit: str, since: datetime) -> Run | None:
+        created = (since - CLOCK_SKEW).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        page = 1
+        while True:
+            query = urllib.parse.urlencode(
+                {"event": "workflow_dispatch", "created": f">={created}", "per_page": RUNS_PER_PAGE, "page": page}
+            )
+            runs = self._call("GET", f"/repos/{self.repo}/actions/workflows/{self.workflow}/runs?{query}").get("workflow_runs", [])
+            for r in runs:
+                if r.get("display_title") == f"Deploy content {content_commit}":
+                    return Run(id=r["id"], url=r["html_url"], status=r["status"], conclusion=r.get("conclusion"))
+            if len(runs) < RUNS_PER_PAGE:
+                return None
+            page += 1
 
     def deploy_step_conclusion(self, run_id: int) -> str | None:
         jobs = self._call("GET", f"/repos/{self.repo}/actions/runs/{run_id}/jobs")
@@ -175,7 +187,7 @@ def refresh(session: Session, release: Release, deployer: Deployer | None) -> Re
     if deployer is None or release.status not in (R.DISPATCHED, R.BUILDING):
         return release
     try:
-        run = deployer.find_run(release.content_commit)
+        run = deployer.find_run(release.content_commit, release.created_at)
         if run is None:
             return release
         release.run_url = run.url

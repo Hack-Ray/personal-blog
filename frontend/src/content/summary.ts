@@ -1,5 +1,4 @@
 const MAX = 120;
-const UPLOADED_IMAGE = /!\[[^\]]*\]\((images\/[^)\s]+)\)/;
 const CODE_BLOCK = /```[\s\S]*?```/g;
 
 /** Markdown reduced to its readable text, without code or image syntax. */
@@ -19,9 +18,4 @@ export function plainText(markdown: string): string {
 export function summary(markdown: string): string {
   const text = plainText(markdown);
   return text.length > MAX ? `${text.slice(0, MAX - 1)}…` : text;
-}
-
-/** Snapshot path (images/<file>) of the first uploaded image shown in an article, if any. */
-export function firstImage(markdown: string): string | undefined {
-  return markdown.replace(CODE_BLOCK, " ").match(UPLOADED_IMAGE)?.[1];
 }

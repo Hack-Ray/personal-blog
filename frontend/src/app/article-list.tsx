@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublishedArticle } from "../content/model.ts";
-import { firstImage, summary } from "../content/summary.ts";
+import { imagePaths } from "../content/parse.ts";
+import { summary } from "../content/summary.ts";
 import { BASE_PATH } from "../site.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: "Asia/Taipei" });
@@ -25,7 +26,7 @@ export function ArticleList({ articles }: { articles: PublishedArticle[] }) {
   return (
     <ul className="article-list">
       {articles.map((a) => {
-        const image = firstImage(a.markdown);
+        const image = imagePaths(a.markdown)[0];
         return (
           <li key={a.docId}>
             <div>

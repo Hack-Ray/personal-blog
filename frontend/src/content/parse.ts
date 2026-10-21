@@ -1,8 +1,9 @@
+import { Marked } from "marked";
 import type { DocId, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
 
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const IMAGE_REF = /\]\((images\/[^)\s]+)/g;
+const MARKDOWN = new Marked();
 
 export const SCHEMA_VERSION = 1;
 
@@ -99,8 +100,12 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
   };
 }
 
-export function imageRefs(markdown: string): string[] {
-  return [...markdown.matchAll(IMAGE_REF)].map((m) => m[1]!);
+export function imagePaths(markdown: string): string[] {
+  const refs: string[] = [];
+  MARKDOWN.walkTokens(MARKDOWN.lexer(markdown), (token) => {
+    if (token.type === "image" && token.href.startsWith("images/")) refs.push(token.href);
+  });
+  return refs;
 }
 
 export interface Snapshot {
@@ -125,7 +130,7 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
     const { version: fileVersion, ...article } = parseArticleFile(snapshot.readArticle(docId), path);
     if (article.docId !== docId) fail(`${path}.doc_id`, `expected ${docId}, got ${article.docId}`);
     if (fileVersion !== version) fail(`${path}.version`, `manifest expects ${version}, file has ${fileVersion}`);
-    for (const ref of imageRefs(article.markdown)) {
+    for (const ref of imagePaths(article.markdown)) {
       if (!snapshot.hasImage(ref.slice("images/".length))) fail(path, `references missing image ${ref}`);
     }
     return article;

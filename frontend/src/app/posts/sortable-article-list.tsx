@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import type { PublishedArticle } from "../../content/model.ts";
-import { ArticleList } from "../article-list.tsx";
+import { type ReactNode, useState } from "react";
 
-export function SortableArticleList({ articles }: { articles: PublishedArticle[] }) {
+// Both orders are rendered on the server, so the Markdown helpers ArticleList uses stay out of the client bundle.
+export function SortableArticleList({ newest, oldest }: { newest: ReactNode; oldest: ReactNode }) {
   const [newestFirst, setNewestFirst] = useState(true);
   return (
     <>
       <button type="button" onClick={() => setNewestFirst((v) => !v)}>
         {newestFirst ? "由新到舊" : "由舊到新"}
       </button>
-      <ArticleList articles={newestFirst ? articles : articles.toReversed()} />
+      {newestFirst ? newest : oldest}
     </>
   );
 }
