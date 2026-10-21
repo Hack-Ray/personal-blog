@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type SearchDoc, search } from "../content/search.ts";
 import { BASE_PATH } from "../site.ts";
 import { loadIndex } from "./search/load-index.ts";
@@ -16,6 +16,7 @@ export function HeaderSearch() {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState<SearchDoc[]>();
   const [open, setOpen] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!onSearchPage) return setQuery("");
@@ -26,12 +27,24 @@ export function HeaderSearch() {
 
   useEffect(() => setOpen(false), [pathname]);
 
+  // Safari doesn't focus a tapped link, so a blur can't tell a tap on a result from a tap
+  // outside; close on presses outside the form instead.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!form.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+
   const hits = useMemo(() => (index && query.trim() ? search(index, query) : []), [index, query]);
   // The search page already lists results live, so the dropdown would repeat them.
   const showPreview = open && !onSearchPage && index !== undefined && query.trim() !== "";
 
   return (
     <form
+      ref={form}
       role="search"
       method="get"
       action={`${BASE_PATH}/search/`}
@@ -41,7 +54,8 @@ export function HeaderSearch() {
         loadIndex().then(setIndex, () => {});
       }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+        // relatedTarget is null on a tap; only a Tab out of the form closes here.
+        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
       }}
       onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
     >
