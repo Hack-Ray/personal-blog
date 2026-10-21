@@ -12,6 +12,7 @@ import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { ArticleBody } from "../../article-body.tsx";
+import { ArticleToc } from "./article-toc.tsx";
 import { Comments } from "./comments.tsx";
 import { ReadingProgress } from "./reading-progress.tsx";
 
@@ -97,18 +98,7 @@ export default async function PostPage({ params }: Props) {
           </ol>
         </nav>
       )}
-      {toc.length > 0 && (
-        <nav className="toc" aria-label="目錄">
-          <p className="toc-title">目錄</p>
-          <ul>
-            {toc.map((h) => (
-              <li key={h.id} className={h.depth === 3 ? "toc-sub" : undefined}>
-                <a href={`#${h.id}`}>{h.text}</a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+      {toc.length > 0 && <ArticleToc headings={toc} />}
       <ArticleBody html={renderMarkdown(a.markdown, BASE_PATH)} />
       {relatedArticles.length > 0 && (
         <section className="related" aria-labelledby="related-title">
