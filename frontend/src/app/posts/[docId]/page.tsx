@@ -9,6 +9,7 @@ import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
+import { Comments } from "./comments.tsx";
 
 type Props = { params: Promise<{ docId: string }> };
 
@@ -79,6 +80,7 @@ export default async function PostPage({ params }: Props) {
           )}
         </nav>
       )}
+      <Comments docId={a.docId} />
     </article>
   );
 }
