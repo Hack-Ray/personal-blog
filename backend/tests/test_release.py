@@ -46,7 +46,7 @@ class FakeDeployer:
             raise release.ReleaseError("GitHub API POST returned 500")
         self.dispatched.append(content_commit)
 
-    def find_run(self, content_commit):
+    def find_run(self, content_commit, since):
         return self.runs.get(content_commit)
 
     def deploy_step_conclusion(self, run_id):
@@ -252,8 +252,8 @@ def test_github_client_requests(github):
         fake_run(3, "Deploy content abc", now - timedelta(seconds=20), conclusion="failure"),
     ]
     github.dispatch("abc")
-    assert github.find_run("abc") == release.Run(id=2, url="u2", status="in_progress", conclusion=None)
-    assert github.find_run("missing") is None
+    assert github.find_run("abc", now - timedelta(minutes=1)) == release.Run(id=2, url="u2", status="in_progress", conclusion=None)
+    assert github.find_run("missing", now - timedelta(minutes=1)) is None
     assert github.deploy_step_conclusion(2) == "skipped"
     method, path, body, authorization = FakeGitHub.requests[0]
     assert (method, path, body, authorization) == (

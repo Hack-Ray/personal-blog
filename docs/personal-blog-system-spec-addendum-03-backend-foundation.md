@@ -128,7 +128,7 @@
   - CMS「網站發布 → 更新網站」依序：匯出 Snapshot 並 commit → push 到內容 repo → 以 `workflow_dispatch` 啟動 `deploy.yml`，輸入該 commit。
   - 每次匯出記為一筆 `releases`，並以 `release_articles` 記錄其中每篇文章的版本（供 Baseline 6.3 的版本清理使用）。
   - Release 狀態：`exported → pushed → dispatched → building → deployed`；也可能是 `superseded`（被較新的 commit 取代，部署步驟被跳過）或 `push_failed`／`dispatch_failed`／`failed`。
-  - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run；以 job 中 `Deploy to GitHub Pages` 步驟是否被跳過，判斷是已上線還是被取代。
+  - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run：只列出 release 建立時間前 5 分鐘（容許本機與 GitHub 的時鐘誤差）之後建立的 run，逐頁查詢，同名的 run 取最新的一個（重試會再啟動一次）；以 job 中 `Deploy to GitHub Pages` 步驟是否被跳過，判斷是已上線還是被取代。
   - 只有最新一筆 release 可以重試；重試會從失敗的那一步繼續。新 release 建立時，較舊且停在失敗狀態的 release 標記為 superseded。
   - 狀態在開啟「網站發布」頁面時向 GitHub 查詢；有未完成的 release 時每 15 秒更新一次。V1 不自動重試，失敗通知沿用 GitHub 的 Email（PUB-005）。
 - **Consequences**：真實的 GitHub API 呼叫要等 `docs/setup-todo.md` 的 A、B4 完成後才能驗證；目前以假的 GitHub API 與本機 bare repo 測試。

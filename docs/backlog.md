@@ -20,9 +20,10 @@
 
 ## 網站發布
 
-- [ ] **`GET /api/releases` 只在最近 30 個 workflow run 中找對應的 run。**
+- [x] **`GET /api/releases` 只在最近 30 個 workflow run 中找對應的 run。**
   `backend/blog/release.py` 的 `GitHubActions.find_run` 用 `per_page=30` 列出 run。run 一多就找不到，release 會一直停在 `dispatched`。
   處理：只查詢 release 建立之後的 run（GitHub API 的 `created` 篩選）。
+  已處理：只列出 release 建立前 5 分鐘之後建立的 run，並逐頁查到最後一頁，見 Addendum 03 BE-010。
 
 ## CI 與部署
 
