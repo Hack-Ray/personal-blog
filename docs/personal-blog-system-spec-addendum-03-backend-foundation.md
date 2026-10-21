@@ -230,6 +230,17 @@
   - 關於頁沒有版本或快照紀錄；儲存即覆蓋，上線的版本以內容 repo 的 commit 歷史為準。
 - **Supersedes**：無；BE-004 的「只 stage `manifest.json`、`articles/`、`images/`」加上 `profile.json`。
 
+### BE-018：文章摘要、封面、系列與置頂
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Decision**：
+  - Working Draft 與 Published Version 新增 `excerpt`（可空白、上限 300 字、前後空白去除）、`cover`（圖片 id，可為 null）與 `series_id`（可為 null）。系列存在 `series` 表，規則與 Topic 相同（BE-013：slug 唯一，最後儲存的名稱為準）。三者隨 Auto Save 儲存、隨發布複製到新版本。
+  - 發布時 `cover` 必須是 Markdown 引用的圖片（規則同 BE-014），否則 422。封面一定在內文中，所以圖片引用與清理規則不變。
+  - 置頂存在文章上（`articles.pinned_at`），不屬於版本，`PUT /api/articles/{doc_id}/pinned`（`{"pinned": bool}`）切換，已置頂再置頂不更新時間。文章列表回傳 `pinned`。
+  - 匯出：文章檔只在有值時輸出 `excerpt`、`cover`（`images/<id>`）、`series`、`pinned_at`；最新版本號大於 1 時輸出 `updated_at`（最新版本的發布時間）。
+  - Migration 0009 新增上述欄位與 `series` 表，既有資料預設為空。
+- **Consequences**：前端解析見 Addendum 04 FE-011。
+
 ## Known gaps
 
 - ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 已完成 `docs/setup-todo.md` A、B 區，並以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。

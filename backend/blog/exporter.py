@@ -53,11 +53,13 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
         .where(Article.state == ArticleState.PUBLISHED)
         .ext(distinct_on(PublishedVersion.article_id))
         .order_by(PublishedVersion.article_id, PublishedVersion.version.desc())
-        .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags))
+        .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags), selectinload(PublishedVersion.series))
     ).all()
-    doc_ids, first_published = {}, {}
-    for id_, doc_id, at in session.execute(select(Article.id, Article.doc_id, Article.first_published_at)):
-        doc_ids[id_], first_published[id_] = doc_id, at
+    doc_ids, first_published, pinned = {}, {}, {}
+    for id_, doc_id, at, pinned_at in session.execute(
+        select(Article.id, Article.doc_id, Article.first_published_at, Article.pinned_at)
+    ):
+        doc_ids[id_], first_published[id_], pinned[id_] = doc_id, at, pinned_at
     archived = sorted(session.scalars(select(Article.doc_id).where(Article.state == ArticleState.ARCHIVED)))
 
     files: dict[str, bytes] = {}
@@ -67,17 +69,27 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
         doc_id = doc_ids[v.article_id]
         entries.append({"doc_id": doc_id, "version": v.version})
         image_ids |= images.refs(v.markdown)
-        files[f"articles/{doc_id}.json"] = _json(
-            {
-                "doc_id": doc_id,
-                "version": v.version,
-                "title": v.title,
-                "topic": {"slug": v.topic.slug, "name": v.topic.name},
-                "tags": [{"slug": t.slug, "name": t.name} for t in v.tags],
-                "published_at": _iso(first_published[v.article_id]),
-                "markdown": v.markdown,
-            }
-        )
+        article = {
+            "doc_id": doc_id,
+            "version": v.version,
+            "title": v.title,
+            "topic": {"slug": v.topic.slug, "name": v.topic.name},
+            "tags": [{"slug": t.slug, "name": t.name} for t in v.tags],
+            "published_at": _iso(first_published[v.article_id]),
+            "markdown": v.markdown,
+        }
+        # Optional keys are left out when unset, so articles without them export as before.
+        if v.version > 1:
+            article["updated_at"] = _iso(v.published_at)
+        if v.excerpt:
+            article["excerpt"] = v.excerpt
+        if v.cover:
+            article["cover"] = f"images/{v.cover}"
+        if v.series:
+            article["series"] = {"slug": v.series.slug, "name": v.series.name}
+        if pinned[v.article_id]:
+            article["pinned_at"] = _iso(pinned[v.article_id])
+        files[f"articles/{doc_id}.json"] = _json(article)
     # Validated again so the file has the model's key order, not JSONB's.
     profile = ProfileContent.model_validate(session.get_one(Profile, 1).content)
     files["profile.json"] = _json(profile.public())

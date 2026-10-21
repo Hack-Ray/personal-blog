@@ -8,6 +8,9 @@ const saved: DraftContent = {
   topic: { slug: "backend", name: "Backend" },
   tags: [{ slug: "go", name: "Go" }],
   markdown: "body",
+  excerpt: "",
+  cover: null,
+  series: null,
 };
 
 const badSlug: DraftContent = { ...saved, topic: { slug: "Back End", name: "Backend" }, markdown: "body, edited" };

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ulid import ULID
 
 from blog import images
-from blog.models import Article, ArticleState, DraftSnapshot, PublishedVersion, RetiredDocId, Tag, Topic, WorkingDraft
+from blog.models import Article, ArticleState, DraftSnapshot, PublishedVersion, RetiredDocId, Series, Tag, Topic, WorkingDraft
 
 PENDING_DELETION_RETENTION = timedelta(days=30)
 SNAPSHOT_INTERVAL = timedelta(minutes=10)
@@ -29,6 +29,26 @@ class DraftContent:
     topic: Taxon
     markdown: str
     tags: list[Taxon] = field(default_factory=list)
+    # "" means the public site derives one from the Markdown.
+    excerpt: str = ""
+    # An image id the Markdown references; None means its first image.
+    cover: str | None = None
+    series: Taxon | None = None
+
+    @classmethod
+    def of(cls, d: WorkingDraft, **changes) -> "DraftContent":
+        return cls(
+            **{
+                "title": d.title,
+                "topic": Taxon(d.topic.slug, d.topic.name),
+                "tags": [Taxon(t.slug, t.name) for t in d.tags],
+                "markdown": d.markdown,
+                "excerpt": d.excerpt,
+                "cover": d.cover,
+                "series": Taxon(d.series.slug, d.series.name) if d.series else None,
+                **changes,
+            }
+        )
 
 
 class Action(StrEnum):
@@ -79,7 +99,7 @@ class InvalidTransition(Exception):
         self.state = state
 
 
-def _get_or_create[T: (Topic, Tag)](session: Session, model: type[T], taxon: Taxon) -> T:
+def _get_or_create[T: (Topic, Tag, Series)](session: Session, model: type[T], taxon: Taxon) -> T:
     """The name last saved for a slug wins, everywhere the slug is used (BE-003)."""
     stmt = insert(model).values(slug=taxon.slug, name=taxon.name)
     session.execute(stmt.on_conflict_do_update(index_elements=["slug"], set_={"name": stmt.excluded.name}))
@@ -91,6 +111,9 @@ def _apply(session: Session, draft: WorkingDraft, content: DraftContent) -> None
     draft.markdown = content.markdown
     draft.topic = _get_or_create(session, Topic, content.topic)
     draft.tags = [_get_or_create(session, Tag, t) for t in {t.slug: t for t in content.tags}.values()]
+    draft.excerpt = content.excerpt
+    draft.cover = content.cover
+    draft.series = _get_or_create(session, Series, content.series) if content.series else None
     draft.updated_at = func.now()
     images.mark_referenced(session, content.markdown)
 
@@ -189,6 +212,8 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
     Publishing an archived article republishes it under the same doc_id."""
     if not content.title.strip() or not content.markdown.strip():
         raise NotPublishable("title and markdown must not be empty")
+    if content.cover is not None and content.cover not in images.refs(content.markdown):
+        raise NotPublishable("the cover must be an image the article contains")
     draft = _locked_draft(session, doc_id, Action.PUBLISH, base_revision)
     _apply(session, draft, content)
     draft.revision += 1
@@ -204,6 +229,9 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
         topic=draft.topic,
         tags=list(draft.tags),
         markdown=draft.markdown,
+        excerpt=draft.excerpt,
+        cover=draft.cover,
+        series=draft.series,
     )
     session.add(version)
     # The new version is durable once this commits, which ends the editing
@@ -227,14 +255,17 @@ def restore_snapshot(session: Session, doc_id: str, snapshot_id: int, base_revis
     snapshot = session.get(DraftSnapshot, snapshot_id)
     if snapshot is None or snapshot.article_id != article.id:
         raise SnapshotNotFound(snapshot_id)
-    d = article.draft
-    content = DraftContent(
-        title=d.title,
-        topic=Taxon(d.topic.slug, d.topic.name),
-        tags=[Taxon(t.slug, t.name) for t in d.tags],
-        markdown=snapshot.markdown,
-    )
-    return save_draft(session, doc_id, base_revision, content)
+    return save_draft(session, doc_id, base_revision, DraftContent.of(article.draft, markdown=snapshot.markdown))
+
+
+def set_pinned(session: Session, doc_id: str, pinned: bool) -> Article:
+    """Takes effect on the site at the next export, like any other change."""
+    article = _locked(session, doc_id, Action.EDIT)
+    if pinned != (article.pinned_at is not None):
+        article.pinned_at = func.now() if pinned else None
+    session.commit()
+    session.refresh(article)
+    return article
 
 
 def archive(session: Session, doc_id: str) -> Article:

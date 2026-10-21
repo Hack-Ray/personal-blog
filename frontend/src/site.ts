@@ -9,3 +9,6 @@ export const absoluteUrl = (path: string): string => `${SITE_ORIGIN}${BASE_PATH}
 // siteName is the profile's site title; this file is also imported by client components,
 // so it takes the title instead of loading the snapshot.
 export const siteOg = (siteName: string) => ({ siteName, locale: "zh_TW", type: "website" }) as const;
+
+/** Dates on the site are shown in the author's time zone, not the build machine's. */
+export const TIME_ZONE = "Asia/Taipei";

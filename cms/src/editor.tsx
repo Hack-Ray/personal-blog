@@ -5,11 +5,12 @@ import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
 import { renderPreview } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
+import { imageIds } from "./cover.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
-    <label className="field">
+    <label className={wide ? "field field-wide" : "field"}>
       <span>{label}</span>
       {children}
     </label>
@@ -19,6 +20,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void }) {
   const [content, setContent] = useState<DraftContent>(draft);
   const [tagText, setTagText] = useState(formatTags(draft.tags));
+  const [seriesText, setSeriesText] = useState(formatTags(draft.series ? [draft.series] : []));
   const [status, setStatus] = useState<SyncStatus>({ kind: "saved" });
   const [notice, setNotice] = useState("");
   const [state, setState] = useState(draft.state);
@@ -40,6 +42,9 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   }, [draft]);
 
   const { invalid } = parseTags(tagText);
+  const seriesParsed = parseTags(seriesText);
+  const seriesInvalid = seriesParsed.invalid.length > 0 || seriesParsed.tags.length > 1;
+  const covers = useMemo(() => imageIds(content.markdown), [content.markdown]);
   const topicValid = unsavedReason(content) === undefined;
   const label = statusLabel(status, content, sync.current?.current ?? draft);
 
@@ -156,8 +161,44 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
             }}
           />
         </Field>
+        <Field label="系列（slug:名稱，留空表示不屬於系列）">
+          <input
+            value={seriesText}
+            aria-invalid={seriesInvalid}
+            onChange={(e) => {
+              setSeriesText(e.target.value);
+              const { tags, invalid } = parseTags(e.target.value);
+              update({ ...content, series: invalid.length === 0 && tags.length === 1 ? tags[0]! : null });
+            }}
+          />
+        </Field>
+        <Field label="封面圖" wide>
+          <select value={content.cover ?? ""} onChange={(e) => update({ ...content, cover: e.target.value || null })}>
+            <option value="">第一張圖片（預設）</option>
+            {covers.map((id, i) => (
+              <option key={id} value={id}>
+                {`第 ${i + 1} 張圖片（${id.slice(0, 8)}…）`}
+              </option>
+            ))}
+            {content.cover && !covers.includes(content.cover) && <option value={content.cover}>已不在文章中的圖片</option>}
+          </select>
+        </Field>
+        <Field label="摘要（留空時使用文章開頭）">
+          <textarea
+            className="excerpt-input"
+            value={content.excerpt}
+            maxLength={300}
+            rows={2}
+            onChange={(e) => update({ ...content, excerpt: e.target.value })}
+          />
+        </Field>
       </div>
       {invalid.length > 0 && <p className="hint">無效的 tag slug：{invalid.join("、")}</p>}
+      {seriesInvalid && <p className="hint">系列只能填一個，slug 須為小寫英數與連字號。</p>}
+      {content.cover && !covers.includes(content.cover) && <p className="hint">封面圖已不在文章中，發布前請重新選擇。</p>}
+      {content.cover && covers.includes(content.cover) && (
+        <img className="cover-preview" src={`/api/images/${content.cover}`} alt="封面圖預覽" />
+      )}
       {uploading > 0 && <p className="hint">圖片上傳中…</p>}
       {uploadError && <p className="banner">圖片上傳失敗 {uploadError}</p>}
       {showSnapshots && <SnapshotPanel docId={draft.doc_id} onRestore={restore} />}

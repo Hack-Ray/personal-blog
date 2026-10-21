@@ -29,6 +29,7 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 frontend/public/images/
+frontend/public/thumbs/
 
 # Database backups
 backend/backups/

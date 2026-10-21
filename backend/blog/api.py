@@ -64,11 +64,18 @@ class TaxonBody(BaseModel):
     name: Name
 
 
+Excerpt = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
+ImageId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}\.[a-z]+$", max_length=80)]
+
+
 class DraftBody(BaseModel):
     title: str
     topic: TaxonBody
     tags: list[TaxonBody] = []
     markdown: str = ""
+    excerpt: Excerpt = ""
+    cover: ImageId | None = None
+    series: TaxonBody | None = None
 
     def content(self) -> articles.DraftContent:
         return articles.DraftContent(
@@ -76,6 +83,9 @@ class DraftBody(BaseModel):
             topic=articles.Taxon(self.topic.slug, self.topic.name),
             tags=[articles.Taxon(t.slug, t.name) for t in self.tags],
             markdown=self.markdown,
+            excerpt=self.excerpt,
+            cover=self.cover,
+            series=articles.Taxon(self.series.slug, self.series.name) if self.series else None,
         )
 
 
@@ -91,6 +101,9 @@ class DraftOut(BaseModel):
     topic: TaxonBody
     tags: list[TaxonBody]
     markdown: str
+    excerpt: str
+    cover: str | None
+    series: TaxonBody | None
     updated_at: datetime
 
     @classmethod
@@ -103,6 +116,9 @@ class DraftOut(BaseModel):
             topic=TaxonBody(slug=d.topic.slug, name=d.topic.name),
             tags=[TaxonBody(slug=t.slug, name=t.name) for t in d.tags],
             markdown=d.markdown,
+            excerpt=d.excerpt,
+            cover=d.cover,
+            series=TaxonBody(slug=d.series.slug, name=d.series.name) if d.series else None,
             updated_at=d.updated_at,
         )
 
@@ -118,6 +134,7 @@ class ArticleOut(BaseModel):
     doc_id: str
     state: ArticleState
     title: str
+    pinned: bool
     deleted_at: datetime | None
     purge_after: datetime | None
 
@@ -127,6 +144,7 @@ class ArticleOut(BaseModel):
             doc_id=a.doc_id,
             state=a.state,
             title=a.draft.title,
+            pinned=a.pinned_at is not None,
             deleted_at=a.deleted_at,
             purge_after=a.deleted_at + articles.PENDING_DELETION_RETENTION if a.deleted_at else None,
         )
@@ -214,6 +232,15 @@ def publish(doc_id: str, body: RevisedDraftBody, session: SessionDep) -> Publish
     except articles.NotPublishable as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
     return PublishedOut(doc_id=doc_id, version=v.version, revision=body.base_revision + 1, published_at=v.published_at)
+
+
+class PinnedBody(BaseModel):
+    pinned: bool
+
+
+@app.put("/api/articles/{doc_id}/pinned")
+def set_pinned(doc_id: str, body: PinnedBody, session: SessionDep) -> ArticleOut:
+    return ArticleOut.of(articles.set_pinned(session, doc_id, body.pinned))
 
 
 @app.post("/api/articles/{doc_id}/archive")

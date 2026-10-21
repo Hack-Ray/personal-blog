@@ -98,8 +98,14 @@ export interface ArticleFile extends PublishedArticle {
   version: number;
 }
 
+// Keys exported only when set; an absent key leaves the field out.
+function optional<T>(o: Record<string, unknown>, key: string, path: string, parse: (v: unknown, path: string) => T) {
+  return o[key] === undefined ? {} : { [key]: parse(o[key], `${path}.${key}`) };
+}
+
 export function parseArticleFile(value: unknown, path: string): ArticleFile {
   const o = record(value, path);
+  const markdown = string(o.markdown, `${path}.markdown`);
   return {
     state: "published",
     docId: parseDocId(o.doc_id, `${path}.doc_id`),
@@ -108,7 +114,16 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
     topic: parseTaxon(o.topic, `${path}.topic`),
     tags: array(o.tags, `${path}.tags`).map((t, i) => parseTaxon(t, `${path}.tags[${i}]`)),
     publishedAt: date(o.published_at, `${path}.published_at`),
-    markdown: string(o.markdown, `${path}.markdown`),
+    ...(o.updated_at === undefined ? {} : { updatedAt: date(o.updated_at, `${path}.updated_at`) }),
+    markdown,
+    ...optional(o, "excerpt", path, string),
+    ...optional(o, "cover", path, (v, p) => {
+      const cover = string(v, p);
+      if (!imagePaths(markdown).includes(cover)) fail(p, `"${cover}" is not an image the article contains`);
+      return cover;
+    }),
+    ...optional(o, "series", path, parseTaxon),
+    ...(o.pinned_at === undefined ? {} : { pinnedAt: date(o.pinned_at, `${path}.pinned_at`) }),
   };
 }
 

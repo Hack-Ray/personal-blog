@@ -2,8 +2,8 @@
 
 import { type ReactNode, useState } from "react";
 
-// Both orders are rendered on the server, so the Markdown helpers ArticleList uses stay out of the client bundle.
-export function SortableArticleList({ newest, oldest }: { newest: ReactNode; oldest: ReactNode }) {
+// Both orders are rendered on the server, so switching needs no article data on the client.
+export function SortableList({ newest, oldest }: { newest: ReactNode; oldest: ReactNode }) {
   const [newestFirst, setNewestFirst] = useState(true);
   return (
     <>

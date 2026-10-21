@@ -88,11 +88,17 @@ export function ArticleList() {
           {items.map((a) => (
             <tr key={a.doc_id}>
               <td>
+                {a.pinned && a.state !== "pending_deletion" && <span className="pin">置頂</span>}
                 {a.state === "pending_deletion" ? a.title || "（無標題）" : <a href={`#/edit/${a.doc_id}`}>{a.title || "（無標題）"}</a>}
               </td>
               <td>{STATE_LABEL[a.state]}</td>
               {filter === "pending_deletion" && <td>{a.purge_after && date.format(new Date(a.purge_after))}</td>}
               <td className="actions">
+                {a.state === "published" && (
+                  <button type="button" onClick={() => act((id) => api.setPinned(id, !a.pinned), a.doc_id)}>
+                    {a.pinned ? "取消置頂" : "置頂"}
+                  </button>
+                )}
                 {ACTIONS[a.state].map(({ label, run, confirm }) => (
                   <button key={label} type="button" onClick={() => act(run, a.doc_id, confirm)}>
                     {label}

@@ -1,6 +1,6 @@
 import type { SiteContent } from "./model.ts";
 import { published } from "./queries.ts";
-import { summary } from "./summary.ts";
+import { excerptOf } from "./card.ts";
 
 const LIMIT = 20;
 
@@ -19,7 +19,7 @@ export function buildFeed(content: SiteContent, url: (path: string) => string): 
       `      <link>${link}</link>`,
       `      <guid isPermaLink="true">${link}</guid>`,
       `      <pubDate>${a.publishedAt.toUTCString()}</pubDate>`,
-      `      <description>${escapeXml(summary(a.markdown))}</description>`,
+      `      <description>${escapeXml(excerptOf(a))}</description>`,
       `      <category>${escapeXml(a.topic.name)}</category>`,
       "    </item>",
     ].join("\n");
