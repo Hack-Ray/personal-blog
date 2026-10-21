@@ -80,7 +80,7 @@ Each export first resets `manifest.json`, `profile.json`, `articles/` and `image
 
 ## About page profile
 
-`GET /api/profile` returns `{revision, content, updated_at}`; `PUT /api/profile` with `{revision, content}` saves it and bumps the revision, or returns 409 with `current_revision` when `revision` is stale. `content` is `name`, `headline`, `intro` (Markdown), `links`, `experience` and `projects`; URLs must start with `https://` or `mailto:`. The single row is created by migration 0008. The exporter writes it as `profile.json`, so a profile change alone makes a new release.
+`GET /api/profile` returns `{revision, content, updated_at}`; `PUT /api/profile` with `{revision, content}` saves it and bumps the revision, or returns 409 with `current_revision` when `revision` is stale. `content` is `name`, `headline`, `intro` (Markdown), `links`, `experience`, `projects` and `site` (`title`, `description`: the site name and description, FE-009; a row without `site` reads as `Personal Blog` with no description); URLs must start with `https://` or `mailto:`. The single row is created by migration 0008. The exporter writes it as `profile.json`, so a profile change alone makes a new release.
 
 ## Draft snapshots
 

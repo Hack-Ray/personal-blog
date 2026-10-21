@@ -224,6 +224,7 @@
   - Exporter 在同一交易中讀取 profile，寫成 Snapshot 根目錄的 `profile.json`，鍵的順序固定。`profile.json` 加入 Snapshot 路徑（與 `manifest.json`、`articles/`、`images/` 一起比對內容、重設回 HEAD、stage），所以只修改介紹也會產生新的 release commit。
   - 自我介紹引用的 `images/` 圖片一起匯出，並算作圖片 GC 的有效引用（BE-007）；儲存時清除這些圖片的 `unreferenced_since`。
   - `schema_version` 維持 1：`profile.json` 是新增的檔案，前端在沒有它時使用預設內容，舊版前端則忽略它，兩個方向都相容。
+  - 網站名稱與簡介（Addendum 04 FE-009）存在同一列的 `content.site`，形狀為 `{title, description}`：名稱不可空白、上限 100 字，簡介可空白、上限 300 字。此欄位之前存的資料沒有 `site` 鍵，讀取時由 Pydantic 預設為 `{title: "Personal Blog", description: ""}`，所以不需要 migration；下次儲存時才寫入資料庫。`PUT` 省略 `site` 時同樣存成預設值。`profile.json` 中 `site` 排在最後，其他鍵的順序不變。
 - **Consequences**：
   - 內容 repo 目前沒有 `profile.json`，所以此版本之後第一次「更新網站」即使文章沒有變更也會產生一個 release commit；內容與預設相同，網站不變。
   - 關於頁沒有版本或快照紀錄；儲存即覆蓋，上線的版本以內容 repo 的 commit 歷史為準。

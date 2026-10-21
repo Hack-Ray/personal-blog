@@ -37,6 +37,8 @@ images/{contentHash}.{ext}
 
 `profile.json` is the About page: `name`, `headline`, `intro` (Markdown), `links` (`label`, `url`), `experience` (`role`, `organization`, `period`, `description`) and `projects` (`name`, optional `url`, `description`, `tags`). Links and project URLs must start with `https://` or `mailto:`. A snapshot without it gets the default profile in `src/content/parse.ts` (name and GitHub link), which matches what the backend seeds.
 
+It also holds `site` (`title`, `description`): the title names the site in page titles, the header, `og:site_name` and the RSS feed; a non-empty description is the default meta description and the feed's channel description (the feed falls back to the title). `site` may be missing and then is `{"title": "Personal Blog", "description": ""}` (Addendum 04 FE-009).
+
 The build fails, and nothing is deployed, when the schema version is unknown, an article file is missing, its `doc_id` or `version` disagrees with the manifest, a docId is listed twice, `profile.json` is malformed, or a referenced image is missing.
 
 ## Checking the built site
