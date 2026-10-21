@@ -141,6 +141,34 @@ input:focus-visible {
   font-size: 0.9em;
 }
 
+.toc {
+  margin: 1em 0;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 0.9em;
+}
+
+.toc-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc-sub {
+  padding-left: 1.25em;
+}
+
+.article-body :is(h2, h3) {
+  scroll-margin-top: 16px;
+}
+
 .article-list {
   list-style: none;
   padding: 0;

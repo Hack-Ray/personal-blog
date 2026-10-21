@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
@@ -64,11 +65,24 @@ export default async function PostPage({ params }: Props) {
       </>
     );
   }
+  const toc = tocHeadings(a.markdown);
   const { newer, older } = neighbors(loadSiteContent(), a.docId);
   return (
     <article>
       <h1>{a.title}</h1>
       <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} />
+      {toc.length > 0 && (
+        <nav className="toc" aria-label="目錄">
+          <p className="toc-title">目錄</p>
+          <ul>
+            {toc.map((h) => (
+              <li key={h.id} className={h.depth === 3 ? "toc-sub" : undefined}>
+                <a href={`#${h.id}`}>{h.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
       {/* Markdown comes only from the site author through the CMS. */}
       <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
       {(newer || older) && (
