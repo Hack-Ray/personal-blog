@@ -72,6 +72,7 @@ test("the committed sample snapshot has a profile with a Markdown intro", () => 
   assert.equal(profile.name, "Hack-Ray");
   assert.match(renderMarkdown(profile.intro, ""), /<strong>Python<\/strong>/);
   assert.equal(profile.projects.length, 1);
+  assert.deepEqual(profile.site, { title: "Hack-Ray 的技術筆記", description: "後端、自動化與自建 CMS 的軟體工程文章" });
 });
 
 test("a snapshot without profile.json falls back to the default profile", () => {
