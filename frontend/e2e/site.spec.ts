@@ -86,3 +86,38 @@ for (const path of ["", FASTAPI_POST, "archive/"]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 }
+
+test("the table of contents sits beside the article on wide screens and highlights the current section", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.goto(FASTAPI_POST);
+  const toc = page.getByRole("navigation", { name: "目錄" });
+  await expect(toc).toBeVisible();
+  await expect(page.getByRole("button", { name: "☰ 目錄" })).toBeHidden();
+  const links = toc.getByRole("link");
+  await expect(links.first()).toHaveAttribute("aria-current", "location");
+  await links.nth(2).click();
+  await expect(links.nth(2)).toHaveAttribute("aria-current", "location");
+  await expect(links.first()).not.toHaveAttribute("aria-current", "location");
+  await expect(toc).toBeVisible();
+});
+
+test("the table of contents is a drawer on narrow screens", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(FASTAPI_POST);
+  const toc = page.getByRole("navigation", { name: "目錄" });
+  const toggle = page.getByRole("button", { name: "☰ 目錄" });
+  await expect(toc).toBeHidden();
+  await toggle.click();
+  await expect(toc).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(toc).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  const target = toc.getByRole("link").nth(2);
+  const id = (await target.getAttribute("href"))!.slice(1);
+  await target.click();
+  await expect(toc).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`#${encodeURIComponent(id)}$`));
+  await toggle.click();
+  await expect(target).toHaveAttribute("aria-current", "location");
+});
