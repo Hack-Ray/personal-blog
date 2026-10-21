@@ -15,6 +15,27 @@ test("the header search previews matches and opens the search page", async ({ pa
   await expect(page.locator("main")).toContainText("用 FastAPI 打造個人部落格的後端");
 });
 
+test("a header search result opens its post when tapped", async ({ page }) => {
+  await page.goto("");
+  const box = page.getByRole("searchbox", { name: "搜尋文章" }).first();
+  await box.fill("FastAPI");
+  const preview = page.locator(".search-preview");
+  // Safari doesn't focus a tapped link, so the box blurs with no relatedTarget before the click.
+  await box.evaluate((el: HTMLInputElement) => el.blur());
+  await preview.getByRole("link", { name: /用 FastAPI 打造/ }).click();
+  await expect(page).toHaveURL(new RegExp(FASTAPI_POST));
+});
+
+test("the header search preview closes on a tap outside it", async ({ page }) => {
+  await page.goto("");
+  const box = page.getByRole("searchbox", { name: "搜尋文章" }).first();
+  await box.fill("FastAPI");
+  const preview = page.locator(".search-preview");
+  await expect(preview).toBeVisible();
+  await page.locator("main").click({ position: { x: 5, y: 5 } });
+  await expect(preview).toBeHidden();
+});
+
 test("the theme toggle cycles and survives a reload", async ({ page }) => {
   await page.goto("");
   const html = page.locator("html");
