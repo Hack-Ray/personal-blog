@@ -1,4 +1,4 @@
-import { Marked } from "marked";
+import { Marked, type Tokens } from "marked";
 import { createHighlighter } from "shiki";
 import { inlineText, slugger } from "./headings.ts";
 
@@ -16,7 +16,7 @@ const escapeHtml = (s: string) =>
 
 function highlight(code: string, info: string | undefined): string {
   const lang = info?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-  if (!loaded.has(lang)) return `<pre><code>${escapeHtml(code)}</code></pre>\n`;
+  if (!loaded.has(lang)) return `<pre><code>${escapeHtml(code)}</code></pre>`;
   // defaultColor false emits only --shiki-light/--shiki-dark; globals.css picks one.
   return highlighter.codeToHtml(code, {
     lang,
@@ -25,13 +25,27 @@ function highlight(code: string, info: string | undefined): string {
   });
 }
 
+// The copy button stays hidden until ArticleBody's script can make it work.
+const codeBlock = (pre: string) =>
+  `<div class="code-block">${pre}<button type="button" class="copy-code" hidden>複製</button></div>\n`;
+
 // Snapshot Markdown references images as images/<file>; the build copies them
 // to public/images, which is served under the site's basePath.
 export function renderMarkdown(markdown: string, basePath: string): string {
   const idFor = slugger();
   const marked = new Marked({
     renderer: {
-      code: ({ text, lang }) => highlight(text, lang),
+      code: ({ text, lang }) => codeBlock(highlight(text, lang)),
+      // marked leaves the alt text unescaped.
+      image: ({ href, title, text }) =>
+        `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy">`,
+      // An image alone in its paragraph is a figure, captioned with its alt text.
+      paragraph({ tokens }) {
+        const inner = this.parser.parseInline(tokens);
+        const image = tokens.length === 1 && tokens[0]!.type === "image" ? (tokens[0] as Tokens.Image) : undefined;
+        if (!image?.text.trim()) return `<p>${inner}</p>\n`;
+        return `<figure>${inner}<figcaption>${escapeHtml(image.text)}</figcaption></figure>\n`;
+      },
       heading({ tokens, depth }) {
         const inner = this.parser.parseInline(tokens);
         // Same order and rule as headings(), so the table of contents links match.

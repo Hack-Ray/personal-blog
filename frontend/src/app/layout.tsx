@@ -18,7 +18,8 @@ export function generateMetadata(): Metadata {
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const { title } = loadSiteContent().profile.site;
+  const { name, links, site } = loadSiteContent().profile;
+  const { title } = site;
   return (
     <html lang="zh-Hant" suppressHydrationWarning>
       <head>
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <nav>
             <Link href="/">首頁</Link>
             <Link href="/posts/">文章</Link>
+            <Link href="/topics/">分類</Link>
             <HeaderSearch />
             <Link href="/about/">關於</Link>
             <ThemeToggle />
@@ -42,8 +44,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <main>{children}</main>
         <footer>
           <p>
-            <span>© {new Date().getFullYear()} Hack-Ray</span>
-            <a href="https://github.com/Hack-Ray">GitHub</a>
+            <span>{site.footer || `© ${new Date().getFullYear()} ${name}`}</span>
+            {links.map((l) => (
+              <a key={l.url} href={l.url} rel="me noopener">
+                {l.label}
+              </a>
+            ))}
             <a href={`${BASE_PATH}/feed.xml`}>RSS</a>
           </p>
         </footer>

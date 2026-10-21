@@ -69,8 +69,8 @@ export interface Profile {
   links: { label: string; url: string }[];
   experience: { role: string; organization: string; period: string; description: string }[];
   projects: { name: string; url?: string; description: string; tags: string[] }[];
-  /** The site name and description on the public site; description may be "". */
-  site: { title: string; description: string };
+  /** The site name, description and footer text on the public site; description and footer may be "". */
+  site: { title: string; description: string; footer: string };
 }
 
 export interface SavedProfile {

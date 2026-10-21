@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { loadSiteContent } from "../../content/load.ts";
 import { renderMarkdown } from "../../content/markdown.ts";
 import { absoluteUrl, BASE_PATH } from "../../site.ts";
+import { ArticleBody } from "../article-body.tsx";
 
 export function generateMetadata(): Metadata {
   return {
@@ -17,7 +18,7 @@ export default function AboutPage() {
     <>
       <h1>{name}</h1>
       {headline && <p className="meta">{headline}</p>}
-      {intro && <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(intro, BASE_PATH) }} />}
+      {intro && <ArticleBody html={renderMarkdown(intro, BASE_PATH)} />}
       {links.length > 0 && (
         <ul className="links">
           {links.map((l) => (

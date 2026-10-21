@@ -155,6 +155,9 @@ export function ProfilePage() {
         <Field label="網站簡介（可留空）">
           <input {...site("description")} maxLength={300} />
         </Field>
+        <Field label="頁尾文字（留空顯示「© 年份 名字」）">
+          <input {...site("footer")} maxLength={200} />
+        </Field>
       </fieldset>
       <h2>關於頁</h2>
       <div className="profile-fields">
@@ -176,7 +179,7 @@ export function ProfilePage() {
         <div className="preview" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
       <Rows
-        title="連結"
+        title="連結（也顯示在頁尾）"
         list="links"
         form={form}
         setForm={setForm}
