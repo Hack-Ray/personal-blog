@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { giscusTheme, readTheme } from "../../../theme.ts";
 
 // IDs come from https://giscus.app for Hack-Ray/personal-blog and its Announcements category.
 const GISCUS = {
@@ -30,7 +31,7 @@ export function Comments({ docId }: { docId: string }) {
       "data-reactions-enabled": "1",
       "data-emit-metadata": "0",
       "data-input-position": "top",
-      "data-theme": "preferred_color_scheme",
+      "data-theme": giscusTheme(readTheme()),
       "data-lang": "zh-TW",
       "data-loading": "lazy",
       crossorigin: "anonymous",
