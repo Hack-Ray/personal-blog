@@ -6,7 +6,7 @@ from sqlalchemy import text
 from blog import auth
 from blog.db import SessionLocal, engine
 from blog.models import AdminSession
-from tests.conftest import ADMIN_PASSWORD
+from tests.conftest import ADMIN_PASSWORD, BASE_URL
 
 ARTICLE = {"title": "T", "topic": {"slug": "backend", "name": "Backend"}, "markdown": "m"}
 
@@ -95,7 +95,7 @@ def test_no_admin_means_nobody_can_sign_in(anon):
 def test_cross_origin_writes_are_refused_even_when_signed_in(client):
     r = client.post("/api/articles", json=ARTICLE, headers={"origin": "https://evil.example"})
     assert r.status_code == 403
-    same = client.post("/api/articles", json=ARTICLE, headers={"origin": "http://testserver"})
+    same = client.post("/api/articles", json=ARTICLE, headers={"origin": BASE_URL})
     assert same.status_code == 201
 
 
@@ -112,3 +112,17 @@ def test_signing_in_prunes_expired_sessions(anon):
     anon.post("/api/session", json={"password": ADMIN_PASSWORD})
     with SessionLocal() as s:
         assert s.get(AdminSession, "0" * 64) is None
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1:8000", "localhost:5173"])
+def test_local_hosts_are_served(anon, host):
+    assert anon.get("/api/session", headers={"host": host}).status_code == 200
+
+
+def test_other_hosts_are_refused_before_sign_in(anon):
+    """A page that rebinds its domain to 127.0.0.1 sends that domain as Host."""
+    for _ in range(auth.MAX_FAILURES):
+        r = anon.post("/api/session", json={"password": "guess"}, headers={"host": "rebind.example:8000"})
+        assert r.status_code == 400
+    assert not auth.throttle.locked()
+    assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204

@@ -12,7 +12,7 @@ from blog.api import app
 from blog.db import SessionLocal, engine
 from blog.exporter import export
 from blog.models import RetiredDocId
-from tests.conftest import sign_in
+from tests.conftest import BASE_URL, sign_in
 
 BACKEND = {"slug": "backend", "name": "Backend"}
 
@@ -146,7 +146,7 @@ def test_cms_startup_purges_expired_articles(client):
     client.delete(f"/api/articles/{doc_id}")
     backdate_deletion(doc_id, 30)
 
-    with sign_in(TestClient(app)) as started:
+    with sign_in(TestClient(app, base_url=BASE_URL)) as started:
         assert started.get(f"/api/articles/{doc_id}/draft").status_code == 404
 
 

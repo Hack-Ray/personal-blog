@@ -17,6 +17,8 @@ from blog.api import app  # noqa: E402
 from blog.db import SessionLocal, engine  # noqa: E402
 
 ADMIN_PASSWORD = "correct horse battery staple"
+# The address the CMS is served on (docs/local-setup.md); the API refuses other hosts.
+BASE_URL = "http://127.0.0.1:8000"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -70,9 +72,9 @@ def sign_in(c: TestClient) -> TestClient:
 
 @pytest.fixture
 def anon(admin):
-    return TestClient(app)
+    return TestClient(app, base_url=BASE_URL)
 
 
 @pytest.fixture
 def client(admin):
-    return sign_in(TestClient(app))
+    return sign_in(TestClient(app, base_url=BASE_URL))
