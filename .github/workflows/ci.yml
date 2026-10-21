@@ -36,6 +36,11 @@ jobs:
             sleep 1
           done
           sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
+      - name: Check links in the built site
+        run: node scripts/check-links.ts
+      - run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npx playwright test
       - name: Build a site with nothing published yet
         run: npm run build
         env:

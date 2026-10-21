@@ -142,6 +142,7 @@ export const api = {
   restoreSnapshot: (docId: string, baseRevision: number, snapshotId: number) =>
     request<Draft>("POST", `/articles/${docId}/snapshots/${snapshotId}/restore`, { base_revision: baseRevision }),
   releases: () => request<Release[]>("GET", "/releases"),
+  githubToken: () => request<{ configured: boolean; expires_at: string | null }>("GET", "/github-token"),
   createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
   profile: () => request<SavedProfile>("GET", "/profile"),

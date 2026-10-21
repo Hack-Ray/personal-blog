@@ -69,6 +69,11 @@ jobs:
         env:
           SITE_DATA_DIR: ${{ github.workspace }}/site-data
 
+      # A link in an article to a page or image the build does not have fails
+      # here, like a missing image does above.
+      - run: node scripts/check-links.ts
+        working-directory: frontend
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4

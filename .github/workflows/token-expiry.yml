@@ -1,0 +1,41 @@
+name: Token expiry reminder
+
+# Opens an issue when CONTENT_REPO_TOKEN, which deploy.yml uses to read the
+# content repo, is within 30 days of expiring or no longer works. The CMS's
+# own token is checked by the CMS on its 網站發布 page.
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Mondays 09:00 Asia/Taipei
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CONTENT_REPO_TOKEN
+        env:
+          TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          WARN_DAYS: 30
+        run: |
+          headers=$(curl -sS -o /dev/null -D - -H "Authorization: Bearer $TOKEN" https://api.github.com/repos/Hack-Ray/personal-blog-content | tr -d '\r')
+          status=$(echo "$headers" | head -1 | cut -d' ' -f2)
+          expiry=$(echo "$headers" | sed -n 's/^github-authentication-token-expiration: //Ip')
+          if [ "$status" != 200 ]; then
+            problem="CONTENT_REPO_TOKEN 無法讀取內容 repo（HTTP $status），部署會失敗"
+          elif [ -n "$expiry" ]; then
+            days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+            echo "CONTENT_REPO_TOKEN expires $expiry ($days days)"
+            [ "$days" -le "$WARN_DAYS" ] && problem="CONTENT_REPO_TOKEN 將在 $days 天後（$expiry）過期"
+          else
+            echo "CONTENT_REPO_TOKEN has no expiry date"
+          fi
+          [ -z "$problem" ] && exit 0
+          if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search 'CONTENT_REPO_TOKEN in:title' --json number --jq length)" = 0 ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$problem" \
+              --body "依 docs/setup-todo.md A 區重新產生 token，更新 repo secret CONTENT_REPO_TOKEN 後關閉此 issue。"
+          fi
