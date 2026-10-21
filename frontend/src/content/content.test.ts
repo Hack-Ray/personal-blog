@@ -139,3 +139,16 @@ test("snapshot image references resolve under the basePath", () => {
   assert.match(html, /src="\/personal-blog\/images\/abc\.svg"/);
   assert.match(html, /src="https:\/\/example\.com\/x\.png"/);
 });
+
+test("fenced code in a known language is highlighted with light and dark variables", () => {
+  const html = renderMarkdown("```ts\nconst x = 1;\n```", "");
+  assert.match(html, /<pre class="shiki/);
+  assert.match(html, /--shiki-light:#[0-9A-Fa-f]+/);
+  assert.match(html, /--shiki-dark:#[0-9A-Fa-f]+/);
+});
+
+test("fenced code in an unknown or missing language is escaped plain text", () => {
+  for (const fence of ["```nope\n<b>&</b>\n```", "```\n<b>&</b>\n```"]) {
+    assert.equal(renderMarkdown(fence, ""), "<pre><code>&lt;b&gt;&amp;&lt;/b&gt;</code></pre>\n");
+  }
+});

@@ -12,7 +12,8 @@
     "marked": "16.4.0",
     "next": "16.4.0",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "shiki": "4.5.0"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
