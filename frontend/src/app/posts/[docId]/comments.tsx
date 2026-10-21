@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 // IDs come from https://giscus.app for Hack-Ray/personal-blog and its Announcements category.
 const GISCUS = {
   repo: "Hack-Ray/personal-blog",
-  repoId: "",
+  repoId: "R_kgDOVEhGNQ",
   category: "Announcements",
-  categoryId: "",
+  categoryId: "DIC_kwDOVEhGNc4DJOCq",
 };
 
 /** giscus thread keyed by docId, so a new title, domain or basePath keeps the same discussion. */
