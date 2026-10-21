@@ -27,10 +27,23 @@ body {
 }
 
 header,
-main {
+main,
+footer {
   max-width: 720px;
   margin: 0 auto;
   padding: 0 16px;
+}
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 48px;
+  padding-top: 16px;
+  padding-bottom: 32px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9em;
 }
 
 .site-title {

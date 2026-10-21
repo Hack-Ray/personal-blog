@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { absoluteUrl } from "../site.ts";
 import "./globals.css";
 import { HeaderSearch } from "./header-search.tsx";
 
@@ -11,6 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-Hant">
+      <head>
+        {/* Not metadata.alternates: every page sets its own alternates.canonical, which replaces the layout's. */}
+        <link rel="alternate" type="application/rss+xml" title="Personal Blog" href={absoluteUrl("/feed.xml")} />
+      </head>
       <body>
         <header>
           <Link href="/" className="site-title">
@@ -24,6 +29,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </nav>
         </header>
         <main>{children}</main>
+        <footer>
+          <span>© {new Date().getFullYear()} Hack-Ray</span>
+          <a href="https://github.com/Hack-Ray">GitHub</a>
+          <Link href="/feed.xml">RSS</Link>
+        </footer>
       </body>
     </html>
   );
