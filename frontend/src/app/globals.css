@@ -42,6 +42,18 @@ main {
 }
 
 
+h1 {
+  font-size: 1.5em;
+}
+
+h2 {
+  font-size: 1.25em;
+}
+
+h3 {
+  font-size: 1.1em;
+}
+
 header nav {
   display: flex;
   align-items: center;
@@ -146,6 +158,52 @@ pre {
   .shiki span {
     color: var(--shiki-dark);
   }
+}
+
+.article-body :not(pre) > code {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--code-bg);
+  font-size: 0.875em;
+}
+
+.article-body blockquote {
+  margin: 1em 0;
+  padding: 0 1em;
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+}
+
+.article-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.article-body th,
+.article-body td {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+}
+
+.article-body th {
+  background: var(--code-bg);
+}
+
+.article-body hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.article-body ul,
+.article-body ol {
+  padding-left: 1.5em;
+}
+
+.article-body li + li {
+  margin-top: 0.25em;
 }
 
 img {
