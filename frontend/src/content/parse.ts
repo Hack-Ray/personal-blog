@@ -112,6 +112,10 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
   };
 }
 
+// Same default as the backend's Site model; profile.json files exported before
+// the site fields existed have no "site" key.
+export const DEFAULT_SITE: Profile["site"] = { title: "Personal Blog", description: "" };
+
 // Snapshots exported before the CMS managed the profile have no profile.json.
 export const DEFAULT_PROFILE: Profile = {
   name: "Hack-Ray",
@@ -120,7 +124,14 @@ export const DEFAULT_PROFILE: Profile = {
   links: [{ label: "GitHub", url: "https://github.com/Hack-Ray" }],
   experience: [],
   projects: [],
+  site: DEFAULT_SITE,
 };
+
+function parseSite(value: unknown, path: string): Profile["site"] {
+  if (value === undefined) return { ...DEFAULT_SITE };
+  const o = record(value, path);
+  return { title: string(o.title, `${path}.title`), description: text(o.description, `${path}.description`) };
+}
 
 export function parseProfile(value: unknown, path = "profile.json"): Profile {
   const o = record(value, path);
@@ -143,6 +154,7 @@ export function parseProfile(value: unknown, path = "profile.json"): Profile {
       description: text(j.description, `${p}.description`),
       tags: array(j.tags, `${p}.tags`).map((t, i) => string(t, `${p}.tags[${i}]`)),
     })),
+    site: parseSite(o.site, `${path}.site`),
   };
 }
 

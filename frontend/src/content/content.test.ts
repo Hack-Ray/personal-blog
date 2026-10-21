@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
-import { ContentError, DEFAULT_PROFILE, parseSnapshot, type Snapshot } from "./parse.ts";
+import { ContentError, DEFAULT_PROFILE, DEFAULT_SITE, parseSnapshot, type Snapshot } from "./parse.ts";
 import { findArticle, inTopic, neighbors, published, tags, topics, withTag } from "./queries.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
@@ -78,6 +78,25 @@ test("a snapshot without profile.json falls back to the default profile", () => 
   assert.deepEqual(parseSnapshot(snapshot({})).profile, DEFAULT_PROFILE);
   assert.equal(DEFAULT_PROFILE.name, "Hack-Ray");
   assert.deepEqual(DEFAULT_PROFILE.links, [{ label: "GitHub", url: "https://github.com/Hack-Ray" }]);
+  assert.deepEqual(DEFAULT_PROFILE.site, { title: "Personal Blog", description: "" });
+});
+
+test("a profile.json without site gets the default site", () => {
+  assert.deepEqual(parseSnapshot(snapshot({ profile: profileFile() })).profile.site, DEFAULT_SITE);
+});
+
+test("the site title and description are read from profile.json", () => {
+  const site = { title: "Ray's notes", description: "" };
+  assert.deepEqual(parseSnapshot(snapshot({ profile: profileFile({ site }) })).profile.site, site);
+});
+
+test("rejects a site with a blank title or wrong types", () => {
+  const bad = (site: unknown) => () => parseSnapshot(snapshot({ profile: profileFile({ site }) }));
+  assert.throws(bad({ title: " ", description: "" }), /profile\.json\.site\.title: expected a non-empty string/);
+  assert.throws(bad({ description: "x" }), /profile\.json\.site\.title/);
+  assert.throws(bad({ title: "x", description: 1 }), /profile\.json\.site\.description: expected a string/);
+  assert.throws(bad("Personal Blog"), /profile\.json\.site: expected an object/);
+  assert.throws(bad(null), /profile\.json\.site: expected an object/);
 });
 
 test("a project url is optional and kept when present", () => {
