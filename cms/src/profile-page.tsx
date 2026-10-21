@@ -109,7 +109,7 @@ export function ProfilePage() {
     status.kind === "saving"
       ? { kind: "saving", text: "儲存中…" }
       : status.kind === "conflict"
-        ? { kind: "conflict", text: "關於頁已在其他地方被修改" }
+        ? { kind: "conflict", text: "網站與關於已在其他地方被修改" }
         : status.kind === "error"
           ? { kind: "error", text: `儲存失敗：${status.message}` }
           : dirty
@@ -121,11 +121,16 @@ export function ProfilePage() {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value }),
   });
 
+  const site = (key: keyof ProfileForm["site"]) => ({
+    value: form.site[key],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, site: { ...form.site, [key]: e.target.value } }),
+  });
+
   return (
     <div className="profile-page">
       <div className="toolbar">
         <a href="#/">← 文章列表</a>
-        <h1>關於</h1>
+        <h1>網站與關於</h1>
         <span className={`status status-${label.kind}`} role="status">
           {label.text}
         </span>
@@ -133,15 +138,25 @@ export function ProfilePage() {
           儲存
         </button>
       </div>
-      <p className="hint">儲存後要到「網站發布 → 更新網站」才會出現在網站的關於頁。</p>
+      <p className="hint">儲存後要到「網站發布 → 更新網站」才會出現在網站上。</p>
       {status.kind === "conflict" && (
         <p className="banner">
-          關於頁已在其他地方被修改，這裡的修改無法儲存。重新載入會捨棄這裡的修改。
+          網站與關於已在其他地方被修改，這裡的修改無法儲存。重新載入會捨棄這裡的修改。
           <button type="button" onClick={load}>
             重新載入
           </button>
         </p>
       )}
+      <fieldset className="profile-fields site-fields">
+        <legend>網站</legend>
+        <Field label="網站名稱" error={errors["site.title"]}>
+          <input {...site("title")} maxLength={100} aria-invalid={"site.title" in errors} />
+        </Field>
+        <Field label="網站簡介（可留空）">
+          <input {...site("description")} maxLength={300} />
+        </Field>
+      </fieldset>
+      <h2>關於頁</h2>
       <div className="profile-fields">
         <Field label="名字" error={errors.name}>
           <input {...text("name")} aria-invalid={"name" in errors} />

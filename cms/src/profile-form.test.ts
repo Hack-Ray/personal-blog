@@ -13,6 +13,7 @@ const profile: Profile = {
     { name: "Blog", url: "https://example.com", description: "This site", tags: ["FastAPI", "Next.js"] },
     { name: "Notes", description: "", tags: [] },
   ],
+  site: { title: "Ray's notes", description: "Backend and tooling" },
 };
 
 test("form and profile round-trip", () => {
@@ -37,6 +38,25 @@ test("fromForm trims text and leaves out a blank project url", () => {
   const p = fromForm(form);
   assert.equal(p.name, "Ray");
   assert.equal("url" in p.projects[0]!, false);
+});
+
+test("fromForm trims the site title and description and keeps an empty description", () => {
+  const form = toForm(profile);
+  form.site = { title: "  Notes ", description: "   " };
+  assert.deepEqual(fromForm(form).site, { title: "Notes", description: "" });
+});
+
+test("editing the site fields does not change the loaded profile and makes the form unsaved", () => {
+  const form = toForm(profile);
+  form.site.title = "Other";
+  assert.equal(profile.site.title, "Ray's notes");
+  assert.ok(!sameForm(form, toForm(profile)));
+});
+
+test("the site title must not be blank and the description may be", () => {
+  const form = toForm(profile);
+  form.site = { title: " ", description: "" };
+  assert.deepEqual(validate(form), { "site.title": "網站名稱不可空白" });
 });
 
 test("a valid profile has no errors", () => {

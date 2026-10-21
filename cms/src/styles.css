@@ -240,6 +240,21 @@ td {
   margin: 0;
 }
 
+.profile-page h2 {
+  font-size: 1em;
+  margin: 8px 0 0;
+}
+
+.site-fields {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px 12px;
+}
+
+.site-fields legend {
+  font-weight: 600;
+}
+
 .profile-fields {
   display: grid;
   grid-template-columns: 1fr 2fr;
