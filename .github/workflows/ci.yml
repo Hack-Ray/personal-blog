@@ -24,6 +24,18 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      # Before the next build overwrites out/. GitHub Pages serves it under /personal-blog/.
+      - name: Check the built site
+        run: |
+          root=$(mktemp -d)
+          ln -s "$PWD/out" "$root/personal-blog"
+          python3 -m http.server 8123 --bind 127.0.0.1 --directory "$root" > /dev/null 2>&1 &
+          trap "kill $!" EXIT
+          for _ in $(seq 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8123/personal-blog/ && break
+            sleep 1
+          done
+          sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
       - name: Build a site with nothing published yet
         run: npm run build
         env:

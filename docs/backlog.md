@@ -27,9 +27,10 @@
 
 ## CI 與部署
 
-- [ ] **部署前少了兩項檢查。**
+- [x] **部署前少了兩項檢查。**
   `.github/workflows/deploy.yml` 沒有執行 `npm run typecheck`。`frontend/scripts/verify-site.sh` 只能手動執行，不在 CI 中。
   處理：`deploy.yml` 加上 typecheck；CI 的 frontend job 以範例資料建置後，啟動本機伺服器並執行 `verify-site.sh`。
+  已處理：`deploy.yml` 在 build 前執行 typecheck；CI 的 frontend job 新增「Check the built site」步驟，任一檢查失敗即讓 job 失敗。
 
 ## 規格
 

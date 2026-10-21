@@ -44,4 +44,6 @@ mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/personal-blog
 scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
 ```
 
+CI runs the same check on the sample-data build (the `Check the built site` step in `.github/workflows/ci.yml`). The checks expect the sample data, the `/personal-blog` basePath and the default `SITE_ORIGIN`.
+
 Set `BASE_PATH=""` at build time when serving from a custom domain.
