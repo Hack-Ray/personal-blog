@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { absoluteUrl } from "../site.ts";
+import { absoluteUrl, BASE_PATH } from "../site.ts";
 import "./globals.css";
 import { HeaderSearch } from "./header-search.tsx";
 
@@ -30,9 +30,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </header>
         <main>{children}</main>
         <footer>
-          <span>© {new Date().getFullYear()} Hack-Ray</span>
-          <a href="https://github.com/Hack-Ray">GitHub</a>
-          <Link href="/feed.xml">RSS</Link>
+          <p>
+            <span>© {new Date().getFullYear()} Hack-Ray</span>
+            <a href="https://github.com/Hack-Ray">GitHub</a>
+            <a href={`${BASE_PATH}/feed.xml`}>RSS</a>
+          </p>
         </footer>
       </body>
     </html>
