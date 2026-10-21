@@ -139,6 +139,14 @@
   - 404：顯示搜尋框與最新 5 篇文章。最新文章在瀏覽器端從 `search-index.json` 讀取，因為每一頁的 payload 都含有 404 頁，在 build 時寫入會讓所有頁面都帶著這份清單。
 - **Consequences**：摘要、封面與系列屬於文章版本，修改後要重新發布；重新發布會產生「更新於」。置頂不需要重新發布，下次「更新網站」生效。
 
+### FE-012：CMS 預覽與發布前檢查
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Decision**：
+  - CMS 編輯器與「網站與關於」的預覽使用和公開網站相同的排版（從 `globals.css` 複製 `.article-body` 樣式）、圖說、外部連結標記與 Shiki 主題。Shiki 只載入網站支援的語言與兩個主題，開啟編輯器後才非同步載入；載入前程式碼以純文字顯示。CMS 用 JavaScript regex engine，避免載入 WASM，極少數語法的配色可能與網站略有不同。
+  - 發布前檢查：按「發布」時，若沒有 Tag、有圖片沒有替代文字、標題超過 60 字、有 `http://` 連結或圖片、內文有 `TODO`、或封面圖已不在文章中，先列出提醒並詢問是否仍要發布。提醒不會阻擋發布。
+- **Consequences**：預覽與網站的 renderer 是兩份程式碼（`cms/src/preview.ts` 與 `frontend/src/content/markdown.ts`），修改其一時要同步另一份。
+
 ## Open Questions
 
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。

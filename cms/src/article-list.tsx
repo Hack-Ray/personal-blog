@@ -51,6 +51,9 @@ export function ArticleList() {
         <a className="button" href="#/new">
           新增文章
         </a>
+        <a className="button" href="#/taxa">
+          分類管理
+        </a>
         <a className="button" href="#/profile">
           網站與關於
         </a>

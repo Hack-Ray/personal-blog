@@ -81,6 +81,15 @@ export interface Profile {
   site: { title: string; description: string; footer: string };
 }
 
+export type TaxonKind = "topics" | "tags" | "series";
+
+export interface TaxonUsage extends Taxon {
+  /** Live articles whose draft uses it. */
+  articles: number;
+  /** False once no draft or kept published version refers to it, so it can be deleted. */
+  in_use: boolean;
+}
+
 export interface SavedProfile {
   revision: number;
   content: Profile;
@@ -137,6 +146,10 @@ export const api = {
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
   profile: () => request<SavedProfile>("GET", "/profile"),
   saveProfile: (revision: number, content: Profile) => request<SavedProfile>("PUT", "/profile", { revision, content }),
+  taxa: () => request<Record<TaxonKind, TaxonUsage[]>>("GET", "/taxa"),
+  renameTaxon: (kind: TaxonKind, slug: string, name: string) => request<void>("PUT", `/taxa/${kind}/${slug}`, { name }),
+  mergeTaxon: (kind: TaxonKind, slug: string, into: string) => request<void>("POST", `/taxa/${kind}/${slug}/merge`, { into }),
+  deleteTaxon: (kind: TaxonKind, slug: string) => request<void>("DELETE", `/taxa/${kind}/${slug}`),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);
