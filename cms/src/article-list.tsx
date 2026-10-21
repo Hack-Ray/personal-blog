@@ -51,6 +51,9 @@ export function ArticleList() {
         <a className="button" href="#/new">
           新增文章
         </a>
+        <a className="button" href="#/profile">
+          關於
+        </a>
         <a className="button" href="#/releases">
           網站發布
         </a>

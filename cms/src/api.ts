@@ -62,6 +62,21 @@ export interface Release {
   updated_at: string;
 }
 
+export interface Profile {
+  name: string;
+  headline: string;
+  intro: string;
+  links: { label: string; url: string }[];
+  experience: { role: string; organization: string; period: string; description: string }[];
+  projects: { name: string; url?: string; description: string; tags: string[] }[];
+}
+
+export interface SavedProfile {
+  revision: number;
+  content: Profile;
+  updated_at: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: { detail?: unknown; current_revision?: number };
@@ -109,6 +124,8 @@ export const api = {
   releases: () => request<Release[]>("GET", "/releases"),
   createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
+  profile: () => request<SavedProfile>("GET", "/profile"),
+  saveProfile: (revision: number, content: Profile) => request<SavedProfile>("PUT", "/profile", { revision, content }),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);

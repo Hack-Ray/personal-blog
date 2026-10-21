@@ -226,6 +226,66 @@ td {
   border-radius: 6px;
 }
 
+.field-error {
+  color: var(--danger);
+}
+
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-page .hint {
+  margin: 0;
+}
+
+.profile-fields {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+}
+
+.split.profile-intro {
+  height: 320px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px 12px;
+}
+
+.rows legend {
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.row-fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 4px;
+  padding-top: 20px;
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -253,11 +313,13 @@ td {
 
 @media (max-width: 800px) {
   .meta-fields,
+  .profile-fields,
   .split {
     grid-template-columns: 1fr;
   }
 
-  .split {
+  .split,
+  .split.profile-intro {
     height: auto;
   }
 
