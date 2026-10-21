@@ -40,7 +40,7 @@ test("sitemap lists published pages and leaves out archived articles", () => {
   const entries = sitemapEntries(content());
   assert.deepEqual(
     entries.map((e) => e.path),
-    ["/", "/posts/", "/about/", `/posts/${B}/`, `/posts/${A}/`, "/topics/backend/", "/tags/python/"],
+    ["/", "/posts/", "/about/", "/topics/", "/tags/", `/posts/${B}/`, `/posts/${A}/`, "/topics/backend/", "/tags/python/"],
   );
   assert.equal(entries[0]!.lastModified?.toISOString(), "2026-03-01T00:00:00.000Z");
   assert.ok(!entries.some((e) => e.path.includes(C)));

@@ -5,13 +5,14 @@ import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
-import { findArticle, neighbors } from "../../../content/queries.ts";
+import { findArticle, neighbors, related } from "../../../content/queries.ts";
 import { imagePaths } from "../../../content/parse.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
+import { ArticleBody } from "../../article-body.tsx";
 import { Comments } from "./comments.tsx";
 
 type Props = { params: Promise<{ docId: string }> };
@@ -67,6 +68,7 @@ export default async function PostPage({ params }: Props) {
   }
   const toc = tocHeadings(a.markdown);
   const { newer, older } = neighbors(loadSiteContent(), a.docId);
+  const relatedArticles = related(loadSiteContent(), a.docId);
   return (
     <article>
       <h1>{a.title}</h1>
@@ -83,8 +85,19 @@ export default async function PostPage({ params }: Props) {
           </ul>
         </nav>
       )}
-      {/* Markdown comes only from the site author through the CMS. */}
-      <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
+      <ArticleBody html={renderMarkdown(a.markdown, BASE_PATH)} />
+      {relatedArticles.length > 0 && (
+        <section className="related" aria-labelledby="related-title">
+          <h2 id="related-title">相關文章</h2>
+          <ul>
+            {relatedArticles.map((r) => (
+              <li key={r.docId}>
+                <Link href={`/posts/${r.docId}/`}>{r.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {(newer || older) && (
         <nav className="post-nav" aria-label="上下篇文章">
           {older && (

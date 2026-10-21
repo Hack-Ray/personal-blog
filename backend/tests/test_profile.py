@@ -17,7 +17,7 @@ SEED = {
     "links": [{"label": "GitHub", "url": "https://github.com/Hack-Ray"}],
     "experience": [],
     "projects": [],
-    "site": {"title": "Personal Blog", "description": ""},
+    "site": {"title": "Personal Blog", "description": "", "footer": ""},
 }
 EDITED = {
     "name": "Ray",
@@ -29,7 +29,7 @@ EDITED = {
         {"name": "Blog", "url": "https://github.com/Hack-Ray/personal-blog", "description": "This site", "tags": ["FastAPI"]},
         {"name": "Notes", "description": "", "tags": []},
     ],
-    "site": {"title": "Ray's notes", "description": "Software engineering & <backend> notes"},
+    "site": {"title": "Ray's notes", "description": "Software engineering & <backend> notes", "footer": "© Ray · CC BY 4.0"},
 }
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
@@ -59,7 +59,7 @@ def test_a_row_saved_without_site_reads_as_the_default_site(client):
     # The migration seeds the row without "site"; check the stored JSON, not only the API.
     with SessionLocal() as s:
         assert "site" not in s.get_one(Profile, 1).content
-    assert client.get("/api/profile").json()["content"]["site"] == {"title": "Personal Blog", "description": ""}
+    assert client.get("/api/profile").json()["content"]["site"] == SEED["site"]
 
 
 def test_save_without_site_stores_the_default_site(client):
@@ -79,8 +79,9 @@ def test_save_strips_strings(client):
     saved = put(client, content).json()["content"]
     assert saved["name"] == "Ray"
     assert saved["projects"] == [{"name": "Blog", "description": "x", "tags": ["go"]}]
-    saved = put(client, {**SEED, "site": {"title": " Notes ", "description": " About code "}}, revision=2).json()["content"]
-    assert saved["site"] == {"title": "Notes", "description": "About code"}
+    site = {"title": " Notes ", "description": " About code ", "footer": " © Ray "}
+    saved = put(client, {**SEED, "site": site}, revision=2).json()["content"]
+    assert saved["site"] == {"title": "Notes", "description": "About code", "footer": "© Ray"}
 
 
 @pytest.mark.parametrize("url", ["http://example.com", "javascript:alert(1)", "https://", "/about/", ""])
@@ -102,6 +103,7 @@ def test_urls_must_be_https_or_mailto(client, url):
         {**SEED, "site": {"description": "x"}},
         {**SEED, "site": {"title": "x" * 101, "description": ""}},
         {**SEED, "site": {"title": "x", "description": "x" * 301}},
+        {**SEED, "site": {"title": "x", "description": "", "footer": "x" * 201}},
         {**SEED, "site": "Personal Blog"},
     ],
 )
@@ -129,7 +131,6 @@ def test_export_writes_profile_json(client, repo):
     exported = json.loads((repo / "profile.json").read_text())
     assert exported == EDITED
     assert list(exported) == ["name", "headline", "intro", "links", "experience", "projects", "site"]
-    assert exported["site"] == {"title": "Ray's notes", "description": "Software engineering & <backend> notes"}
     assert "profile.json" in git(repo, "ls-files").split()
 
 

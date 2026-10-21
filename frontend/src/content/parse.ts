@@ -114,7 +114,7 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
 
 // Same default as the backend's Site model; profile.json files exported before
 // the site fields existed have no "site" key.
-export const DEFAULT_SITE: Profile["site"] = { title: "Personal Blog", description: "" };
+export const DEFAULT_SITE: Profile["site"] = { title: "Personal Blog", description: "", footer: "" };
 
 // Snapshots exported before the CMS managed the profile have no profile.json.
 export const DEFAULT_PROFILE: Profile = {
@@ -130,7 +130,12 @@ export const DEFAULT_PROFILE: Profile = {
 function parseSite(value: unknown, path: string): Profile["site"] {
   if (value === undefined) return { ...DEFAULT_SITE };
   const o = record(value, path);
-  return { title: string(o.title, `${path}.title`), description: text(o.description, `${path}.description`) };
+  return {
+    title: string(o.title, `${path}.title`),
+    description: text(o.description, `${path}.description`),
+    // Exported before the footer field existed.
+    footer: o.footer === undefined ? "" : text(o.footer, `${path}.footer`),
+  };
 }
 
 export function parseProfile(value: unknown, path = "profile.json"): Profile {

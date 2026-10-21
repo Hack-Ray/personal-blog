@@ -18,7 +18,7 @@ const post = (n: number, overrides: Record<string, unknown> = {}) => ({
 const site = (...articles: SiteContent["articles"]): SiteContent => ({ articles, profile: DEFAULT_PROFILE });
 const withSite = (title: string, description: string): SiteContent => ({
   articles: [],
-  profile: { ...DEFAULT_PROFILE, site: { title, description } },
+  profile: { ...DEFAULT_PROFILE, site: { title, description, footer: "" } },
 });
 
 test("the channel title and description come from the profile's site", () => {

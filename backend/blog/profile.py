@@ -41,10 +41,12 @@ DEFAULT_SITE_TITLE = "Personal Blog"
 
 
 class Site(BaseModel):
-    """The name and description in page titles, the site header and the RSS feed."""
+    """The name and description in page titles, the site header and the RSS feed, and the footer text."""
 
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
     description: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] = ""
+    # "" shows the default "© <year> <name>" on the public site.
+    footer: Line = ""
 
 
 class ProfileContent(BaseModel):

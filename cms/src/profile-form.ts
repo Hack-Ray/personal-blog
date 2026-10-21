@@ -11,7 +11,7 @@ export interface ProfileForm {
   experience: { role: string; organization: string; period: string; description: string }[];
   /** url is "" for none; tags is the comma-separated input */
   projects: { name: string; url: string; description: string; tags: string }[];
-  site: { title: string; description: string };
+  site: { title: string; description: string; footer: string };
 }
 
 export const EMPTY_ROW = {
@@ -55,7 +55,7 @@ export function fromForm(f: ProfileForm): Profile {
       description: t(j.description),
       tags: parseTagList(j.tags),
     })),
-    site: { title: t(f.site.title), description: t(f.site.description) },
+    site: { title: t(f.site.title), description: t(f.site.description), footer: t(f.site.footer) },
   };
 }
 

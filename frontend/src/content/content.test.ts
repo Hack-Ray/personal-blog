@@ -4,7 +4,7 @@ import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
 import { ContentError, DEFAULT_PROFILE, DEFAULT_SITE, parseSnapshot, type Snapshot } from "./parse.ts";
-import { findArticle, inTopic, neighbors, published, tags, topics, withTag } from "./queries.ts";
+import { findArticle, inTopic, neighbors, published, related, tags, taxonCounts, topics, withTag } from "./queries.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
 const B = "01K7M4Y7P65BDCF8AHRTQY7ZQB";
@@ -72,23 +72,28 @@ test("the committed sample snapshot has a profile with a Markdown intro", () => 
   assert.equal(profile.name, "Hack-Ray");
   assert.match(renderMarkdown(profile.intro, ""), /<strong>Python<\/strong>/);
   assert.equal(profile.projects.length, 1);
-  assert.deepEqual(profile.site, { title: "Hack-Ray 的技術筆記", description: "後端、自動化與自建 CMS 的軟體工程文章" });
+  assert.deepEqual(profile.site, { title: "Hack-Ray 的技術筆記", description: "後端、自動化與自建 CMS 的軟體工程文章", footer: "" });
 });
 
 test("a snapshot without profile.json falls back to the default profile", () => {
   assert.deepEqual(parseSnapshot(snapshot({})).profile, DEFAULT_PROFILE);
   assert.equal(DEFAULT_PROFILE.name, "Hack-Ray");
   assert.deepEqual(DEFAULT_PROFILE.links, [{ label: "GitHub", url: "https://github.com/Hack-Ray" }]);
-  assert.deepEqual(DEFAULT_PROFILE.site, { title: "Personal Blog", description: "" });
+  assert.deepEqual(DEFAULT_PROFILE.site, { title: "Personal Blog", description: "", footer: "" });
 });
 
 test("a profile.json without site gets the default site", () => {
   assert.deepEqual(parseSnapshot(snapshot({ profile: profileFile() })).profile.site, DEFAULT_SITE);
 });
 
-test("the site title and description are read from profile.json", () => {
-  const site = { title: "Ray's notes", description: "" };
+test("the site title, description and footer are read from profile.json", () => {
+  const site = { title: "Ray's notes", description: "", footer: "© Ray. CC BY 4.0" };
   assert.deepEqual(parseSnapshot(snapshot({ profile: profileFile({ site }) })).profile.site, site);
+});
+
+test("a site exported before the footer field existed gets an empty footer", () => {
+  const site = { title: "Ray's notes", description: "" };
+  assert.equal(parseSnapshot(snapshot({ profile: profileFile({ site }) })).profile.site.footer, "");
 });
 
 test("rejects a site with a blank title or wrong types", () => {
@@ -96,6 +101,7 @@ test("rejects a site with a blank title or wrong types", () => {
   assert.throws(bad({ title: " ", description: "" }), /profile\.json\.site\.title: expected a non-empty string/);
   assert.throws(bad({ description: "x" }), /profile\.json\.site\.title/);
   assert.throws(bad({ title: "x", description: 1 }), /profile\.json\.site\.description: expected a string/);
+  assert.throws(bad({ title: "x", description: "", footer: null }), /profile\.json\.site\.footer: expected a string/);
   assert.throws(bad("Personal Blog"), /profile\.json\.site: expected an object/);
   assert.throws(bad(null), /profile\.json\.site: expected an object/);
 });
@@ -225,7 +231,7 @@ test("fenced code in a known language is highlighted with light and dark variabl
 
 test("fenced code in an unknown or missing language is escaped plain text", () => {
   for (const fence of ["```nope\n<b>&</b>\n```", "```\n<b>&</b>\n```"]) {
-    assert.equal(renderMarkdown(fence, ""), "<pre><code>&lt;b&gt;&amp;&lt;/b&gt;</code></pre>\n");
+    assert.match(renderMarkdown(fence, ""), /<pre><code>&lt;b&gt;&amp;&lt;\/b&gt;<\/code><\/pre>/);
   }
 });
 
@@ -248,4 +254,63 @@ test("neighbors gives the newer and older published articles and skips archived 
   assert.deepEqual(ids(D), [undefined, B]);
   assert.deepEqual(ids(A), [B, undefined]);
   assert.deepEqual(ids(C), [undefined, undefined]);
+});
+
+test("every code block gets a copy button that starts hidden", () => {
+  for (const fence of ["```ts\nconst x = 1;\n```", "```\nplain\n```"]) {
+    assert.match(renderMarkdown(fence, ""), /^<div class="code-block"><pre[\s\S]*<\/pre><button type="button" class="copy-code" hidden>複製<\/button><\/div>/);
+  }
+});
+
+test("an image alone in its paragraph becomes a figure captioned with its escaped alt text", () => {
+  assert.equal(
+    renderMarkdown('![A <b> & "x"](images/a.png)', "/bp"),
+    '<figure><img src="/bp/images/a.png" alt="A &lt;b&gt; &amp; &quot;x&quot;" loading="lazy"><figcaption>A &lt;b&gt; &amp; &quot;x&quot;</figcaption></figure>\n',
+  );
+});
+
+test("inline images, images without alt text and linked images stay in their paragraph", () => {
+  for (const md of ["text ![i](images/b.png)", "![](images/c.png)", "[![x](images/d.png)](https://e.com)"]) {
+    const html = renderMarkdown(md, "");
+    assert.match(html, /^<p>/);
+    assert.doesNotMatch(html, /figure/);
+  }
+});
+
+test("taxonCounts counts published articles per topic or tag, most first", () => {
+  const python = { slug: "python", name: "Python" };
+  const go = { slug: "go", name: "Go" };
+  const content = parseSnapshot(
+    snapshot({
+      manifest: { archived_articles: [{ doc_id: D }] },
+      files: {
+        [A]: articleFile(A, { tags: [python, go] }),
+        [B]: articleFile(B, { tags: [python] }),
+        [C]: articleFile(C, { topic: { slug: "frontend", name: "Frontend" } }),
+      },
+    }),
+  );
+  const flat = (counts: ReturnType<typeof taxonCounts>) => counts.map((c) => [c.taxon.slug, c.count]);
+  assert.deepEqual(flat(taxonCounts(content, (a) => [a.topic])), [["backend", 2], ["frontend", 1]]);
+  assert.deepEqual(flat(taxonCounts(content, (a) => a.tags)), [["python", 2], ["go", 1]]);
+});
+
+test("related ranks a shared topic above one shared tag and skips unrelated articles", () => {
+  const E = "01K7M4Y7P65BDCF8AHRTQY7ZQE";
+  const t = (slug: string) => ({ slug, name: slug });
+  const content = parseSnapshot(
+    snapshot({
+      files: {
+        [A]: articleFile(A, { tags: [t("python"), t("api")] }),
+        [B]: articleFile(B, { topic: t("frontend"), tags: [t("python")], published_at: "2026-10-03T00:00:00Z" }),
+        [C]: articleFile(C, { published_at: "2026-10-02T00:00:00Z" }),
+        [D]: articleFile(D, { tags: [t("python")], published_at: "2026-09-01T00:00:00Z" }),
+        [E]: articleFile(E, { topic: t("life") }),
+      },
+    }),
+  );
+  const ids = (docId: string, limit?: number) => related(content, docId as DocId, limit).map((a) => a.docId);
+  assert.deepEqual(ids(A), [D, C, B]);
+  assert.deepEqual(ids(A, 1), [D]);
+  assert.deepEqual(ids(E), []);
 });

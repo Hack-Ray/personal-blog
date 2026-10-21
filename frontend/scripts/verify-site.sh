@@ -42,5 +42,9 @@ check "article meta shows reading time and lists do not" 'body $B/posts/01K7M4Y7
 check "long article has a table of contents whose links resolve to heading ids" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); n=0; for id in $(echo "$p" | grep -o "<nav class=\"toc\".*</nav>" | grep -o "href=\"#[^\"]*" | cut -c8-); do n=$((n+1)); echo "$p" | grep -q "<h[23] id=\"$id\"" || exit 1; done; [ $n -ge 3 ]'
 check "short article has no table of contents" '! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "class=\"toc\""'
 check "pages ship the theme init script in head and a theme toggle in the header" 'p=$(body $B/); echo "$p" | grep -q "<head>.*localStorage.getItem(.theme.*</head>" && echo "$p" | grep -q "class=\"theme-toggle\""'
+check "topic and tag index pages list each with a count and the header links to them" 'body $B/topics/ | grep -q "href=\"/personal-blog/topics/backend/\">Backend<span class=\"meta\">2</span>" && body $B/tags/ | grep -q "href=\"/personal-blog/tags/python/\">#Python<span class=\"meta\">" && body $B/ | grep -q "<nav>.*href=\"/personal-blog/topics/\""'
+check "article shows related articles" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "<section class=\"related\""'
+check "code blocks carry a hidden copy button" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "<div class=\"code-block\"><pre class=\"shiki" && echo "$p" | grep -q "</pre><button type=\"button\" class=\"copy-code\" hidden>"'
+check "footer defaults to the profile name" 'body $B/ | grep -o "<footer.*</footer>" | grep -q "© [0-9]* Hack-Ray"'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
