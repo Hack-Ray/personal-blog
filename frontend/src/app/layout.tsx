@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { absoluteUrl, BASE_PATH } from "../site.ts";
+import { absoluteUrl, BASE_PATH, SITE_OG } from "../site.ts";
 import "./globals.css";
 import { HeaderSearch } from "./header-search.tsx";
 
 export const metadata: Metadata = {
   title: { default: "Personal Blog", template: "%s | Personal Blog" },
+  openGraph: SITE_OG,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

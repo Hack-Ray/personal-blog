@@ -5,9 +5,10 @@ import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
 import { findArticle, neighbors } from "../../../content/queries.ts";
+import { imagePaths } from "../../../content/parse.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
-import { absoluteUrl, BASE_PATH } from "../../../site.ts";
+import { absoluteUrl, BASE_PATH, SITE_OG } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { Comments } from "./comments.tsx";
 
@@ -32,18 +33,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await article(params);
   if (a.state === "archived") return { title: "文章已封存", robots: { index: false } };
   const url = absoluteUrl(`/posts/${a.docId}/`);
+  const image = imagePaths(a.markdown)[0];
+  const images = image ? [absoluteUrl(`/${image}`)] : undefined;
   return {
     title: a.title,
     description: summary(a.markdown),
     alternates: { canonical: url },
     openGraph: {
+      ...SITE_OG,
       type: "article",
       url,
       title: a.title,
       description: summary(a.markdown),
       publishedTime: a.publishedAt.toISOString(),
       tags: a.tags.map((t) => t.name),
+      images,
     },
+    twitter: { card: images ? "summary_large_image" : "summary", title: a.title, description: summary(a.markdown), images },
   };
 }
 

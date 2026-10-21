@@ -31,5 +31,9 @@ check "code blocks are highlighted for light and dark" 'p=$(body $B/posts/01K7M4
 check "article navigation links both ways in the middle and not past the newest" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "rel=\"prev\"" && echo "$p" | grep -q "rel=\"next\"" && ! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "rel=\"next\""'
 check "archived post has no article navigation" '! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "post-nav"'
 check "published post has a comments section and archived post has none" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "class=\"comments\"" && ! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "class=\"comments\""'
+check "article with an image has an absolute og:image and a large twitter card" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "property=\"og:image\" content=\"https://[^\"]*/personal-blog/images/" && echo "$p" | grep -q "name=\"twitter:card\" content=\"summary_large_image\""'
+check "article without an image has no og:image and a summary card" 'p=$(body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/); ! echo "$p" | grep -q "og:image" && echo "$p" | grep -q "name=\"twitter:card\" content=\"summary\""'
+check "article keeps the site-wide Open Graph fields" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "og:site_name\" content=\"Personal Blog" && echo "$p" | grep -q "og:locale\" content=\"zh_TW" && echo "$p" | grep -q "og:type\" content=\"article"'
+check "home uses the website Open Graph type" 'body $B/ | grep -q "og:type\" content=\"website"'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
