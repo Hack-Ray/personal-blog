@@ -6,6 +6,14 @@ export function published(content: SiteContent): PublishedArticle[] {
     .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 }
 
+/** The adjacent published articles by publication date; none for an archived or unknown docId. */
+export function neighbors(content: SiteContent, docId: DocId): { newer?: PublishedArticle; older?: PublishedArticle } {
+  const list = published(content);
+  const i = list.findIndex((a) => a.docId === docId);
+  if (i < 0) return {};
+  return { newer: list[i - 1], older: list[i + 1] };
+}
+
 export function findArticle(content: SiteContent, docId: DocId): PublicArticle | undefined {
   return content.articles.find((a) => a.docId === docId);
 }

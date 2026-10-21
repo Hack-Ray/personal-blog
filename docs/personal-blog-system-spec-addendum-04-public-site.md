@@ -45,6 +45,17 @@
   - 縮圖寬 160px（螢幕寬 480px 以下為 96px），16:10 裁切，延遲載入。
 - **Consequences**：縮圖直接使用文章原圖（BE-014 後最寬 1440px 的 WebP），沒有另外產生小圖；文章多時可再加 build 時產生縮圖。
 
+### FE-005：程式碼高亮、上下篇導覽、頁尾與 RSS
+
+- **Status**：Confirmed（使用者 2026-10-21 指定）
+- **Context**：程式碼區塊沒有語法高亮，文章讀完後沒有下一步，網站也沒有頁尾或訂閱方式。
+- **Decision**：
+  - 程式碼高亮在 build 時由 `shiki` 產生（新增的唯一依賴，固定版本），雙主題 `github-light`／`github-dark`，以 CSS 變數跟隨 `prefers-color-scheme`，不增加瀏覽器端 JavaScript。支援的語言是固定清單（ts、tsx、js、jsx、json、bash、sh、python、go、rust、java、c、cpp、csharp、sql、yaml、html、css、markdown、diff、dockerfile）；未知或未標示的語言以跳脫後的純文字顯示。
+  - 文章頁底部顯示上一篇（較舊）與下一篇（較新），依發佈時間在已發佈文章中排序；封存文章頁不顯示。
+  - 頁尾顯示 `© <build 年份> Hack-Ray`、GitHub 與 RSS 連結。
+  - `/feed.xml` 為 RSS 2.0，內容是最新 20 篇已發佈文章（標題、連結、發佈時間、FE-001 的摘要、Topic）。`lastBuildDate` 取最新文章的發佈時間而不是 build 時間，讓輸出可重現。每頁 `<head>` 帶 feed 的 autodiscovery 連結。
+- **Consequences**：build 時多載入 shiki 與語法檔，build 時間略增；清單外的語言不會高亮，需要時再擴充清單。Feed 只放摘要，讀者需點回網站閱讀全文。
+
 ## Open Questions
 
 - giscus 留言：需要在 GitHub 開啟 Discussions、安裝 giscus app，並決定 mapping 方式（Baseline 3.3 建議以 `doc_id` 對應）。

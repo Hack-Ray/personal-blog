@@ -4,11 +4,12 @@ import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
 import { ContentError, parseSnapshot, type Snapshot } from "./parse.ts";
-import { findArticle, inTopic, published, tags, topics, withTag } from "./queries.ts";
+import { findArticle, inTopic, neighbors, published, tags, topics, withTag } from "./queries.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
 const B = "01K7M4Y7P65BDCF8AHRTQY7ZQB";
 const C = "01K7M4Y7P65BDCF8AHRTQY7ZQC";
+const D = "01K7M4Y7P65BDCF8AHRTQY7ZQD";
 
 const articleFile = (docId: string, overrides: Record<string, unknown> = {}) => ({
   doc_id: docId,
@@ -138,4 +139,38 @@ test("snapshot image references resolve under the basePath", () => {
   const html = renderMarkdown("![a](images/abc.svg) ![b](https://example.com/x.png)", "/personal-blog");
   assert.match(html, /src="\/personal-blog\/images\/abc\.svg"/);
   assert.match(html, /src="https:\/\/example\.com\/x\.png"/);
+});
+
+test("fenced code in a known language is highlighted with light and dark variables", () => {
+  const html = renderMarkdown("```ts\nconst x = 1;\n```", "");
+  assert.match(html, /<pre class="shiki/);
+  assert.match(html, /--shiki-light:#[0-9A-Fa-f]+/);
+  assert.match(html, /--shiki-dark:#[0-9A-Fa-f]+/);
+});
+
+test("fenced code in an unknown or missing language is escaped plain text", () => {
+  for (const fence of ["```nope\n<b>&</b>\n```", "```\n<b>&</b>\n```"]) {
+    assert.equal(renderMarkdown(fence, ""), "<pre><code>&lt;b&gt;&amp;&lt;/b&gt;</code></pre>\n");
+  }
+});
+
+test("neighbors gives the newer and older published articles and skips archived ones", () => {
+  const content = parseSnapshot(
+    snapshot({
+      manifest: { archived_articles: [{ doc_id: C }] },
+      files: {
+        [A]: articleFile(A, { published_at: "2026-01-01T00:00:00Z" }),
+        [B]: articleFile(B, { published_at: "2026-02-01T00:00:00Z" }),
+        [D]: articleFile(D, { published_at: "2026-03-01T00:00:00Z" }),
+      },
+    }),
+  );
+  const ids = (docId: string) => {
+    const n = neighbors(content, docId as DocId);
+    return [n.newer?.docId, n.older?.docId];
+  };
+  assert.deepEqual(ids(B), [D, A]);
+  assert.deepEqual(ids(D), [undefined, B]);
+  assert.deepEqual(ids(A), [B, undefined]);
+  assert.deepEqual(ids(C), [undefined, undefined]);
 });

@@ -23,5 +23,11 @@ check "about page links to GitHub" 'body $B/about/ | grep -q "href=\"https://git
 check "search index excludes archived posts" '! body $B/search-index.json | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
 check "header search form submits q to the search page" 'f=$(body $B/ | grep -o "<form role=\"search\"[^>]*>.*</form>"); echo "$f" | grep -q "action=\"/personal-blog/search/\"" && echo "$f" | grep -q "name=\"q\""'
 check "header title links home and home has a single h1" 'body $B/ | grep -q "class=\"site-title\" href=\"/personal-blog/\"" && [ "$(body $B/ | grep -o "<h1" | wc -l)" = 1 ]'
+check "footer links to GitHub and the RSS feed" 'f=$(body $B/ | grep -o "<footer.*</footer>"); echo "$f" | grep -q "href=\"https://github.com/Hack-Ray\"" && echo "$f" | grep -q "href=\"/personal-blog/feed.xml\""'
+check "feed is served as RSS with items" 'x=$(body $B/feed.xml); echo "$x" | grep -q "<rss version=\"2.0\">" && [ "$(echo "$x" | grep -o "<item>" | wc -l)" -ge 1 ] && echo "$x" | python3 -c "import sys, xml.etree.ElementTree as E; E.fromstring(sys.stdin.read())"'
+check "pages advertise the feed" 'body $B/ | grep -q "rel=\"alternate\" type=\"application/rss+xml\""'
+check "code blocks are highlighted for light and dark" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "<pre class=\"shiki" && echo "$p" | grep -q "style=\"--shiki-light:#[0-9A-Fa-f]*;--shiki-dark:#"'
+check "article navigation links both ways in the middle and not past the newest" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "rel=\"prev\"" && echo "$p" | grep -q "rel=\"next\"" && ! body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/ | grep -q "rel=\"next\""'
+check "archived post has no article navigation" '! body $B/posts/01K6ZT3H5J7K9M1N3P5Q7R9S1T/ | grep -q "post-nav"'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
