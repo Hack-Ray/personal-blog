@@ -5,7 +5,6 @@ import pytest
 
 from blog import images
 
-# Shared with frontend/src/content/image-refs.test.ts so the two parsers agree on what an image reference is.
 CASES = json.loads((Path(__file__).parents[2] / "frontend/test-fixtures/image-refs.json").read_text())
 
 

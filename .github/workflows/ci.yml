@@ -24,8 +24,7 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
-      # Before the next build overwrites out/. GitHub Pages serves it under /personal-blog/.
-      - name: Check the built site
+      - name: Check the built site (before the next build overwrites out/)
         run: |
           root=$(mktemp -d)
           ln -s "$PWD/out" "$root/personal-blog"

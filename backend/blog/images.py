@@ -103,9 +103,6 @@ def load(session: Session, image_id: str) -> tuple[Image, bytes] | None:
 
 
 def refs(markdown: str) -> set[str]:
-    """Ids of the images the Markdown shows as images/<id> (PUB-003). Text in
-    code, plain links and raw HTML are not references; the frontend applies
-    the same rule (frontend/test-fixtures/image-refs.json)."""
     inline = (child for token in MARKDOWN.parse(markdown) for child in token.children or [])
     srcs = (str(t.attrGet("src")) for t in inline if t.type == "image")
     return {src.removeprefix("images/") for src in srcs if src.startswith("images/")}

@@ -16,7 +16,7 @@
   - 帶 title 的圖片 `![](images/<id> "說明")`：後端不算引用，所以不匯出也可能被 GC 刪除；前端算引用，因此 build 失敗。
   - code block 裡的範例文字 `](images/...)`：兩邊都算引用。對不到圖片時，匯出或 build 會失敗。
   處理：兩邊都改用 Markdown parser 找出圖片 token，並以一份共用的測試資料驗證兩邊結果相同。
-  已修正：後端 `images.refs()` 用 markdown-it-py、前端 `imageRefs()` 用 marked，兩邊都只算 href 以 `images/` 開頭的圖片 token；`frontend/test-fixtures/image-refs.json` 由兩邊的測試共用（BE-007）。
+  已修正：後端 `images.refs()` 用 markdown-it-py、前端 `imagePaths()` 用 marked，兩邊都只算 href 以 `images/` 開頭的圖片 token；`frontend/test-fixtures/image-refs.json` 由兩邊的測試共用（BE-007）。
 
 ## 網站發布
 

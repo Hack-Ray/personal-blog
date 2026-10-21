@@ -100,10 +100,7 @@ export function parseArticleFile(value: unknown, path: string): ArticleFile {
   };
 }
 
-/** Snapshot paths (images/<file>) of the uploaded images an article shows, in order.
- * Text in code, plain links and raw HTML are not references; the backend applies
- * the same rule (test-fixtures/image-refs.json). */
-export function imageRefs(markdown: string): string[] {
+export function imagePaths(markdown: string): string[] {
   const refs: string[] = [];
   MARKDOWN.walkTokens(MARKDOWN.lexer(markdown), (token) => {
     if (token.type === "image" && token.href.startsWith("images/")) refs.push(token.href);
@@ -133,7 +130,7 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
     const { version: fileVersion, ...article } = parseArticleFile(snapshot.readArticle(docId), path);
     if (article.docId !== docId) fail(`${path}.doc_id`, `expected ${docId}, got ${article.docId}`);
     if (fileVersion !== version) fail(`${path}.version`, `manifest expects ${version}, file has ${fileVersion}`);
-    for (const ref of imageRefs(article.markdown)) {
+    for (const ref of imagePaths(article.markdown)) {
       if (!snapshot.hasImage(ref.slice("images/".length))) fail(path, `references missing image ${ref}`);
     }
     return article;

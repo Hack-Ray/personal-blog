@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PublishedArticle } from "../content/model.ts";
-import { imageRefs } from "../content/parse.ts";
+import { imagePaths } from "../content/parse.ts";
 import { summary } from "../content/summary.ts";
 import { BASE_PATH } from "../site.ts";
 
@@ -26,7 +26,7 @@ export function ArticleList({ articles }: { articles: PublishedArticle[] }) {
   return (
     <ul className="article-list">
       {articles.map((a) => {
-        const image = imageRefs(a.markdown)[0];
+        const image = imagePaths(a.markdown)[0];
         return (
           <li key={a.docId}>
             <div>
