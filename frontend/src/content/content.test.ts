@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
-import { ContentError, parseSnapshot, type Snapshot } from "./parse.ts";
+import { ContentError, DEFAULT_PROFILE, parseSnapshot, type Snapshot } from "./parse.ts";
 import { findArticle, inTopic, neighbors, published, tags, topics, withTag } from "./queries.ts";
 
 const A = "01K7M4Y7P65BDCF8AHRTQY7ZQA";
@@ -26,12 +26,15 @@ function snapshot({
   manifest = {},
   files = {},
   images = [],
+  profile,
 }: {
   manifest?: Record<string, unknown>;
   files?: Record<string, unknown>;
   images?: string[];
+  profile?: unknown;
 }): Snapshot {
   return {
+    profile,
     manifest: {
       schema_version: 1,
       release_id: "01K82XH4C5V6B7N8M9P0Q1R2S3",
@@ -52,6 +55,58 @@ test("the committed sample snapshot loads", () => {
   const content = loadSiteContent();
   assert.equal(published(content).length, 3);
   assert.equal(content.articles.filter((a) => a.state === "archived").length, 1);
+});
+
+const profileFile = (overrides: Record<string, unknown> = {}) => ({
+  name: "Ray",
+  headline: "",
+  intro: "",
+  links: [{ label: "GitHub", url: "https://github.com/Hack-Ray" }],
+  experience: [{ role: "Engineer", organization: "", period: "", description: "" }],
+  projects: [{ name: "Blog", description: "", tags: ["Next.js"] }],
+  ...overrides,
+});
+
+test("the committed sample snapshot has a profile with a Markdown intro", () => {
+  const { profile } = loadSiteContent();
+  assert.equal(profile.name, "Hack-Ray");
+  assert.match(renderMarkdown(profile.intro, ""), /<strong>Python<\/strong>/);
+  assert.equal(profile.projects.length, 1);
+});
+
+test("a snapshot without profile.json falls back to the default profile", () => {
+  assert.deepEqual(parseSnapshot(snapshot({})).profile, DEFAULT_PROFILE);
+  assert.equal(DEFAULT_PROFILE.name, "Hack-Ray");
+  assert.deepEqual(DEFAULT_PROFILE.links, [{ label: "GitHub", url: "https://github.com/Hack-Ray" }]);
+});
+
+test("a project url is optional and kept when present", () => {
+  const projects = [{ name: "A", description: "", tags: [] }, { name: "B", url: "mailto:me@example.com", description: "", tags: [] }];
+  const { profile } = parseSnapshot(snapshot({ profile: profileFile({ projects }) }));
+  assert.deepEqual(profile.projects, projects);
+  assert.equal("url" in profile.projects[0]!, false);
+});
+
+test("rejects profile links and project urls that are not https or mailto", () => {
+  for (const url of ["http://example.com", "javascript:alert(1)", "https://", "", "/about/"]) {
+    assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ links: [{ label: "x", url }] }) })), /profile\.json\.links\[0\]\.url/);
+    const projects = [{ name: "x", url, description: "", tags: [] }];
+    assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ projects }) })), /profile\.json\.projects\[0\]\.url/);
+  }
+});
+
+test("rejects a profile with a blank name or a malformed list", () => {
+  assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ name: " " }) })), /profile\.json\.name/);
+  assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ links: {} }) })), /profile\.json\.links: expected an array/);
+  assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ experience: [{ role: "" }] }) })), /experience\[0\]\.role/);
+  assert.throws(() => parseSnapshot(snapshot({ profile: profileFile({ intro: null }) })), /profile\.json\.intro: expected a string/);
+  assert.throws(() => parseSnapshot(snapshot({ profile: [] })), /profile\.json: expected an object/);
+});
+
+test("rejects a profile intro that references an image missing from the snapshot", () => {
+  const profile = profileFile({ intro: "![me](images/me.webp)" });
+  assert.throws(() => parseSnapshot(snapshot({ profile })), /profile\.json: references missing image images\/me\.webp/);
+  assert.equal(parseSnapshot(snapshot({ profile, images: ["me.webp"] })).profile.intro, "![me](images/me.webp)");
 });
 
 test("an archived article carries only its docId", () => {
