@@ -206,6 +206,26 @@ pre {
   margin-top: 0.25em;
 }
 
+.post-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 2em;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.post-nav a {
+  display: flex;
+  flex-direction: column;
+  max-width: 48%;
+}
+
+.post-nav .next {
+  margin-left: auto;
+  text-align: right;
+}
+
 img {
   max-width: 100%;
   height: auto;

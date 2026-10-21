@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
-import { findArticle } from "../../../content/queries.ts";
+import { findArticle, neighbors } from "../../../content/queries.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH } from "../../../site.ts";
@@ -55,12 +56,29 @@ export default async function PostPage({ params }: Props) {
       </>
     );
   }
+  const { newer, older } = neighbors(loadSiteContent(), a.docId);
   return (
     <article>
       <h1>{a.title}</h1>
       <ArticleMeta article={a} />
       {/* Markdown comes only from the site author through the CMS. */}
       <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
+      {(newer || older) && (
+        <nav className="post-nav" aria-label="上下篇文章">
+          {older && (
+            <Link href={`/posts/${older.docId}/`} rel="prev">
+              <span className="meta">← 較舊</span>
+              {older.title}
+            </Link>
+          )}
+          {newer && (
+            <Link href={`/posts/${newer.docId}/`} rel="next" className="next">
+              <span className="meta">較新 →</span>
+              {newer.title}
+            </Link>
+          )}
+        </nav>
+      )}
     </article>
   );
 }
