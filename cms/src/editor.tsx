@@ -3,9 +3,10 @@ import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
-import { renderPreview } from "./preview.ts";
+import { type Highlight, loadHighlighter, renderPreview } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
+import { prePublishWarnings } from "./publish-checks.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
@@ -54,6 +55,8 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   };
 
   const publish = async () => {
+    const warnings = prePublishWarnings(content);
+    if (warnings.length > 0 && !window.confirm(`發布前請確認：\n\n${warnings.map((w) => `・${w}`).join("\n")}\n\n仍要發布嗎？`)) return;
     const result = await sync.current?.publish();
     if (!result) return;
     setState("published");
@@ -93,7 +96,11 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     setNotice("已還原快照。");
   };
 
-  const preview = useMemo(() => renderPreview(content.markdown), [content.markdown]);
+  const [highlight, setHighlight] = useState<Highlight>();
+  useEffect(() => {
+    loadHighlighter().then((h) => setHighlight(() => h), () => {});
+  }, []);
+  const preview = useMemo(() => renderPreview(content.markdown, highlight), [content.markdown, highlight]);
 
   return (
     <div className="editor">
@@ -226,7 +233,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           spellCheck={false}
         />
         {/* Preview of the author's own Markdown, same renderer as the public site. */}
-        <div className="preview" dangerouslySetInnerHTML={{ __html: preview }} />
+        <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
     </div>
   );

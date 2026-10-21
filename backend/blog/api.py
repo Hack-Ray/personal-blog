@@ -12,7 +12,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
-from blog import articles, auth, exporter, images, profile, release, retention
+from blog import articles, auth, exporter, images, profile, release, retention, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
 
@@ -371,6 +371,52 @@ def get_profile(session: SessionDep) -> ProfileOut:
 @app.put("/api/profile", response_model_exclude_none=True)
 def save_profile(body: ProfileBody, session: SessionDep) -> ProfileOut:
     return ProfileOut.of(profile.save(session, body.revision, body.content))
+
+
+class TaxonUsageOut(BaseModel):
+    slug: str
+    name: str
+    articles: int
+    in_use: bool
+
+
+class RenameBody(BaseModel):
+    name: Name
+
+
+class MergeBody(BaseModel):
+    into: Slug
+
+
+@app.exception_handler(taxa.TaxonNotFound)
+def _taxon_not_found(_, exc: taxa.TaxonNotFound) -> JSONResponse:
+    return JSONResponse({"detail": f"{exc} not found"}, status_code=status.HTTP_404_NOT_FOUND)
+
+
+@app.get("/api/taxa")
+def list_taxa(session: SessionDep) -> dict[taxa.Kind, list[TaxonUsageOut]]:
+    return {kind: [TaxonUsageOut(**vars(u)) for u in taxa.usage(session, kind)] for kind in taxa.Kind}
+
+
+@app.put("/api/taxa/{kind}/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+def rename_taxon(kind: taxa.Kind, slug: str, body: RenameBody, session: SessionDep) -> None:
+    taxa.rename(session, kind, slug, body.name)
+
+
+@app.post("/api/taxa/{kind}/{slug}/merge", status_code=status.HTTP_204_NO_CONTENT)
+def merge_taxon(kind: taxa.Kind, slug: str, body: MergeBody, session: SessionDep) -> None:
+    try:
+        taxa.merge(session, kind, slug, body.into)
+    except taxa.InvalidMerge as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+
+
+@app.delete("/api/taxa/{kind}/{slug}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_taxon(kind: taxa.Kind, slug: str, session: SessionDep) -> None:
+    try:
+        taxa.remove(session, kind, slug)
+    except taxa.TaxonInUse as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
 
 
 class ImageOut(BaseModel):

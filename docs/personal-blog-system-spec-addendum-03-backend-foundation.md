@@ -241,6 +241,20 @@
   - Migration 0009 新增上述欄位與 `series` 表，既有資料預設為空。
 - **Consequences**：前端解析見 Addendum 04 FE-011。
 
+### BE-019：Topic、Tag 與系列的管理
+
+- **Status**：Confirmed（使用者 2026-10-21 指定「待開發清單全部都做」，合併的版本處理由 Claude 依 BE-013 的理由決定，使用者可推翻）
+- **Context**：Baseline 4.2 與 12 把 Taxonomy 的改名、合併、刪除與版本引用列為待決。
+- **Decision**：
+  - CMS 新增「分類管理」頁。`GET /api/taxa` 依種類（`topics`、`tags`、`series`）列出 slug、名稱、篇數（未在待刪除區、目前草稿使用它的文章數）與是否仍被任何草稿或保留中的 Published Version 引用。
+  - 改名：`PUT /api/taxa/{kind}/{slug}`（`{"name"}`），與 BE-013 相同，所有引用處都顯示新名稱；slug 不能改。
+  - 合併：`POST /api/taxa/{kind}/{slug}/merge`（`{"into"}`）把所有草稿與 Published Version 改指向目標，再刪除來源。和 BE-013 一樣，Topic／Tag／系列是誰屬於 Taxonomy 的身分，不屬於版本內容，所以已發布的文章也跟著改；`published_versions` 的不可變 trigger 改為只允許 `topic_id`、`series_id` 變動（migration 0010），Tag 透過 join table 的刪除與新增完成，不需要 UPDATE。同一篇已同時有來源與目標的 Tag 只留一筆。
+  - 刪除：`DELETE /api/taxa/{kind}/{slug}` 只在沒有任何草稿或 Published Version 引用時成功，否則 409。
+- **Consequences**：
+  - 合併後來源的公開網址（例如 `/tags/js/`）在下次部署後消失；GitHub Pages 無法轉址，CMS 在合併前提示。
+  - 仍開著、填著來源 slug 的編輯器下次自動儲存會重新建立它（BE-013 的 get-or-create），CMS 頁面上有說明。
+  - Baseline 12 的 Taxonomy 待決事項由此決定，別名策略仍未提供。
+
 ## Known gaps
 
 - ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 已完成 `docs/setup-todo.md` A、B 區，並以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。

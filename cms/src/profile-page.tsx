@@ -176,7 +176,7 @@ export function ProfilePage() {
           onChange={(e) => setForm({ ...form, intro: e.target.value })}
           spellCheck={false}
         />
-        <div className="preview" dangerouslySetInnerHTML={{ __html: preview }} />
+        <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
       <Rows
         title="連結（也顯示在頁尾）"
