@@ -3,7 +3,6 @@ name: CI
 on:
   push:
   pull_request:
-  # deploy.yml runs these checks before it builds the site.
   workflow_call:
 
 permissions:

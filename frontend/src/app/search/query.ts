@@ -2,7 +2,6 @@ const CHANGE_EVENT = "search-query-change";
 
 export const readQuery = (): string => new URLSearchParams(location.search).get("q") ?? "";
 
-/** Updates ?q in place and tells the results on /search/ to re-read it. */
 export const writeQuery = (q: string): void => {
   history.replaceState(null, "", q ? `?q=${encodeURIComponent(q)}` : location.pathname);
   window.dispatchEvent(new Event(CHANGE_EVENT));
