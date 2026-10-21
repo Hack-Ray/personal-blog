@@ -6,6 +6,7 @@ import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
 import { findArticle, neighbors } from "../../../content/queries.ts";
 import { imagePaths } from "../../../content/parse.ts";
+import { readingMinutes } from "../../../content/reading.ts";
 import { summary } from "../../../content/summary.ts";
 import { ArticleMeta } from "../../article-list.tsx";
 import { absoluteUrl, BASE_PATH, SITE_OG } from "../../../site.ts";
@@ -67,7 +68,7 @@ export default async function PostPage({ params }: Props) {
   return (
     <article>
       <h1>{a.title}</h1>
-      <ArticleMeta article={a} />
+      <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} />
       {/* Markdown comes only from the site author through the CMS. */}
       <div className="article-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(a.markdown, BASE_PATH) }} />
       {(newer || older) && (

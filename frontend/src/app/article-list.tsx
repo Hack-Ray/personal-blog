@@ -6,7 +6,7 @@ import { BASE_PATH } from "../site.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: "Asia/Taipei" });
 
-export function ArticleMeta({ article }: { article: PublishedArticle }) {
+export function ArticleMeta({ article, readingMinutes }: { article: PublishedArticle; readingMinutes?: number }) {
   return (
     <p className="meta">
       <time dateTime={article.publishedAt.toISOString()}>{dateFormat.format(article.publishedAt)}</time>
@@ -18,6 +18,7 @@ export function ArticleMeta({ article }: { article: PublishedArticle }) {
           <Link href={`/tags/${t.slug}/`}>#{t.name}</Link>
         </span>
       ))}
+      {readingMinutes !== undefined && ` · 約 ${readingMinutes} 分鐘`}
     </p>
   );
 }

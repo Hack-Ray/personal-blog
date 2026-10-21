@@ -35,5 +35,6 @@ check "article with an image has an absolute og:image and a large twitter card" 
 check "article without an image has no og:image and a summary card" 'p=$(body $B/posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/); ! echo "$p" | grep -q "og:image" && echo "$p" | grep -q "name=\"twitter:card\" content=\"summary\""'
 check "article keeps the site-wide Open Graph fields" 'p=$(body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/); echo "$p" | grep -q "og:site_name\" content=\"Personal Blog" && echo "$p" | grep -q "og:locale\" content=\"zh_TW" && echo "$p" | grep -q "og:type\" content=\"article"'
 check "home uses the website Open Graph type" 'body $B/ | grep -q "og:type\" content=\"website"'
+check "article meta shows reading time and lists do not" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "約 1 分鐘" && ! body $B/posts/ | grep -q "分鐘"'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]
