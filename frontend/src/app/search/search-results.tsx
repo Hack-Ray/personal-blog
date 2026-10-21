@@ -4,39 +4,31 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { type SearchDoc, search } from "../../content/search.ts";
 import { BASE_PATH } from "../../site.ts";
+import { onQueryChange, readQuery } from "./query.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: "Asia/Taipei" });
 
-export function SearchBox() {
+export function SearchResults() {
   const [index, setIndex] = useState<SearchDoc[]>();
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    setQuery(new URLSearchParams(location.search).get("q") ?? "");
+    const sync = () => setQuery(readQuery());
+    sync();
+    const unsubscribe = onQueryChange(sync);
     fetch(`${BASE_PATH}/search-index.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then(setIndex, () => setFailed(true));
+    return unsubscribe;
   }, []);
 
   const hits = useMemo(() => (index ? search(index, query) : []), [index, query]);
 
-  const update = (q: string) => {
-    setQuery(q);
-    history.replaceState(null, "", q ? `?q=${encodeURIComponent(q)}` : location.pathname);
-  };
-
   return (
     <>
-      <input
-        type="search"
-        aria-label="搜尋文章"
-        placeholder="輸入關鍵字"
-        value={query}
-        onChange={(e) => update(e.target.value)}
-        autoFocus
-      />
       {failed && <p className="meta">無法載入搜尋索引。</p>}
+      {!query.trim() && <p className="meta">在上方搜尋列輸入關鍵字。</p>}
       {index && query.trim() && <p className="meta">{hits.length} 篇符合</p>}
       <ul className="article-list">
         {hits.map(({ doc }) => (
