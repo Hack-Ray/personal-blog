@@ -2,13 +2,22 @@
 # Start the local CMS: stop one already running, then database, a backup,
 # migrations, due maintenance, a check for a newer release, then the server.
 #
-#   scripts/start.sh
+#   scripts/start.sh         runs the server in the background (logs/cms.log)
+#   scripts/start.sh --log   runs it in this terminal; Ctrl+C stops it
+#
+# scripts/stop.sh stops a server running in the background.
 #
 # The backup runs before migrations, so a migration problem can be undone
 # with scripts/restore.sh. backups/ is git-ignored; copy it to cloud storage,
 # or set BACKUP_TARGET in .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+case "${1:-}" in
+  "") foreground=false ;;
+  --log) foreground=true ;;
+  *) echo "usage: scripts/start.sh [--log]" >&2; exit 2 ;;
+esac
 
 [ -f .env ] || { echo "backend/.env is missing: run 'cp .env.example .env' and fill it in (docs/local-setup.md section 4)." >&2; exit 1; }
 . scripts/lib.sh
@@ -36,5 +45,10 @@ uv run --env-file .env python -m blog.maintenance
 
 check_release
 
-echo "==> CMS on http://127.0.0.1:8000/admin/ (Ctrl+C to stop)"
-exec uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
+server=(uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000)
+if $foreground; then
+  echo "==> CMS on http://127.0.0.1:8000/admin/ (Ctrl+C to stop)"
+  exec "${server[@]}"
+fi
+start_detached logs/cms.log http://127.0.0.1:8000/healthz "${server[@]}"
+echo "==> CMS on http://127.0.0.1:8000/admin/ (log: backend/logs/cms.log; stop: scripts/stop.sh)"

@@ -55,6 +55,28 @@ stop_cms() {
   return 1
 }
 
+# Runs the command after $1 and $2 in the background, writing its output to
+# log file $1 (the previous run's is kept as $1.1), and waits up to 30
+# seconds for URL $2 to answer. If the command exits or never answers, prints
+# the end of the log and returns 1.
+start_detached() {
+  local log="$1" url="$2" pid
+  shift 2
+  mkdir -p "$(dirname "$log")"
+  if [ -f "$log" ]; then mv "$log" "$log.1"; fi
+  nohup "$@" > "$log" 2>&1 < /dev/null &
+  pid=$!
+  for _ in $(seq 150); do
+    curl -fsS --max-time 1 "$url" > /dev/null 2>&1 && return 0
+    kill -0 "$pid" 2> /dev/null || break
+    sleep 0.2
+  done
+  kill "$pid" 2> /dev/null || true
+  echo "error: the CMS did not start; the end of $log:" >&2
+  tail -n 20 "$log" >&2
+  return 1
+}
+
 # Prints a notice when the upstream repo has a release newer than this
 # checkout's version (pyproject.toml). Never fails: offline, rate-limited,
 # no release yet, or UPDATE_CHECK_REPO=off all print nothing. It only tells;

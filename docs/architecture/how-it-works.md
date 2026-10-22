@@ -327,7 +327,7 @@ stateDiagram-v2
 2. `backup.sh`。備份失敗**而且**有待執行的 migration 時中止。
 3. `alembic upgrade head`。
 4. `python -m blog.maintenance`。
-5. `uvicorn` 監聽 `127.0.0.1:8000`。
+5. `uvicorn` 監聽 `127.0.0.1:8000`。預設由 `lib.sh` 的 `start_detached` 在背景執行，輸出寫到 `backend/logs/cms.log`，等 `/healthz` 回應後腳本才結束；`--log` 改為前景執行。`scripts/stop.sh` 用同一個 `stop_cms` 關閉。
 
 直接執行 `uvicorn` 不會跑維護。雲端的建議做法是 cron 每小時執行 `python -m blog.maintenance`（`local-setup.md` 第 13 節）。
 
@@ -373,7 +373,7 @@ backend/
     retention.py    Published Version 清理
     maintenance.py  到期工作的入口
   migrations/versions/  Alembic 0001..0012（含 trigger 與 CHECK）
-  scripts/          start.sh、backup.sh、restore.sh、lib.sh
+  scripts/          start.sh、stop.sh、backup.sh、restore.sh、lib.sh
   tests/            每個模組一個測試檔，conftest.py 需要 TEST_DATABASE_URL
   compose.yaml      本機 Postgres 16
 cms/src/
