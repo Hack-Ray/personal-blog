@@ -77,3 +77,33 @@ def test_stop_cms_leaves_another_program_on_the_port_alone():
     finally:
         proc.kill()
         proc.wait()
+
+
+def release_api(tmp_path, tag):
+    """A file:// stand-in for the GitHub API that serves `tag` as the latest release."""
+    latest = tmp_path / "repos/owner/blog/releases/latest"
+    latest.parent.mkdir(parents=True)
+    latest.write_text(f'{{\n  "url": "x",\n  "tag_name": "{tag}",\n  "name": "{tag}"\n}}\n')
+    return {"GITHUB_API_URL": tmp_path.as_uri(), "UPDATE_CHECK_REPO": "owner/blog"}
+
+
+def current_version():
+    return bash("sed -n 's/^version = \"\\(.*\\)\"/\\1/p' pyproject.toml")
+
+
+def test_check_release_announces_a_newer_release(tmp_path):
+    out = bash("check_release", **release_api(tmp_path, "v99.0.0"))
+    assert f"v99.0.0 (this copy is {current_version()})" in out
+    assert "https://github.com/owner/blog/releases/latest" in out
+
+
+@pytest.mark.parametrize("tag", ["current", "v0.0.1"])
+def test_check_release_stays_quiet_when_up_to_date_or_ahead(tmp_path, tag):
+    tag = f"v{current_version()}" if tag == "current" else tag
+    assert bash("check_release", **release_api(tmp_path, tag)) == ""
+
+
+def test_check_release_stays_quiet_when_unreachable_or_turned_off(tmp_path):
+    assert bash("check_release", GITHUB_API_URL=tmp_path.as_uri(), UPDATE_CHECK_REPO="owner/none") == ""
+    assert bash("set -euo pipefail; check_release; echo started", GITHUB_API_URL=tmp_path.as_uri()) == "started"
+    assert bash("check_release", **{**release_api(tmp_path, "v99.0.0"), "UPDATE_CHECK_REPO": "off"}) == ""

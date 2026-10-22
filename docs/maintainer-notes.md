@@ -32,3 +32,18 @@
 ## 雲端 Claude session 與內容 repo
 
 2026-10-22 已在 https://github.com/settings/installations → Claude → Configure → Repository access 加上 `personal-blog-content`。雲端 session 可以讀取它，以真實內容 build 網站（`SITE_DATA_DIR=<clone 路徑> npm run build`）；只用來開發與測試，不發文、不 push 內容 repo（規則在 `AGENTS.md`）。GitHub App 無法只給單一 repo 唯讀權限，所以由這條規則約束。
+
+## 發布新版本
+
+fork 的 `scripts/start.sh` 以 `backend/pyproject.toml` 的 `version` 和本 repo 最新 release 的 tag 比較，所以兩者要一致。
+
+1. 在 PR 裡把 `backend/pyproject.toml` 的 `version` 改成新版本，執行 `cd backend && uv lock` 更新 `uv.lock`，合併到 `main`。
+2. 確認 `main` 的 CI 通過，再建立 release：
+
+   ```sh
+   gh release create v0.2.0 --target main --generate-notes
+   ```
+
+3. 在 release 說明寫上 fork 需要手動處理的事，例如新的 `.env` 設定、Actions variable 或 secret。
+
+tag 用 `v<版本>`。不要用 `cms-v` 開頭，`cms-v*` 會觸發 `cms-deploy.yml`。

@@ -122,6 +122,43 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 
 合併到你的 fork 的 `main` 時，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才會重新部署網站，其他修改只跑 CI。各部分的細節：[`backend/README.md`](backend/README.md)、[`frontend/README.md`](frontend/README.md)、[`cms/README.md`](cms/README.md)。
 
+#### 5. 跟上原 repo 的更新
+
+Fork 不會自動更新，要由你把原 repo 的新版本拉進來。原 repo 發布新版本時，`scripts/start.sh` 啟動時會顯示一行提醒（見下方）。
+
+1. 在你的 fork 頁面按 **Sync fork** → **Update branch**。也可以用指令：
+
+   ```sh
+   gh repo sync <你的帳號>/personal-blog -b main
+   ```
+
+   或用 git，第一次先加上原 repo：
+
+   ```sh
+   git remote add upstream https://github.com/Hack-Ray/personal-blog.git
+   git fetch upstream
+   git checkout main
+   git merge upstream/main
+   git push origin main
+   ```
+
+2. 在本機拉下更新，更新套件後重新啟動（[`docs/local-setup.md`](docs/local-setup.md) 第 9 節）：
+
+   ```sh
+   git pull
+   cd backend && uv sync && (cd ../cms && npm ci && npm run build) && scripts/start.sh
+   ```
+
+   `start.sh` 會先備份再執行新的 migration，所以 migration 出問題時可以還原。
+
+建議：
+
+- 讓 fork 的 `main` 和原 repo 一致，你自己的修改放在別的分支，同步後再 `git rebase main`。這樣同步時很少衝突。按 Sync fork 遇到衝突時，GitHub 會請你在本機處理。
+- 同步到 fork 的 `main` 也算一次 push：有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 時會重新部署你的網站。
+- 更新前先看 [Releases](https://github.com/Hack-Ray/personal-blog/releases) 的說明，確認有沒有要改的設定。也可以在原 repo 按 **Watch → Custom → Releases**，有新版本時收到通知。
+
+`start.sh` 的提醒只顯示訊息，不會改動程式碼。它向 GitHub 查詢 `Hack-Ray/personal-blog` 的最新 release，比 `backend/pyproject.toml` 的版本新時才顯示；離線或查詢失敗時不顯示，最多等 3 秒。要查詢別的 repo，在 `backend/.env` 設定 `UPDATE_CHECK_REPO=<owner>/<repo>`；設成 `off` 則停用。
+
 ---
 
 ## English
@@ -236,6 +273,43 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 While working on the CMS UI, run `npm run dev` in `cms/`. Vite forwards `/api` to the backend on `127.0.0.1:8000`.
 
 A merge into your fork's `main` redeploys the site when it changes `frontend/`, `.nvmrc` or `deploy.yml`; other merges run CI only. Details for each part: [`backend/README.md`](backend/README.md), [`frontend/README.md`](frontend/README.md), [`cms/README.md`](cms/README.md).
+
+#### 5. Keep your fork up to date
+
+A fork does not update itself. You pull in new versions of the original repo. When the original repo publishes a release, `scripts/start.sh` prints a one-line notice at start-up (see below).
+
+1. On your fork's page, press **Sync fork** → **Update branch**. Or run:
+
+   ```sh
+   gh repo sync <you>/personal-blog -b main
+   ```
+
+   Or use git. The first time, add the original repo as a remote:
+
+   ```sh
+   git remote add upstream https://github.com/Hack-Ray/personal-blog.git
+   git fetch upstream
+   git checkout main
+   git merge upstream/main
+   git push origin main
+   ```
+
+2. Pull the update locally, update the packages and restart ([`docs/local-setup.md`](docs/local-setup.md) section 9):
+
+   ```sh
+   git pull
+   cd backend && uv sync && (cd ../cms && npm ci && npm run build) && scripts/start.sh
+   ```
+
+   `start.sh` backs up before it runs new migrations, so a migration problem can be undone.
+
+Recommendations:
+
+- Keep your fork's `main` identical to the original repo and put your own changes on another branch. After a sync, run `git rebase main`. This keeps syncs free of conflicts. When Sync fork finds a conflict, GitHub asks you to resolve it locally.
+- A sync to your fork's `main` is a push. It redeploys your site when it changes `frontend/`, `.nvmrc` or `deploy.yml`.
+- Before you update, read the notes on [Releases](https://github.com/Hack-Ray/personal-blog/releases) for settings to change. To get notified, press **Watch → Custom → Releases** on the original repo.
+
+The notice from `start.sh` only prints a message. It never changes your code. It asks GitHub for the latest release of `Hack-Ray/personal-blog` and prints only when that release is newer than the version in `backend/pyproject.toml`. When you are offline or the request fails, it prints nothing, and it waits at most 3 seconds. To check another repo, set `UPDATE_CHECK_REPO=<owner>/<repo>` in `backend/.env`. Set it to `off` to turn the check off.
 
 ## License
 
