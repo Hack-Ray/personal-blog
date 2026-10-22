@@ -12,7 +12,6 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from email.message import Message
 from pathlib import Path
 from typing import Protocol
 
@@ -70,29 +69,17 @@ class Deployer(Protocol):
 class GitHubActions:
     """Starts and reads the deploy workflow through the GitHub REST API."""
 
-    def __init__(self, token: str, repo: str, workflow: str, ref: str, api_url: str = "https://api.github.com", content_branch: str = ""):
-        self.repo, self.workflow, self.ref = repo, workflow, ref
-        self.client = GitHubClient(token, api_url)
+    def __init__(self, client: GitHubClient, repo: str, workflow: str, ref: str, content_branch: str = ""):
+        self.client, self.repo, self.workflow, self.ref = client, repo, workflow, ref
         self.content_branch = content_branch
-
-    @property
-    def api_url(self) -> str:
-        return self.client.api_url
 
     @property
     def target(self) -> str:
         return json.dumps([self.client.api_url, self.repo, self.workflow, self.ref], separators=(",", ":"))
 
-    def _call(self, method: str, path: str, body: dict | None = None) -> dict:
-        raw, _ = self._request(method, path, body)
-        return json.loads(raw) if raw else {}
-
-    def _request(self, method: str, path: str, body: dict | None = None) -> tuple[bytes, Message]:
-        return self.client.request(method, path, body)
-
     def token_expires_at(self) -> datetime | None:
         """When the token stops working; None for a token without an expiry date."""
-        expiry = self._request("GET", f"/repos/{self.repo}")[1].get(TOKEN_EXPIRY_HEADER)
+        expiry = self.client.request("GET", f"/repos/{self.repo}")[1].get(TOKEN_EXPIRY_HEADER)
         # GitHub sends e.g. "2027-01-18 00:00:00 UTC".
         return datetime.strptime(expiry, "%Y-%m-%d %H:%M:%S %Z").replace(tzinfo=UTC) if expiry else None
 
@@ -100,7 +87,7 @@ class GitHubActions:
         inputs = {"content_sha": content_commit}
         if self.content_branch:
             inputs["content_branch"] = self.content_branch
-        self._call(
+        self.client.call(
             "POST",
             f"/repos/{self.repo}/actions/workflows/{self.workflow}/dispatches",
             {"ref": self.ref, "inputs": inputs},
@@ -113,7 +100,7 @@ class GitHubActions:
         page = 1
         while True:
             query = urllib.parse.urlencode({"event": "workflow_dispatch", "created": f">={created}", "per_page": RUNS_PER_PAGE, "page": page})
-            runs = self._call("GET", f"/repos/{self.repo}/actions/workflows/{self.workflow}/runs?{query}").get("workflow_runs", [])
+            runs = self.client.call("GET", f"/repos/{self.repo}/actions/workflows/{self.workflow}/runs?{query}").get("workflow_runs", [])
             for r in runs:
                 if r.get("display_title") == f"Deploy content {content_commit}" and r["id"] > (after_id or 0):
                     return _run(r)
@@ -122,10 +109,10 @@ class GitHubActions:
             page += 1
 
     def get_run(self, run_id: int) -> Run:
-        return _run(self._call("GET", f"/repos/{self.repo}/actions/runs/{run_id}"))
+        return _run(self.client.call("GET", f"/repos/{self.repo}/actions/runs/{run_id}"))
 
     def deploy_step_conclusion(self, run_id: int) -> str | None:
-        jobs = self._call("GET", f"/repos/{self.repo}/actions/runs/{run_id}/jobs")
+        jobs = self.client.call("GET", f"/repos/{self.repo}/actions/runs/{run_id}/jobs")
         for job in jobs.get("jobs", []):
             for step in job.get("steps", []):
                 if step.get("name") == DEPLOY_STEP:
@@ -168,10 +155,7 @@ def deployer_from_env() -> Deployer | None:
     client = client_from_settings()
     if client is None or not s.deploy_repo:
         return None
-    actions = GitHubActions("", s.deploy_repo, s.deploy_workflow, s.deploy_ref, s.github_api_url)
-    actions.client = client
-    actions.content_branch = s.content_branch if s.content_transport == "api" else ""
-    return actions
+    return GitHubActions(client, s.deploy_repo, s.deploy_workflow, s.deploy_ref, s.content_branch if s.content_transport == "api" else "")
 
 
 def repo_from_env() -> Path | GitHubRepository:
