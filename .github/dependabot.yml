@@ -1,0 +1,22 @@
+# Weekly update PRs. CI checks each one; marked and shiki must move together
+# in frontend/ and cms/ (cms/src/shared-deps.test.ts), so merge those as a pair.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories: [/frontend, /cms]
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

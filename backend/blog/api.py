@@ -6,15 +6,14 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from blog import articles, auth, config, exporter, images, profile, release, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
-
 
 # Logs go to stdout for the host (or CloudWatch) to collect.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")

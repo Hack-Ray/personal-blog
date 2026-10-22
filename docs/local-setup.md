@@ -270,6 +270,8 @@ PATH=/home/<user>/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 cron 的 PATH 很短，第一行要包含 `uv` 和 `aws` 所在的目錄（`which uv aws` 可查）。`backup.sh --env` 從 `.env` 讀 `DATABASE_URL` 和 `BACKUP_TARGET`，後者設成 `s3://...` 時就會備份到 S3。S3 bucket 請開啟版本控制與加密，並設定保存天數。
 
+repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔，用法寫在檔案開頭。容器裡的 `127.0.0.1` 是容器自己，所以 `DATABASE_URL` 要改成容器連得到的位址。同一時間只跑一個容器；換新版前，先用一次性的容器備份，再執行 migration，任何一步失敗就停止。目前還不能從容器裡「更新網站」，要等發布方式與 GitHub 憑證決定後再補。
+
 ## 14. 常見問題
 
 | 狀況 | 原因與處理 |
