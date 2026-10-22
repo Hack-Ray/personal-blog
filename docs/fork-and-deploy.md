@@ -55,8 +55,11 @@
 | Variable | `CONTENT_REPO` | 內容 repo 的 `owner/name` | 內容 repo 不叫 `<fork 名稱>-content` 時 |
 | Variable | `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID` | 從 <https://giscus.app> 取得，見下方 | 要留言功能時 |
 | Variable | `GISCUS_REPO`、`GISCUS_CATEGORY` | 預設是這個 fork 與 `Announcements` | 不同時 |
+| Variable | `GOOGLE_SITE_VERIFICATION` | Search Console「HTML 標記」驗證方式給的 `<meta name="google-site-verification">` 標籤中 `content` 的值，見下方 | 要在 Google Search Console 登錄網站時 |
 
 留言（選用）：在 fork 的 Settings → General → Features 勾選 Discussions，安裝 [giscus app](https://github.com/apps/giscus) 並只授權這個 fork。到 <https://giscus.app> 輸入 `<你的帳號>/personal-blog`、分類選 Announcements，頁面產生的 `data-repo-id` 與 `data-category-id` 就是上表的兩個值。沒設定時網站不顯示留言區。
+
+Google Search Console（選用）：到 <https://search.google.com/search-console> 新增資源，選「網址前置字元」並輸入你的 Pages 網址（沒有自訂網域時，github.io 無法使用「網域」資源）。驗證方式選「HTML 標記」，把給你的 `<meta name="google-site-verification" content="...">` 裡 `content` 的值設成上表的 `GOOGLE_SITE_VERIFICATION`，重新部署後按驗證。通過後在「Sitemap」提交 `sitemap.xml`。Pages 網址帶有 `/personal-blog/` 子路徑時，爬蟲不會讀取 `robots.txt`，所以一定要在 Search Console 提交 sitemap。
 
 建議同時開啟 workflow 失敗的 Email 通知：GitHub 頭像 → Settings → Notifications → System → Actions。
 

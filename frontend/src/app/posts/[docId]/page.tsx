@@ -6,6 +6,7 @@ import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import type { DocId } from "../../../content/model.ts";
 import { findArticle, inSeries, neighbors, related } from "../../../content/queries.ts";
+import { jsonLd, blogPosting } from "../../../content/structured-data.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { coverOf, excerptOf } from "../../../content/card.ts";
 import { ArticleMeta } from "../../article-list.tsx";
@@ -74,6 +75,10 @@ export default async function PostPage({ params }: Props) {
   const series = a.series && inSeries(loadSiteContent(), a.series.slug);
   return (
     <article>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(blogPosting(a, loadSiteContent().profile)) }}
+      />
       <ReadingProgress />
       <h1>{a.title}</h1>
       <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} showUpdated />

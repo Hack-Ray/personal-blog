@@ -142,3 +142,20 @@ test("the table of contents is a drawer on narrow screens", async ({ page }) => 
   await toggle.click();
   await expect(target).toHaveAttribute("aria-current", "location");
 });
+
+test("an article page carries one BlogPosting JSON-LD whose headline is the h1", async ({ page }) => {
+  await page.goto(FASTAPI_POST);
+  const scripts = page.locator('script[type="application/ld+json"]');
+  await expect(scripts).toHaveCount(1);
+  const data = JSON.parse((await scripts.textContent()) ?? "");
+  expect(data["@type"]).toBe("BlogPosting");
+  expect(data.headline).toBe(await page.locator("h1").innerText());
+});
+
+test("the home page carries a WebSite JSON-LD and no Search Console tag by default", async ({ page }) => {
+  await page.goto("");
+  const scripts = page.locator('script[type="application/ld+json"]');
+  await expect(scripts).toHaveCount(1);
+  expect(JSON.parse((await scripts.textContent()) ?? "")["@type"]).toBe("WebSite");
+  await expect(page.locator('meta[name="google-site-verification"]')).toHaveCount(0);
+});
