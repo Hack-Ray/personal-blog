@@ -2,7 +2,7 @@
 
 CMS 放到雲端主機時，只讓作者自己的裝置連得到。做法是讓主機不對網際網路開任何連接埠，所有連線都走 Tailscale。決策紀錄見 Addendum 03 BE-020。
 
-這份文件只涵蓋存取控制，不指定用哪一種主機。執行 CMS 的設定與排程見 [`local-setup.md`](local-setup.md) 第 13 節。
+這份文件只涵蓋存取控制，不指定用哪一種主機。容器部署、`cms-v*` tag 更新與排程見 [`cms-deployment.md`](cms-deployment.md)，直接執行程式的設定見 [`local-setup.md`](local-setup.md) 第 13 節。
 
 ## 1. 先設定誰可以連到主機
 

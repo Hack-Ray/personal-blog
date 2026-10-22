@@ -2,6 +2,12 @@
 
 > **這是導覽，不是規格。** 給要改程式的人快速建立心智模型。設計決策與理由在 [`docs/design/`](../design/)；本機操作在 [`local-setup.md`](../local-setup.md)。內容以 2026-10-22 的程式碼為準，行為有出入時以程式碼為準。
 
+## 本機與雲端共用發布流程
+
+目前 CMS 可透過 CONTENT_TRANSPORT 選擇 git clone 或 Git Data API，並以 PAT 或 GitHub App 認證。「更新網站」先建立持久背景工作並回應 202；worker 匯出一致的 Snapshot，先保存 commit、parent 與內容及部署目的地，再更新遠端分支。重新開啟發布頁會讀回工作狀態。下面提到 clone、Git push 與同步呼叫的段落描述保留的 git 相容模式；CMS 介面使用新的背景工作 API。
+
+API 模式不需要本機 clone 或 Git 身分。工作開始時才擷取當時已發布內容；commit 已準備完成的工作則在重試時接續同一份內容。詳細設定與中斷處理見 [本機與雲端設定](../portable-cms.md)，決策見 Addendum 03 BE-022。
+
 ## 1. 概觀
 
 這個專案由五個部分組成。作者在自己電腦上的 CMS 寫文章，資料存在 PostgreSQL。按「更新網站」時，後端把所有已發布內容匯出成一份 JSON Snapshot，commit 並 push 到 private 內容 repo `Hack-Ray/personal-blog-content`，再呼叫 GitHub Actions 的 `deploy.yml`。workflow 把這份 Snapshot 交給 Next.js 建置成純靜態網站，部署到 GitHub Pages。

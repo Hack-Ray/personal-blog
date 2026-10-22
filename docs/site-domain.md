@@ -1,0 +1,42 @@
+# 設定公開網站的網域與 CDN
+
+本機 CMS 和雲端 CMS 都把內容 Snapshot 送到內容 repo，再由 Actions 建置公開網站。換網域不需要搬動 CMS，也不需要把 CMS 暴露到網際網路。
+
+## 換成自訂網域
+
+1. 在 GitHub Pages 設定自訂網域，並依 GitHub 提供的資料設定 DNS。先讓 Pages 完成網域驗證與 HTTPS 憑證申請，再加入 CDN。
+2. 部署 workflow 會從 `actions/configure-pages` 讀取 `SITE_ORIGIN` 與 `BASE_PATH`。不要把自己的網域寫進程式碼。
+3. 如果文章包含舊站的絕對網址，在程式 repo 的 Actions variable 設定 `LEGACY_SITE_URLS`。值是以逗號分隔的舊站根網址，包含舊的 basePath，例如 `https://old.example/blog,https://older.example`。只列出自己管理的網站。
+4. 執行下一次正常部署。Markdown 連結中符合舊站根網址的部分會改為新站的相對網址，路徑、query 與錨點會保留。這個設定不改寫內容 repo 或程式碼範例中的字串，也不替舊網域提供 HTTP redirect。
+5. 檢查首頁、文章圖片、站內連結、`feed.xml`、`sitemap.xml` 與 `robots.txt`。
+
+同一個主機上的其他網站不會一起改寫。例如設定 `https://old.example/blog`，不會改寫 `https://old.example/other`。`LEGACY_SITE_URLS` 不允許帳號密碼、query 或 fragment。
+
+本機測試可直接指定以下環境變數。
+
+```sh
+cd frontend
+BASE_PATH= SITE_ORIGIN=https://new.example LEGACY_SITE_URLS=https://old.example/blog npm run build
+BASE_PATH= node scripts/check-links.ts
+```
+
+`robots.txt` 的 sitemap 使用這次建置的網址。GitHub Pages 專案網站的檔案位於 `/repo/robots.txt`，無法控制 `https://account.github.io/robots.txt`。自訂網域使用根路徑時，才會位於爬蟲讀取的 `/robots.txt`。
+
+RSS 的 GUID 使用 `urn:ulid:<docId>`，不再隨網域或 basePath 改變。從舊的網址 GUID 切換時，既有閱讀器仍可能將文章重新顯示一次。這是識別方式的一次性遷移，後續換網域不會再改變 GUID。舊 RSS 網址若停止服務，還需要在舊網域設定 redirect，或請訂閱者更換訂閱網址。
+
+## 在 CDN 套用快取與安全標頭
+
+`npm run build` 會根據最後產生的 HTML 與檔案清單，產生 `out/cdn-headers.json`。這是 CDN 設定的輸入資料，GitHub Pages 不會自動套用其中的標頭。未啟用 CDN 時，這個檔案不影響網站功能。
+
+1. 保留目前 Pages 的 origin 作為 CDN 來源。將 HTTPS 連線、Host header 和來源路徑設為 Pages 實際需要的值，再切換 DNS。
+2. 讓 CDN 設定工具讀取 `cdn-headers.json`。對 `entries` 中每個 `path` 套用對應的 `headers`。其餘路徑使用 `default_headers`。HTML 的 `index.html` 與目錄形式都已列出。
+3. 先用 `Content-Security-Policy-Report-Only` 測試各 HTML 的 CSP。確認主題切換、站內搜尋、程式碼複製、圖片放大與 giscus 都正常，再改用 `Content-Security-Policy`。
+4. 每次部署都更新這份設定。CSP 中的 SHA-256 hash 依該次 HTML 的 script 原文產生，包含 Next.js payload 與主題程式。不能沿用上一次的 hash，也不要讓 CDN 壓縮或改寫 inline script 的文字。
+5. 若 CDN 快取較久，部署後清除 HTML、RSS、sitemap、robots、搜尋資料與 `cdn-headers.json` 的快取。由於本專案支援不同 CDN，目前不會呼叫特定供應商的 purge API。Pages 部署成功只代表來源站完成，不代表 CDN 已經更新。
+6. 用 `curl -I https://<網域>/` 檢查回應標頭，再用瀏覽器開啟文章確認 Console 沒有 CSP 拒絕訊息。未知路徑的 404 回應也要套用該次 `404.html` 的安全標頭。
+
+預設快取策略讓 HTML 與可變資料在瀏覽器每次重新驗證，CDN 最多快取 60 秒。`_next/static/` 以及檔名是 64 位 SHA-256 的 `images/`、`thumbs/` 可快取一年。一般名稱的圖片保持短快取，避免同名換圖後顯示舊檔。
+
+CSP 的 script 不允許 `unsafe-inline` 或 `unsafe-eval`。程式碼高亮與元件需要 inline style，所以 `style-src` 保留 `unsafe-inline`。giscus 只授權 `https://giscus.app` 的 script 與 iframe。若之後加入分析服務，需在同一個產生器調整來源清單並重新驗證。
+
+這個步驟不會購買網域、建立 CDN、修改 DNS 或產生付費資源。啟用仍需選定供應商並完成上述實測。不要把 CDN API token 寫入文章或 `cdn-headers.json`。

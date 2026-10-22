@@ -609,3 +609,27 @@ def test_a_new_release_waits_for_the_cooldown(client, configure, monkeypatch, re
     r = client.post("/api/releases")
     assert r.status_code == 409
     assert r.json()["detail"].startswith("a release was just started; try again in ")
+
+
+def test_api_dispatch_includes_nondefault_content_branch(github):
+    FakeGitHub.responses = {"POST /repos/o/r/actions/workflows/deploy.yml/dispatches": (204, None)}
+    github.content_branch = "published/mobile"
+    github.dispatch("abc")
+    assert FakeGitHub.requests[-1][2]["inputs"] == {"content_sha": "abc", "content_branch": "published/mobile"}
+
+
+def test_retry_refuses_a_different_deployment_destination_before_dispatch(repos):
+    _, clone = repos
+    original = FakeDeployer()
+    original.target = "original-repo-main"
+    original.fail_dispatch = True
+    with SessionLocal() as session:
+        publish(session)
+        record = release.create(session, clone, original)
+        assert record.status == R.DISPATCH_FAILED
+        assert record.deployment_target == original.target
+        changed = FakeDeployer()
+        changed.target = "other-repo-or-ref"
+        with pytest.raises(release.ReleaseError, match="deployment destination differs"):
+            release.retry(session, record.id, clone, changed)
+        assert changed.dispatched == []

@@ -14,15 +14,15 @@
 
 已決定的事項見 Addendum 03 BE-020（Tailscale）、BE-021（本機與雲端同一份程式碼）與 Addendum 04 FE-013（不允許原始 HTML）。
 
-- [ ] **發布方式。** 二選一：
+- [x] **發布方式。** API 發布與原有 clone 模式均已實作，見 `docs/portable-cms.md`。原評估：
   - 在容器裡維護內容 repo 的 git clone。
   - 改用 GitHub Git Data API 直接建立 commit，不需要本機 clone，CMS 可以不保存狀態。建議用這個（見 A5）。
-- [ ] **GitHub 憑證。** 目前 CMS 用兩個憑證：`CMS_GITHUB_TOKEN` 觸發 workflow，push 內容 repo 則借用作者電腦上的 git 帳號（SSH 金鑰）。建議改成一個 GitHub App，token 會自動輪替（見 A12）。
+- [x] **GitHub 憑證。** 已提供 GitHub App 自動短效 token 與 PAT 選擇，見 `docs/portable-cms.md`。原評估： 目前 CMS 用兩個憑證：`CMS_GITHUB_TOKEN` 觸發 workflow，push 內容 repo 則借用作者電腦上的 git 帳號（SSH 金鑰）。建議改成一個 GitHub App，token 會自動輪替（見 A12）。
 - [ ] **運算服務。** 候選：ECS Fargate、App Runner、EC2 或 Lightsail。
   - 搭配 Tailscale，建議先用單台 Lightsail 或 EC2 執行 Tailscale、CMS 與 Postgres，資料庫備份到 S3。每月約 US$5–15（概估，以 AWS 定價為準）。
   - Fargate + RDS + ALB 每月約 US$40 以上，而且要在容器裡跑 Tailscale，等熟悉後再考慮。
   - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
-  - 決定後才能做 `cms-v*` tag 觸發的 CMS 部署 workflow（BE-021）。
+  - `cms-v*` tag 部署流程已實作且預設停用，實際主機與帳號設定待作者啟用。
 
 ## 一、現在就該修
 
@@ -50,7 +50,7 @@
 
 ### 必修
 
-- [ ] **A5 發布依賴本機的內容 repo clone。**（#28 已完成鎖、逾時與錯誤訊息；其餘等「發布方式」決定）
+- [x] **A5 發布依賴本機的內容 repo clone。**（#28 已完成鎖、逾時與錯誤訊息；其餘等「發布方式」決定）
   - 證據：
     - `release.py` 的 `content_repo_from_env` 讀取 `CONTENT_REPO_DIR`。
     - `backend/blog/exporter.py` 以 `git commit`、`git push` 發布，git 身分和 push 憑證都沿用作者電腦上的設定（`docs/fork-and-deploy.md` 第 2 步）。
@@ -65,7 +65,7 @@
 
 ### 高
 
-- [ ] **A12 三個憑證裡只有兩個有到期提醒。**（`CMS_GITHUB_TOKEN` 改名已完成；其餘等「GitHub 憑證」決定）
+- [x] **A12 三個憑證裡只有兩個有到期提醒。**（`CMS_GITHUB_TOKEN` 改名已完成；其餘等「GitHub 憑證」決定）
   - 證據：
     - `.github/workflows/token-expiry.yml` 每週檢查 `CONTENT_REPO_TOKEN`。
     - CMS 的 `CMS_GITHUB_TOKEN` 只在打開發布頁時檢查。
@@ -88,10 +88,20 @@
   - 有 hash 的搜尋內文 `search-data/*` 也可以長期快取。
   - HTML、`feed.xml`、`sitemap.xml`、`search-metadata.json`、`latest-posts.json` 要設短的 TTL，或在部署後清除快取。
   - 目前 release 以 Pages 部署成功判定為 `deployed`，不代表 CDN 已經更新。
-- [ ] **D4 沒有 `robots.txt`。** 換成自訂網域後才有意義。處理：加 `frontend/src/app/robots.ts`，指向 sitemap。
-- [ ] **D5 RSS 的 GUID 是文章網址。**
+- [x] **D4 沒有 `robots.txt`。** 換成自訂網域後才有意義。處理：加 `frontend/src/app/robots.ts`，指向 sitemap。
+- [x] **D5 RSS 的 GUID 是文章網址。**
   - 證據：`frontend/src/content/feed.ts`。
   - 影響：換網域後，訂閱者的閱讀器會把每篇文章當成新文章再顯示一次。
   - 處理：換網域之前，或和換網域同時，改用以 docId 為基礎、`isPermaLink="false"` 的 GUID。
-- [ ] **D6 文章裡寫死的舊網址會變成外部連結。** `frontend/src/content/markdown.ts` 只把開頭是目前 `SITE_ORIGIN` 的連結視為站內連結。處理：換網域前，搜尋內容 repo 裡的舊網址並改成相對路徑。
+- [x] **D6 文章裡寫死的舊網址會變成外部連結。** `frontend/src/content/markdown.ts` 只把開頭是目前 `SITE_ORIGIN` 的連結視為站內連結。處理：換網域前，搜尋內容 repo 裡的舊網址並改成相對路徑。
 - [ ] **D7 公開網站的 CSP。** 在 CDN 加安全標頭時，要考慮三件事：內嵌的 `THEME_SCRIPT`（`frontend/src/app/layout.tsx`）需要 hash、giscus 需要 `frame-src https://giscus.app`、Next 本身會輸出內嵌 script。
+
+## 2026-10-22 可攜性實作
+
+- A5 已實作 Git Data API 發布、持久背景工作、重試與內容及部署目的地檢查，clone 模式保留相容。
+- A12 本機與 workflow 均可使用 GitHub App，短效 token 自動更新；PAT 相容模式保留既有提醒。
+- A6 已補上預設停用的 tag 部署與單台 Linux Docker 主機腳本。主機、Tailscale、備份及憑證仍需實際設定。
+- D4 已產生 robots。D5 已使用固定 docId GUID，一次性遷移可能重新列出舊項目。D6 可用 LEGACY_SITE_URLS 處理舊站網址。
+- D2、D3、D7 仍需實際 DNS/CDN 啟用。build 已產生逐頁 CSP 與快取設定，Pages 不會自行套用，未接特定供應商 purge API。
+
+設定與限制見 `docs/portable-cms.md`、`docs/cms-deployment.md`、`docs/site-domain.md`，驗證紀錄見 `docs/portable-cms-validation.md`。

@@ -284,6 +284,14 @@
 - **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 要等運算服務決定後再寫（`docs/backlog.md`「需要先決定的事」）。
 - **Supersedes**：無。
 
+### BE-022：本機與雲端共用發布流程
+
+- 同一份 CMS 程式以環境設定選擇資料庫、網址、備份位置與憑證。本機預設與既有 clone 設定保留。
+- 新設定可選 Git Data API 發布，不需要內容 repo clone；認證可用 PAT 或 GitHub App。App 私鑰由執行環境提供，後端自動取得短效 token。
+- CMS 先持久化背景工作並回應 202。worker 匯出 Snapshot、準備 commit、保存內容與部署目的地後，才更新遠端分支。中斷後重試接續同一個 commit；其他 writer 改變 HEAD 時拒絕覆蓋。
+- 公開網站仍由 Actions 讀取 Snapshot 建置，不連回 CMS。`cms-v*` tag 的 CMS 主機部署獨立且預設停用。
+- **Supersedes**：BE-004 中只能使用本機 clone 的限制，以及 BE-010 同步執行更新網站的介面行為。完整設定與切換見 `docs/portable-cms.md`。
+
 ## Known gaps
 
 - ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 作者以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。

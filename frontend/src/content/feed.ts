@@ -17,7 +17,7 @@ export function buildFeed(content: SiteContent, url: (path: string) => string): 
       "    <item>",
       `      <title>${escapeXml(a.title)}</title>`,
       `      <link>${link}</link>`,
-      `      <guid isPermaLink="true">${link}</guid>`,
+      `      <guid isPermaLink="false">urn:ulid:${escapeXml(a.docId)}</guid>`,
       `      <pubDate>${a.publishedAt.toUTCString()}</pubDate>`,
       `      <description>${escapeXml(excerptOf(a))}</description>`,
       `      <category>${escapeXml(a.topic.name)}</category>`,

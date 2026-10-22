@@ -1,6 +1,6 @@
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
@@ -11,9 +11,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import articles, auth, config, exporter, images, profile, release, taxa
+from blog import articles, auth, config, exporter, images, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
-from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
+from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
 # Logs go to stdout for the host (or CloudWatch) to collect.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -21,7 +21,19 @@ audit = logging.getLogger("blog.audit")
 audit.setLevel(logging.INFO)
 
 docs = {} if config.settings.enable_docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
-app = FastAPI(title="Personal Blog CMS", **docs)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    worker = release_jobs.Worker()
+    worker.start()
+    try:
+        yield
+    finally:
+        await run_in_threadpool(worker.close)
+
+
+app = FastAPI(title="Personal Blog CMS", lifespan=lifespan, **docs)
 
 PUBLIC_API = {"/api/session"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -375,11 +387,11 @@ class CreatedRelease(BaseModel):
     release: ReleaseOut | None
 
 
-def _content_repo() -> Path:
-    repo = release.content_repo_from_env()
-    if repo is None or not (repo / ".git").exists():
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "CONTENT_REPO_DIR must point at a clone of personal-blog-content")
-    return repo
+def _content_repo():
+    try:
+        return release.repo_from_env()
+    except release.ReleaseError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
 
 
 @app.get("/api/releases")
@@ -403,6 +415,47 @@ def create_release(session: SessionDep) -> CreatedRelease:
     except (exporter.ExportError, release.ReleaseError) as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
     return CreatedRelease(release=ReleaseOut.of(created) if created else None)
+
+
+class ReleaseJobBody(BaseModel):
+    action: str = "create"
+    release_id: str | None = None
+
+
+class ReleaseJobOut(BaseModel):
+    id: str
+    action: str
+    requested_release_id: str | None
+    release_id: str | None
+    status: str
+    detail: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def of(cls, job: ReleaseJob) -> "ReleaseJobOut":
+        return cls(**{field: getattr(job, field) for field in cls.model_fields})
+
+
+@app.post("/api/release-jobs", status_code=status.HTTP_202_ACCEPTED)
+def create_release_job(body: ReleaseJobBody, session: SessionDep) -> ReleaseJobOut:
+    try:
+        return ReleaseJobOut.of(release_jobs.submit(session, body.action, body.release_id))
+    except release.ReleaseError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+
+
+@app.get("/api/release-jobs")
+def list_release_jobs(session: SessionDep) -> list[ReleaseJobOut]:
+    return [ReleaseJobOut.of(job) for job in release_jobs.recent(session)]
+
+
+@app.get("/api/release-jobs/{job_id}")
+def get_release_job(job_id: str, session: SessionDep) -> ReleaseJobOut:
+    job = session.get(ReleaseJob, job_id)
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "website update request not found")
+    return ReleaseJobOut.of(job)
 
 
 class TokenOut(BaseModel):

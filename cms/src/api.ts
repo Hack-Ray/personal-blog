@@ -71,6 +71,17 @@ export interface Release {
   dispatched_at: string | null;
 }
 
+export interface ReleaseJob {
+  id: string;
+  action: "create" | "retry";
+  requested_release_id: string | null;
+  release_id: string | null;
+  status: "queued" | "running" | "completed" | "failed";
+  detail: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Profile {
   name: string;
   headline: string;
@@ -146,6 +157,8 @@ export const api = {
   /** Lists releases after asking GitHub how the dispatched ones are doing. */
   releases: () => request<Release[]>("POST", "/releases/refresh"),
   githubToken: () => request<{ configured: boolean; expires_at: string | null }>("GET", "/github-token"),
+  releaseJobs: () => request<ReleaseJob[]>("GET", "/release-jobs"),
+  submitRelease: (releaseId?: string) => request<ReleaseJob>("POST", "/release-jobs", releaseId ? { action: "retry", release_id: releaseId } : { action: "create" }),
   githubStatus: () => request<{ incidents: { name: string; url: string }[] }>("GET", "/github-status"),
   createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),

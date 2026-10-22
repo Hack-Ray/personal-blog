@@ -1,0 +1,74 @@
+name: Deploy CMS
+
+on:
+  push:
+    tags: ['cms-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cms-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: vars.CMS_DEPLOY_ENABLED == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cms-production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CMS_HOST: ${{ vars.CMS_HOST }}
+      CMS_SSH_USER: ${{ vars.CMS_SSH_USER }}
+      CMS_ENV_FILE: ${{ vars.CMS_ENV_FILE }}
+      CMS_BACKUP_DIR: ${{ vars.CMS_BACKUP_DIR }}
+      CMS_SECRETS_DIR: ${{ vars.CMS_SECRETS_DIR }}
+      CMS_CONTAINER: ${{ vars.CMS_CONTAINER || 'blog-cms' }}
+      CMS_PORT: ${{ vars.CMS_PORT || '8000' }}
+      CMS_IMAGE: ${{ vars.CMS_IMAGE }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate deployment settings
+        run: |
+          set -euo pipefail
+          [[ "$CMS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$CMS_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          for path in "$CMS_ENV_FILE" "$CMS_BACKUP_DIR"; do
+            [[ "$path" == /* && "$path" != *$'\n'* && "$path" != *:* && "$path" != *,* ]]
+          done
+          if [ -n "$CMS_SECRETS_DIR" ]; then
+            [[ "$CMS_SECRETS_DIR" == /* && "$CMS_SECRETS_DIR" != *$'\n'* && "$CMS_SECRETS_DIR" != *:* && "$CMS_SECRETS_DIR" != *,* ]]
+          fi
+          image="${CMS_IMAGE:-ghcr.io/${GITHUB_REPOSITORY,,}-cms}"
+          [[ "$image" =~ ^ghcr.io/[a-z0-9][a-z0-9/_.-]+$ ]]
+          echo "IMAGE=$image:${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+      - name: Build and publish image
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker build --pull -t "$IMAGE" .
+          docker push "$IMAGE"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          [[ "$digest" == ghcr.io/*@sha256:* ]]
+          echo "DEPLOY_IMAGE=$digest" >> "$GITHUB_ENV"
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: ${{ vars.CMS_CI_TAG || 'tag:cms-ci' }}
+      - name: Back up, migrate, and replace CMS
+        run: |
+          set -euo pipefail
+          args=(bash -s -- --image "$DEPLOY_IMAGE" --env-file "$CMS_ENV_FILE" --backup-dir "$CMS_BACKUP_DIR" --name "$CMS_CONTAINER" --port "$CMS_PORT")
+          if [ -n "$CMS_SECRETS_DIR" ]; then args+=(--secrets-dir "$CMS_SECRETS_DIR"); fi
+          printf -v remote '%q ' "${args[@]}"
+          tailscale ssh "$CMS_SSH_USER@$CMS_HOST" "$remote" < backend/scripts/deploy-cloud.sh

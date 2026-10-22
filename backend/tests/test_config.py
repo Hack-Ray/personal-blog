@@ -96,3 +96,48 @@ def test_a_secure_cookie_uses_the_host_prefix(admin, configure):
 )
 def test_cms_origin_takes_the_form_browsers_send(value, origin):
     assert config.load({**CLOUD, "CMS_ORIGIN": value}).cms_origin == origin
+
+
+def test_api_transport_is_selected_without_a_clone():
+    s = config.load({"CONTENT_REPO": "writer/content", "CONTENT_BRANCH": "publish/site"})
+    assert (s.content_transport, s.content_repo, s.content_branch, s.content_repo_dir) == ("api", "writer/content", "publish/site", None)
+    assert config.load({"CONTENT_REPO_DIR": "/tmp/content"}).content_transport == "git"
+    assert config.load({"CONTENT_REPO": "writer/content", "CONTENT_TRANSPORT": "git"}).content_transport == "git"
+
+
+@pytest.mark.parametrize("env", [
+    {"CONTENT_TRANSPORT": "api"}, {"CONTENT_TRANSPORT": "other"}, {"CONTENT_REPO": "https://github.com/a/b"},
+    {"DEPLOY_REPO": "a/b/c"}, {"CONTENT_BRANCH": "../main"}, {"CONTENT_BRANCH": "main.lock"},
+    {"CONTENT_BRANCH": "main\nbranch"}, {"DEPLOY_REF": "refs//heads/main"}, {"GITHUB_TIMEOUT": "nan"},
+    {"GITHUB_TIMEOUT": "301"}, {"GITHUB_TIMEOUT": "abc"}, {"GITHUB_AUTH": "oauth"},
+    {"GITHUB_AUTH": "app"}, {"GITHUB_APP_ID": "123"}, {"GITHUB_API_URL": "http://example.com"},
+    {"GITHUB_API_URL": "https://secret@example.com"}, {"GITHUB_API_URL": "https://api.github.com?secret=1"},
+])
+def test_publishing_settings_reject_invalid_values(env):
+    with pytest.raises(config.ConfigError):
+        config.load(env)
+
+
+def test_api_url_allows_local_test_server_but_never_in_cloud():
+    assert config.load({"GITHUB_API_URL": "http://127.0.0.1:12345"}).github_api_url == "http://127.0.0.1:12345"
+    with pytest.raises(config.ConfigError):
+        config.load({**CLOUD, "GITHUB_API_URL": "http://127.0.0.1:12345"})
+
+
+def test_app_configuration_can_be_selected_in_either_environment(tmp_path):
+    key = tmp_path / "app.pem"
+    key.write_text("private key validated on use")
+    app = {"GITHUB_APP_ID": "12", "GITHUB_APP_INSTALLATION_ID": "34", "GITHUB_APP_PRIVATE_KEY_FILE": str(key)}
+    for env in ({}, CLOUD):
+        settings = config.load({**env, **app})
+        assert settings.github_auth == "app"
+        assert settings.github_private_key_file == key
+    assert config.load({**app, "GITHUB_AUTH": "token", "CMS_GITHUB_TOKEN": "token"}).github_auth == "token"
+    for bad in ("0", "abc", "-1"):
+        with pytest.raises(config.ConfigError):
+            config.load({**app, "GITHUB_APP_ID": bad})
+
+
+def test_settings_do_not_display_credentials():
+    s = config.load({"CMS_GITHUB_TOKEN": "dont-show-token", "DATABASE_URL": "postgresql://dont-show-password"})
+    assert "dont-show" not in repr(s)
