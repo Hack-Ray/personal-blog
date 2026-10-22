@@ -49,7 +49,7 @@ GITHUB_APP_PRIVATE_KEY_FILE=/absolute/path/to/cms-private-key.pem
 
 後端在需要時取得 installation token，並在到期前重新取得。本機可使用自己的檔案路徑；容器使用唯讀掛載，例如 `/run/secrets/cms-private-key.pem`。App 私鑰仍須保護並定期輪替。
 
-公開網站 workflow 也可改用同一個 App。設定程式 repo 的 Actions variable `GITHUB_APP_CLIENT_ID`，以及 secret `GITHUB_APP_PRIVATE_KEY`。這裡填的是 App 的 Client ID；後端 `GITHUB_APP_ID` 填數字 App ID。workflow 只取得內容 repo 的 Contents 唯讀 token。App 未設定時繼續用原有 `CONTENT_REPO_TOKEN`。
+公開網站 workflow 也可改用同一個 App。設定程式 repo 的 Actions variable `APP_CLIENT_ID`，以及 secret `APP_PRIVATE_KEY`（GitHub 不允許 Actions 的 variable 與 secret 以 `GITHUB_` 開頭，所以名稱和後端的不同）。這裡填的是 App 的 Client ID；後端 `GITHUB_APP_ID` 填數字 App ID。workflow 只取得內容 repo 的 Contents 唯讀 token。App 未設定時繼續用原有 `CONTENT_REPO_TOKEN`。
 
 啟用 App 後，舊的個人 token 到期提醒 workflow 會略過。App 短效 token 自動更新；私鑰若撤銷，發布會明確失敗，仍需管理員更新私鑰。本機 CMS 關機期間不會替私鑰進行主動檢查。
 

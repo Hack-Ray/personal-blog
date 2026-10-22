@@ -15,7 +15,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    if: vars.GITHUB_APP_CLIENT_ID == ''
+    if: vars.APP_CLIENT_ID == ''
     steps:
       - name: Check CONTENT_REPO_TOKEN
         env:
