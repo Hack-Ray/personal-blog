@@ -152,7 +152,7 @@ export function expectedPrefetchCancellation(request, failure, requests, searchP
   });
 }
 
-export async function measureHit(page, input, probe, timeout, typeDelay, fill = false, completion) {
+async function measureHit(page, input, probe, timeout, typeDelay, fill = false, completion) {
   await page.evaluate(({ probe, timeout, completion }) => {
     window.__benchSearchInputCleanup?.();
     window.__benchSearchHit = undefined;
@@ -203,7 +203,7 @@ export async function measureHit(page, input, probe, timeout, typeDelay, fill = 
   return page.evaluate(() => window.__benchSearchHit);
 }
 
-export async function runTrial(browser, server, options, probe, variant, iteration) {
+async function runTrial(browser, server, options, probe, variant, iteration) {
   const inputMode = validateInputMode(options.inputMode ?? "fill");
   const errors = [];
   const failures = [];

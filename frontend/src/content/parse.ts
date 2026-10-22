@@ -7,7 +7,7 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MARKDOWN = new Marked();
 const URL_SCHEME = /^(https:\/\/|mailto:)\S+$/;
 
-export const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 1;
 
 export class ContentError extends Error {}
 
@@ -54,7 +54,7 @@ function date(value: unknown, path: string): Date {
   return d;
 }
 
-export function parseDocId(value: unknown, path = "docId"): DocId {
+function parseDocId(value: unknown, path = "docId"): DocId {
   const s = string(value, path);
   if (!ULID.test(s)) fail(path, `"${s}" is not an uppercase 26-character ULID`);
   return s as DocId;
@@ -67,14 +67,14 @@ function parseTaxon(value: unknown, path: string): Taxon {
   return { slug: slug as Slug, name: string(o.name, `${path}.name`) };
 }
 
-export interface Manifest {
+interface Manifest {
   releaseId: string;
   createdAt: Date;
   articles: { docId: DocId; version: number }[];
   archived: DocId[];
 }
 
-export function parseManifest(value: unknown): Manifest {
+function parseManifest(value: unknown): Manifest {
   const o = record(value, "manifest");
   if (o.schema_version !== SCHEMA_VERSION) {
     fail("manifest.schema_version", `expected ${SCHEMA_VERSION}, got ${JSON.stringify(o.schema_version)}`);
@@ -95,7 +95,7 @@ export function parseManifest(value: unknown): Manifest {
   };
 }
 
-export interface ArticleFile extends PublishedArticle {
+interface ArticleFile extends PublishedArticle {
   version: number;
 }
 
@@ -104,7 +104,7 @@ function optional<T>(o: Record<string, unknown>, key: string, path: string, pars
   return o[key] === undefined ? {} : { [key]: parse(o[key], `${path}.${key}`) };
 }
 
-export function parseArticleFile(value: unknown, path: string): ArticleFile {
+function parseArticleFile(value: unknown, path: string): ArticleFile {
   const o = record(value, path);
   const markdown = string(o.markdown, `${path}.markdown`);
   return {
@@ -154,7 +154,7 @@ function parseSite(value: unknown, path: string): Profile["site"] {
   };
 }
 
-export function parseProfile(value: unknown, path = "profile.json"): Profile {
+function parseProfile(value: unknown, path = "profile.json"): Profile {
   const o = record(value, path);
   const list = <T>(key: string, item: (o: Record<string, unknown>, path: string) => T): T[] =>
     array(o[key], `${path}.${key}`).map((v, i) => item(record(v, `${path}.${key}[${i}]`), `${path}.${key}[${i}]`));
