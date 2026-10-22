@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Release, type ReleaseStatus } from "./api.ts";
+import { isSlow, SLOW_AFTER_MINUTES } from "./deploy-delay.ts";
 import { tokenWarning } from "./token-warning.ts";
 
 const LABEL: Record<ReleaseStatus, string> = {
@@ -35,6 +36,19 @@ export function Releases() {
     return () => clearInterval(timer);
   }, [releases, load]);
 
+  // Asked once per load, i.e. every 15 s while a release is pending.
+  const [incidents, setIncidents] = useState<{ name: string; url: string }[]>([]);
+  useEffect(() => {
+    if (!isSlow(releases, new Date())) return;
+    let stale = false;
+    api.githubStatus().then(
+      (s) => !stale && setIncidents(s.incidents),
+      () => !stale && setIncidents([]),
+    );
+    return () => void (stale = true);
+  }, [releases]);
+  const slow = isSlow(releases, new Date());
+
   const run = async (action: () => Promise<unknown>, done: (result: unknown) => string) => {
     setBusy(true);
     setMessage(undefined);
@@ -64,6 +78,31 @@ export function Releases() {
         </button>
       </div>
       {tokenNotice && <p className="banner">{tokenNotice}</p>}
+      {slow && (
+        <p className="banner">
+          {incidents.length > 0 ? (
+            <>
+              部署已等待超過 {SLOW_AFTER_MINUTES} 分鐘。GitHub 目前回報：
+              {incidents.map((i, n) => (
+                <span key={i.url}>
+                  {n > 0 && "、"}
+                  <a href={i.url} target="_blank" rel="noreferrer">
+                    {i.name}
+                  </a>
+                </span>
+              ))}
+            </>
+          ) : (
+            <>
+              部署已等待超過 {SLOW_AFTER_MINUTES} 分鐘，可能是 GitHub Actions 延遲。可到{" "}
+              <a href="https://www.githubstatus.com" target="_blank" rel="noreferrer">
+                GitHub Status
+              </a>{" "}
+              查看。
+            </>
+          )}
+        </p>
+      )}
       <p className="hint">把所有已發布、已封存的文章與「網站與關於」頁的內容匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
       {message && <p className={message.ok ? "banner ok" : "banner"}>{message.text}</p>}
       <table>

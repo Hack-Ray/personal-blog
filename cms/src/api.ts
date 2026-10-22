@@ -145,6 +145,7 @@ export const api = {
   /** Lists releases after asking GitHub how the dispatched ones are doing. */
   releases: () => request<Release[]>("POST", "/releases/refresh"),
   githubToken: () => request<{ configured: boolean; expires_at: string | null }>("GET", "/github-token"),
+  githubStatus: () => request<{ incidents: { name: string; url: string }[] }>("GET", "/github-status"),
   createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
   profile: () => request<SavedProfile>("GET", "/profile"),
