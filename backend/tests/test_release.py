@@ -476,7 +476,14 @@ def test_the_status_endpoint_lists_only_incidents_that_hold_up_a_deploy(client, 
     FakeGitHub.responses = {
         INCIDENTS: (
             200,
-            {"incidents": [incident("Actions slow", "Actions"), incident("Issues down", "Issues"), incident("Pages and API", "API Requests", "Pages")]},
+            {
+                "incidents": [
+                    incident("Actions slow", "Actions"),
+                    incident("Issues down", "Issues"),
+                    incident("Pages and API", "API Requests", "Pages"),
+                    incident("Odd link", "Actions") | {"shortlink": "javascript:alert(1)"},
+                ]
+            },
         )
     }
     assert client.get("/api/github-status").json() == {

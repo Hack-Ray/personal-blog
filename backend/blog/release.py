@@ -157,13 +157,14 @@ def github_incidents(status_url: str | None = None) -> list[Incident]:
         return [
             Incident(name=i["name"], url=i["shortlink"])
             for i in payload["incidents"]
-            if DEPLOY_COMPONENTS & {c["name"] for c in i["components"]}
+            # The page links to it, so only a web link gets through.
+            if DEPLOY_COMPONENTS & {c["name"] for c in i["components"]} and i["shortlink"].startswith("https://")
         ]
     except urllib.error.HTTPError as e:
         raise ReleaseError(f"GitHub Status returned {e.code}") from e
     except urllib.error.URLError as e:
         raise ReleaseError(f"GitHub Status unreachable: {e.reason}") from e
-    except (ValueError, KeyError, TypeError) as e:
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
         raise ReleaseError(f"GitHub Status sent an unexpected response: {e!r}") from e
 
 
