@@ -39,6 +39,8 @@ DEPLOY_STEP = "Deploy to GitHub Pages"
 CLOCK_SKEW = timedelta(minutes=5)
 RUNS_PER_PAGE = 100
 TOKEN_EXPIRY_HEADER = "github-authentication-token-expiration"
+# The GitHub components a deploy depends on; incidents elsewhere don't delay it.
+DEPLOY_COMPONENTS = frozenset({"Actions", "Pages"})
 
 
 class ReleaseError(Exception):
@@ -138,6 +140,31 @@ class GitHubActions:
 
 def _run(r: dict) -> Run:
     return Run(id=r["id"], url=r["html_url"], status=r["status"], conclusion=r.get("conclusion"))
+
+
+@dataclass(frozen=True)
+class Incident:
+    name: str
+    url: str
+
+
+def github_incidents(status_url: str | None = None) -> list[Incident]:
+    """Unresolved GitHub incidents that touch Actions or Pages, from githubstatus.com."""
+    base = (status_url or config.settings.github_status_url).rstrip("/")
+    try:
+        with urllib.request.urlopen(f"{base}/api/v2/incidents/unresolved.json", timeout=10) as response:
+            payload = json.loads(response.read())
+        return [
+            Incident(name=i["name"], url=i["shortlink"])
+            for i in payload["incidents"]
+            if DEPLOY_COMPONENTS & {c["name"] for c in i["components"]}
+        ]
+    except urllib.error.HTTPError as e:
+        raise ReleaseError(f"GitHub Status returned {e.code}") from e
+    except urllib.error.URLError as e:
+        raise ReleaseError(f"GitHub Status unreachable: {e.reason}") from e
+    except (ValueError, KeyError, TypeError) as e:
+        raise ReleaseError(f"GitHub Status sent an unexpected response: {e!r}") from e
 
 
 def deployer_from_env() -> Deployer | None:
