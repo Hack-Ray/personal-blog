@@ -9,7 +9,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("deploy-cloud.sh")
 
-DOCKER = '''#!/usr/bin/env python3
+DOCKER = """#!/usr/bin/env python3
 import json, os, pathlib, sys
 args = sys.argv[1:]
 root = pathlib.Path(os.environ["STUB_ROOT"])
@@ -28,7 +28,7 @@ elif args[0] == "run":
     if "alembic" in args and os.environ.get("FAIL_STAGE") == "migration": sys.exit(8)
     if "-d" in args: exists.touch(); state.touch(); print("container-id")
 elif args[0] == "exec" and os.environ.get("FAIL_STAGE") == "backup": sys.exit(7)
-'''
+"""
 
 
 class DeploymentTest(unittest.TestCase):
@@ -54,9 +54,22 @@ class DeploymentTest(unittest.TestCase):
 
     def deploy(self, *extra, fail=""):
         return subprocess.run(
-            ["bash", str(SCRIPT), "--image", "ghcr.io/example/cms@sha256:123", "--env-file", str(self.env_file),
-             "--backup-dir", str(self.backups), "--secrets-dir", str(self.secrets), *extra],
-            env={**self.env, "FAIL_STAGE": fail}, capture_output=True, text=True,
+            [
+                "bash",
+                str(SCRIPT),
+                "--image",
+                "ghcr.io/example/cms@sha256:123",
+                "--env-file",
+                str(self.env_file),
+                "--backup-dir",
+                str(self.backups),
+                "--secrets-dir",
+                str(self.secrets),
+                *extra,
+            ],
+            env={**self.env, "FAIL_STAGE": fail},
+            capture_output=True,
+            text=True,
         )
 
     def calls(self):
@@ -106,7 +119,9 @@ class DeploymentTest(unittest.TestCase):
         aws.chmod(0o755)
         result = subprocess.run(
             ["bash", str(SCRIPT.with_name("cloud-maintenance.sh")), "backup", "blog-cms", str(self.backups), "s3://test/cms"],
-            env=self.env, capture_output=True, text=True,
+            env=self.env,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), [["exec", "blog-cms", "scripts/backup.sh", "--env", "--out", "/backup"]])
@@ -114,11 +129,13 @@ class DeploymentTest(unittest.TestCase):
 
     def test_failed_scheduled_backup_is_not_uploaded(self):
         aws = self.bin / "aws"
-        aws.write_text("#!/bin/sh\ntouch \"$STUB_ROOT/uploaded\"\n")
+        aws.write_text('#!/bin/sh\ntouch "$STUB_ROOT/uploaded"\n')
         aws.chmod(0o755)
         result = subprocess.run(
             ["bash", str(SCRIPT.with_name("cloud-maintenance.sh")), "backup", "blog-cms", str(self.backups), "s3://test/cms"],
-            env={**self.env, "FAIL_STAGE": "backup"}, capture_output=True, text=True,
+            env={**self.env, "FAIL_STAGE": "backup"},
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 7)
         self.assertFalse((self.root / "uploaded").exists())

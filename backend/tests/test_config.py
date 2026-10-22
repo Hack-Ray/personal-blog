@@ -105,14 +105,28 @@ def test_api_transport_is_selected_without_a_clone():
     assert config.load({"CONTENT_REPO": "writer/content", "CONTENT_TRANSPORT": "git"}).content_transport == "git"
 
 
-@pytest.mark.parametrize("env", [
-    {"CONTENT_TRANSPORT": "api"}, {"CONTENT_TRANSPORT": "other"}, {"CONTENT_REPO": "https://github.com/a/b"},
-    {"DEPLOY_REPO": "a/b/c"}, {"CONTENT_BRANCH": "../main"}, {"CONTENT_BRANCH": "main.lock"},
-    {"CONTENT_BRANCH": "main\nbranch"}, {"DEPLOY_REF": "refs//heads/main"}, {"GITHUB_TIMEOUT": "nan"},
-    {"GITHUB_TIMEOUT": "301"}, {"GITHUB_TIMEOUT": "abc"}, {"GITHUB_AUTH": "oauth"},
-    {"GITHUB_AUTH": "app"}, {"GITHUB_APP_ID": "123"}, {"GITHUB_API_URL": "http://example.com"},
-    {"GITHUB_API_URL": "https://secret@example.com"}, {"GITHUB_API_URL": "https://api.github.com?secret=1"},
-])
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"CONTENT_TRANSPORT": "api"},
+        {"CONTENT_TRANSPORT": "other"},
+        {"CONTENT_REPO": "https://github.com/a/b"},
+        {"DEPLOY_REPO": "a/b/c"},
+        {"CONTENT_BRANCH": "../main"},
+        {"CONTENT_BRANCH": "main.lock"},
+        {"CONTENT_BRANCH": "main\nbranch"},
+        {"DEPLOY_REF": "refs//heads/main"},
+        {"GITHUB_TIMEOUT": "nan"},
+        {"GITHUB_TIMEOUT": "301"},
+        {"GITHUB_TIMEOUT": "abc"},
+        {"GITHUB_AUTH": "oauth"},
+        {"GITHUB_AUTH": "app"},
+        {"GITHUB_APP_ID": "123"},
+        {"GITHUB_API_URL": "http://example.com"},
+        {"GITHUB_API_URL": "https://secret@example.com"},
+        {"GITHUB_API_URL": "https://api.github.com?secret=1"},
+    ],
+)
 def test_publishing_settings_reject_invalid_values(env):
     with pytest.raises(config.ConfigError):
         config.load(env)

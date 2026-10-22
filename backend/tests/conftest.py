@@ -49,11 +49,7 @@ def clean_tables(profile_seed):
     yield
     with engine.begin() as conn:
         # The single profile row is part of the schema, so it is reset rather than truncated.
-        conn.execute(
-            text("UPDATE profile SET revision = 1, content = :seed, updated_at = now()").bindparams(
-                bindparam("seed", profile_seed, type_=JSONB)
-            )
-        )
+        conn.execute(text("UPDATE profile SET revision = 1, content = :seed, updated_at = now()").bindparams(bindparam("seed", profile_seed, type_=JSONB)))
         conn.execute(
             text(
                 "TRUNCATE articles, topics, tags, series, images, retired_doc_ids, admin_credentials, admin_sessions, releases,"

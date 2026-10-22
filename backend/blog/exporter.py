@@ -62,9 +62,7 @@ def render_snapshot(session: Session) -> tuple[dict[str, bytes], set[str]]:
         .options(selectinload(PublishedVersion.topic), selectinload(PublishedVersion.tags), selectinload(PublishedVersion.series))
     ).all()
     doc_ids, first_published, pinned = {}, {}, {}
-    for id_, doc_id, at, pinned_at in session.execute(
-        select(Article.id, Article.doc_id, Article.first_published_at, Article.pinned_at)
-    ):
+    for id_, doc_id, at, pinned_at in session.execute(select(Article.id, Article.doc_id, Article.first_published_at, Article.pinned_at)):
         doc_ids[id_], first_published[id_], pinned[id_] = doc_id, at, pinned_at
     archived = sorted(session.scalars(select(Article.doc_id).where(Article.state == ArticleState.ARCHIVED)))
 
@@ -169,9 +167,7 @@ GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True, timeout=GIT_TIMEOUT, env=GIT_ENV
-    ).stdout
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True, timeout=GIT_TIMEOUT, env=GIT_ENV).stdout
 
 
 def _stage(repo: Path) -> None:
@@ -229,9 +225,7 @@ def unknown_remote_commit(repo: Path) -> str | None:
         return None
     if not line or not _has_head(repo):
         return None
-    known = subprocess.run(
-        ["git", "-C", str(repo), "merge-base", "--is-ancestor", line[0], "HEAD"], capture_output=True, timeout=GIT_TIMEOUT
-    )
+    known = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", line[0], "HEAD"], capture_output=True, timeout=GIT_TIMEOUT)
     return None if known.returncode == 0 else line[0]
 
 

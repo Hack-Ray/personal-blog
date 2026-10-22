@@ -14,17 +14,13 @@ def cleanup_versions(session: Session) -> list[tuple[str, int]]:
     article's newest 3, not part of the live or any in-flight release, and
     replaced by a newer version that has since gone live. Articles pending
     deletion keep everything until restored or purged. Safe to rerun."""
-    live = session.scalars(
-        select(Release).where(Release.status == ReleaseStatus.DEPLOYED).order_by(Release.id.desc()).limit(1)
-    ).first()
+    live = session.scalars(select(Release).where(Release.status == ReleaseStatus.DEPLOYED).order_by(Release.id.desc()).limit(1)).first()
     if live is None:
         return []
 
     protected = set(
         session.execute(
-            select(ReleaseArticle.article_id, ReleaseArticle.version)
-            .join(Release)
-            .where((Release.id == live.id) | Release.status.in_(_PENDING))
+            select(ReleaseArticle.article_id, ReleaseArticle.version).join(Release).where((Release.id == live.id) | Release.status.in_(_PENDING))
         ).all()
     )
     rank = func.row_number().over(partition_by=PublishedVersion.article_id, order_by=PublishedVersion.version.desc())
@@ -45,9 +41,7 @@ def cleanup_versions(session: Session) -> list[tuple[str, int]]:
         )
         .exists()
     )
-    candidates = session.execute(
-        select(ranked.c.id, ranked.c.article_id, ranked.c.version).where(ranked.c.rank > KEEP_LATEST, newer_live)
-    ).all()
+    candidates = session.execute(select(ranked.c.id, ranked.c.article_id, ranked.c.version).where(ranked.c.rank > KEEP_LATEST, newer_live)).all()
     doomed = [(id_, a, v) for id_, a, v in candidates if (a, v) not in protected]
     if not doomed:
         return []

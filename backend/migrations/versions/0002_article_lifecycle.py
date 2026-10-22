@@ -29,9 +29,7 @@ def upgrade() -> None:
         " AND (state = 'pending_deletion') = (state_before_deletion IS NOT NULL)"
         " AND state_before_deletion IS DISTINCT FROM 'pending_deletion'",
     )
-    op.create_check_constraint(
-        "articles_state_before_deletion_valid", "articles", f"state_before_deletion IN ({STATES})"
-    )
+    op.create_check_constraint("articles_state_before_deletion_valid", "articles", f"state_before_deletion IN ({STATES})")
     op.create_table(
         "retired_doc_ids",
         sa.Column("doc_id", sa.String(26), primary_key=True),

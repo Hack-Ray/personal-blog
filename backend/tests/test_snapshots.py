@@ -90,9 +90,7 @@ def test_restore_writes_the_snapshot_back_and_can_be_undone(client):
     snapshot_id = client.get(f"/api/articles/{e.doc_id}/snapshots").json()[0]["id"]
     age_snapshots(11)
 
-    r = client.post(
-        f"/api/articles/{e.doc_id}/snapshots/{snapshot_id}/restore", json={"base_revision": e.revision}
-    )
+    r = client.post(f"/api/articles/{e.doc_id}/snapshots/{snapshot_id}/restore", json={"base_revision": e.revision})
 
     assert r.status_code == 200
     assert r.json()["markdown"] == "good paragraph"

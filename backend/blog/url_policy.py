@@ -23,8 +23,21 @@ _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 # over-blocking is the safe side. Named references that decode to ASCII are the
 # only ones that can spell a scheme.
 _NAMED = {
-    "tab": "\t", "newline": "\n", "colon": ":", "sol": "/", "bsol": "\\", "amp": "&", "period": ".", "num": "#",
-    "quest": "?", "percnt": "%", "plus": "+", "lowbar": "_", "commat": "@", "semi": ";", "equals": "=",
+    "tab": "\t",
+    "newline": "\n",
+    "colon": ":",
+    "sol": "/",
+    "bsol": "\\",
+    "amp": "&",
+    "period": ".",
+    "num": "#",
+    "quest": "?",
+    "percnt": "%",
+    "plus": "+",
+    "lowbar": "_",
+    "commat": "@",
+    "semi": ";",
+    "equals": "=",
 }
 
 

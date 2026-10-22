@@ -75,7 +75,8 @@ class GitHubRepository:
             if same:
                 same = all(
                     current[path]["mode"] == "100644" and current[path]["sha"] == blob_sha((root / path).read_bytes())
-                    for path in wanted if path != "manifest.json"
+                    for path in wanted
+                    if path != "manifest.json"
                 )
             old_manifest = None
             if same:
@@ -99,9 +100,15 @@ class GitHubRepository:
                 entries.append({"path": path, "mode": "100644", "type": "blob", "sha": sha})
             tree = self.client.call("POST", f"{self.prefix}/trees", {"base_tree": tree_sha, "tree": entries})
             manifest = json.loads(files["manifest.json"])
-            commit = self.client.call("POST", f"{self.prefix}/commits", {
-                "message": f"Release {manifest['release_id']}", "tree": tree["sha"], "parents": [parent],
-            })
+            commit = self.client.call(
+                "POST",
+                f"{self.prefix}/commits",
+                {
+                    "message": f"Release {manifest['release_id']}",
+                    "tree": tree["sha"],
+                    "parents": [parent],
+                },
+            )
             return self._result(manifest, commit["sha"], parent)
 
     def _result(self, manifest: dict, commit: str, parent: str | None) -> exporter.ExportResult:

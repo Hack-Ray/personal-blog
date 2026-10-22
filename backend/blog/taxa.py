@@ -87,9 +87,7 @@ def usage(session: Session, kind: Kind) -> list[TaxonUsage]:
         .subquery()
     )
     rows = session.execute(
-        select(model.slug, model.name, func.coalesce(live.c.n, 0), _in_use(kind, model.id))
-        .outerjoin(live, live.c.taxon_id == model.id)
-        .order_by(model.slug)
+        select(model.slug, model.name, func.coalesce(live.c.n, 0), _in_use(kind, model.id)).outerjoin(live, live.c.taxon_id == model.id).order_by(model.slug)
     )
     return [TaxonUsage(slug, name, n, in_use) for slug, name, n, in_use in rows]
 
@@ -99,9 +97,7 @@ def _invalidate_drafts(session: Session, kind: Kind, taxon_id: int) -> None:
     holding the old name gets a conflict instead of saving it back (BE-013)."""
     refs = _draft_refs(kind).subquery()
     users = select(refs.c.article_id).where(refs.c.taxon_id == taxon_id)
-    session.execute(
-        update(WorkingDraft).where(WorkingDraft.article_id.in_(users)).values(revision=WorkingDraft.revision + 1)
-    )
+    session.execute(update(WorkingDraft).where(WorkingDraft.article_id.in_(users)).values(revision=WorkingDraft.revision + 1))
 
 
 def rename(session: Session, kind: Kind, slug: str, name: str) -> None:

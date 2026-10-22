@@ -112,9 +112,7 @@ class GitHubActions:
         created = (since - CLOCK_SKEW).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         page = 1
         while True:
-            query = urllib.parse.urlencode(
-                {"event": "workflow_dispatch", "created": f">={created}", "per_page": RUNS_PER_PAGE, "page": page}
-            )
+            query = urllib.parse.urlencode({"event": "workflow_dispatch", "created": f">={created}", "per_page": RUNS_PER_PAGE, "page": page})
             runs = self._call("GET", f"/repos/{self.repo}/actions/workflows/{self.workflow}/runs?{query}").get("workflow_runs", [])
             for r in runs:
                 if r.get("display_title") == f"Deploy content {content_commit}" and r["id"] > (after_id or 0):
@@ -267,8 +265,7 @@ def create(session: Session, repo: Path | GitHubRepository, deployer: Deployer |
 def _create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
     if not isinstance(repo, GitHubRepository) and (unknown := exporter.unknown_remote_commit(repo)):
         raise ReleaseError(
-            f"the content repo has commit {unknown[:7]} that this CMS did not make; another CMS may be in use."
-            " See docs/local-setup.md, section 12"
+            f"the content repo has commit {unknown[:7]} that this CMS did not make; another CMS may be in use. See docs/local-setup.md, section 12"
         )
     last = session.scalar(select(func.max(Release.created_at)))
     if last is not None and (wait := last + COOLDOWN - datetime.now(UTC)) > timedelta(0):
@@ -293,8 +290,14 @@ def _create(session: Session, repo: Path | GitHubRepository, deployer: Deployer 
 
 
 def record_export(session: Session, result: exporter.ExportResult, deployer: Deployer | None = None) -> Release:
-    release = Release(id=result.release_id, content_commit=result.commit, status=R.EXPORTED,
-                      content_parent=result.parent_commit, content_target=result.target, deployment_target=getattr(deployer, "target", None))
+    release = Release(
+        id=result.release_id,
+        content_commit=result.commit,
+        status=R.EXPORTED,
+        content_parent=result.parent_commit,
+        content_target=result.target,
+        deployment_target=getattr(deployer, "target", None),
+    )
     session.add(release)
     for doc_id, article_id in session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))):
         session.add(ReleaseArticle(release_id=release.id, article_id=article_id, version=result.versions[doc_id]))

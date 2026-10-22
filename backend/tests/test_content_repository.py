@@ -25,8 +25,10 @@ class LocalGitAPI:
         self.lose_patch_response = False
         self.env = {
             **os.environ,
-            "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.com",
-            "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.com",
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@example.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@example.com",
             "GIT_INDEX_FILE": str(path.parent / "git-api-index"),
         }
         subprocess.run(["git", "init", "--bare", "--quiet", str(path)], check=True)
@@ -37,10 +39,17 @@ class LocalGitAPI:
         self.git("update-ref", "refs/heads/main", initial)
 
     def git(self, *args, data=None):
-        return subprocess.run(
-            ["git", "--git-dir", str(self.path), *args], input=data,
-            check=True, capture_output=True, env=self.env,
-        ).stdout.decode().strip()
+        return (
+            subprocess.run(
+                ["git", "--git-dir", str(self.path), *args],
+                input=data,
+                check=True,
+                capture_output=True,
+                env=self.env,
+            )
+            .stdout.decode()
+            .strip()
+        )
 
     def head(self):
         return self.git("rev-parse", "refs/heads/main")
@@ -71,7 +80,8 @@ class LocalGitAPI:
         if method == "GET" and suffix.startswith("blobs/"):
             data = subprocess.run(
                 ["git", "--git-dir", str(self.path), "cat-file", "blob", suffix.removeprefix("blobs/")],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             ).stdout
             return {"encoding": "base64", "content": base64.b64encode(data).decode()}
         if method == "POST" and suffix == "blobs":
@@ -91,7 +101,8 @@ class LocalGitAPI:
             assert body["force"] is False
             previous = self.head()
             if subprocess.run(
-                ["git", "--git-dir", str(self.path), "merge-base", "--is-ancestor", previous, body["sha"]], capture_output=True,
+                ["git", "--git-dir", str(self.path), "merge-base", "--is-ancestor", previous, body["sha"]],
+                capture_output=True,
             ).returncode:
                 raise GitHubError("not a fast-forward", status=422)
             self.git("update-ref", "refs/heads/main", body["sha"], previous)
@@ -111,11 +122,17 @@ def repository(tmp_path):
 @pytest.fixture
 def snapshot(monkeypatch):
     files = {
-        "manifest.json": json.dumps({
-            "schema_version": 1, "release_id": "01K7M4Y7P65BDCF8AHRTQY7Z01", "created_at": "2026-01-01T00:00:00Z",
-            "articles": [{"doc_id": "article", "version": 1}], "archived_articles": [],
-        }).encode(),
-        "profile.json": b'{"name":"Example"}', "articles/article.json": b'{"title":"One","markdown":"Body"}',
+        "manifest.json": json.dumps(
+            {
+                "schema_version": 1,
+                "release_id": "01K7M4Y7P65BDCF8AHRTQY7Z01",
+                "created_at": "2026-01-01T00:00:00Z",
+                "articles": [{"doc_id": "article", "version": 1}],
+                "archived_articles": [],
+            }
+        ).encode(),
+        "profile.json": b'{"name":"Example"}',
+        "articles/article.json": b'{"title":"One","markdown":"Body"}',
     }
     connection = MagicMock()
     connection.execution_options.return_value = nullcontext(None)
@@ -254,10 +271,7 @@ def test_existing_image_blob_is_reused(repository, snapshot, monkeypatch):
     result = repo.prepare(first)
     assert f"images/{image_id}" in api.files(result.commit)
     encoded_image = base64.b64encode(image_bytes).decode()
-    assert not any(
-        method == "POST" and path.endswith("/blobs") and body["content"] == encoded_image
-        for method, path, body in api.calls[calls:]
-    )
+    assert not any(method == "POST" and path.endswith("/blobs") and body["content"] == encoded_image for method, path, body in api.calls[calls:])
 
 
 def test_prepares_the_real_database_snapshot(repository):

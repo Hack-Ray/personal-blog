@@ -132,8 +132,6 @@ def test_frontend_parser_accepts_the_exported_snapshot(repo):
 
     export(repo)
 
-    result = subprocess.run(
-        ["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True
-    )
+    result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "ok: 1 published, 0 archived"
