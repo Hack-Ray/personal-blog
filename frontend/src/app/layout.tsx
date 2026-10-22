@@ -8,12 +8,17 @@ import { THEME_SCRIPT } from "../theme.ts";
 import { HeaderSearch } from "./header-search.tsx";
 import { ThemeToggle } from "./theme-toggle.tsx";
 
+// Replace frontend/public/og-default.png to change it.
+const DEFAULT_IMAGE = absoluteUrl("/og-default.png");
+
 export function generateMetadata(): Metadata {
   const { title, description } = loadSiteContent().profile.site;
   return {
     title: { default: title, template: `%s | ${title}` },
     description: description || undefined,
-    openGraph: siteOg(title),
+    // Article pages set their own openGraph and twitter, so the default image only reaches the other pages.
+    openGraph: { ...siteOg(title), images: [DEFAULT_IMAGE] },
+    twitter: { card: "summary", images: [DEFAULT_IMAGE] },
   };
 }
 
@@ -45,8 +50,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <footer>
           <p>
             <span>{site.footer || `© ${new Date().getFullYear()} ${name}`}</span>
-            {links.map((l) => (
-              <a key={l.url} href={l.url} rel="me noopener">
+            {links.map((l, i) => (
+              <a key={i} href={l.url} rel="me noopener">
                 {l.label}
               </a>
             ))}

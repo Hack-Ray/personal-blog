@@ -261,7 +261,7 @@ test("neighbors gives the newer and older published articles and skips archived 
 
 test("every code block gets a copy button that starts hidden", () => {
   for (const fence of ["```ts\nconst x = 1;\n```", "```\nplain\n```"]) {
-    assert.match(renderMarkdown(fence, ""), /^<div class="code-block"><pre[\s\S]*<\/pre><button type="button" class="copy-code" hidden>複製<\/button><\/div>/);
+    assert.match(renderMarkdown(fence, ""), /^<div class="code-block"><pre[\s\S]*<\/pre><button type="button" class="copy-code" aria-live="polite" hidden>複製<\/button><\/div>/);
   }
 });
 

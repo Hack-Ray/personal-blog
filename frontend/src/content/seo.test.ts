@@ -51,6 +51,10 @@ test("summary is plain text of the opening, without code, images or link syntax"
   assert.equal(summary(md), "標題 看 FastAPI 的 說明。");
   assert.equal(summary("字".repeat(200)).length, 120);
   assert.equal(summary("清單：\n\n- 一\n- 二\n1. 三"), "清單： 一 二 三");
+  assert.equal(summary("a <b>bold</b> <br/> word"), "a bold word");
+  const family = "👨‍👩‍👧";
+  const cut = summary(family.repeat(200));
+  assert.equal(cut, `${family.repeat(119)}…`);
 });
 
 test("imagePaths lists uploaded images in document order, skipping code blocks", () => {

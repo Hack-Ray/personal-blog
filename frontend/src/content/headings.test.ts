@@ -37,3 +37,19 @@ test("a table of contents needs three h2 or h3 headings", () => {
   assert.deepEqual(tocHeadings("## a\n\n### b\n\n#### c"), []);
   assert.deepEqual(tocHeadings("## a\n\n### b\n\n## c").map((h) => h.id), ["a", "b", "c"]);
 });
+
+test("headings in quotes and lists get ids in render order but stay out of the table of contents", () => {
+  const md = "> ## Setup\n\n## Setup\n\n- ## Setup\n\n## TOC\n\n## Related title\n\n## End";
+  const all = headings(md);
+  assert.deepEqual(all.map((h) => [h.id, h.nested]), [
+    ["setup", true],
+    ["setup-2", false],
+    ["setup-3", true],
+    ["toc-2", false],
+    ["related-title-2", false],
+    ["end", false],
+  ]);
+  const html = renderMarkdown(md, "/base");
+  assert.deepEqual([...html.matchAll(/<h2 id="([^"]+)"/g)].map((m) => m[1]), all.map((h) => h.id));
+  assert.deepEqual(tocHeadings(md).map((h) => h.id), ["setup-2", "toc-2", "related-title-2", "end"]);
+});

@@ -19,10 +19,11 @@ export default function AboutPage() {
       <h1>{name}</h1>
       {headline && <p className="meta">{headline}</p>}
       {intro && <ArticleBody html={renderMarkdown(intro, BASE_PATH)} />}
+      {/* Profile entries may repeat, and these lists never reorder, so positions are the keys. */}
       {links.length > 0 && (
         <ul className="links">
-          {links.map((l) => (
-            <li key={l.url}>
+          {links.map((l, i) => (
+            <li key={i}>
               <a href={l.url} rel="me noopener" target={l.url.startsWith("mailto:") ? undefined : "_blank"}>
                 {l.label}
               </a>
@@ -34,8 +35,8 @@ export default function AboutPage() {
         <section>
           <h2>經歷</h2>
           <ul className="article-list">
-            {experience.map((e) => (
-              <li key={`${e.organization}-${e.period}`}>
+            {experience.map((e, i) => (
+              <li key={i}>
                 <strong>{e.role}</strong> · {e.organization}
                 <p className="meta">{e.period}</p>
                 {e.description && <p>{e.description}</p>}
@@ -48,8 +49,8 @@ export default function AboutPage() {
         <section>
           <h2>作品</h2>
           <ul className="article-list">
-            {projects.map((p) => (
-              <li key={p.name}>
+            {projects.map((p, i) => (
+              <li key={i}>
                 {p.url ? (
                   <a href={p.url} target="_blank" rel="noopener">
                     {p.name}

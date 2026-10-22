@@ -74,7 +74,9 @@ export function HeaderSearch() {
       />
       {showPreview && (
         <div className="search-preview">
-          <p className="meta">{hits.length} 篇符合</p>
+          <p className="meta" role="status">
+            {hits.length} 篇符合
+          </p>
           {hits.length > 0 && (
             <ul>
               {hits.slice(0, PREVIEW_LIMIT).map(({ doc }) => (

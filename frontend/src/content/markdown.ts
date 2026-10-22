@@ -29,7 +29,7 @@ function highlight(code: string, info: string | undefined): string {
 
 // The copy button stays hidden until ArticleBody's script can make it work.
 const codeBlock = (pre: string) =>
-  `<div class="code-block">${pre}<button type="button" class="copy-code" hidden>複製</button></div>\n`;
+  `<div class="code-block">${pre}<button type="button" class="copy-code" aria-live="polite" hidden>複製</button></div>\n`;
 
 const isExternal = (href: string) => /^https?:\/\//i.test(href) && !(SITE_ORIGIN && href.startsWith(`${SITE_ORIGIN}/`));
 
