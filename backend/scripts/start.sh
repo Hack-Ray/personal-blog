@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Start the local CMS: database, a backup, migrations, due maintenance, then
-# the server.
+# Start the local CMS: stop one already running, then database, a backup,
+# migrations, due maintenance, then the server.
 #
 #   scripts/start.sh
 #
@@ -11,6 +11,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 [ -f .env ] || { echo "backend/.env is missing: run 'cp .env.example .env' and fill it in (docs/local-setup.md section 4)." >&2; exit 1; }
+. scripts/lib.sh
+stop_cms 8000
+
 [ -d ../cms/dist ] || echo "warning: ../cms/dist is missing, so /admin/ will 404; build it with: (cd ../cms && npm ci && npm run build)" >&2
 
 echo "==> Starting the database"

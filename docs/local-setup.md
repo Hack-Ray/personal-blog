@@ -145,11 +145,12 @@ scripts/start.sh
 
 `start.sh` 依序：
 
-1. `docker compose up -d --wait` 啟動資料庫並等到可連線。
-2. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。如果這時還有新的 migration 沒執行，就停止啟動，因為沒有備份就無法復原 migration 出的問題。
-3. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
-4. `python -m blog.maintenance`：執行到期的清理（見下方）。
-5. 啟動 CMS：http://127.0.0.1:8000/admin/
+1. 如果已經有一個 CMS 在 8000 埠執行（例如另一個終端機視窗忘了關），先停掉它，讓新的程式碼與設定生效。8000 埠被其他程式佔用時，顯示是哪個程式並停止啟動。這一步需要 `lsof`（macOS 內建）；沒有 `lsof` 時略過。
+2. `docker compose up -d --wait` 啟動資料庫並等到可連線。
+3. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。如果這時還有新的 migration 沒執行，就停止啟動，因為沒有備份就無法復原 migration 出的問題。
+4. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
+5. `python -m blog.maintenance`：執行到期的清理（見下方）。
+6. 啟動 CMS：http://127.0.0.1:8000/admin/
 
 關閉：按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
 

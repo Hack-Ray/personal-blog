@@ -31,3 +31,26 @@ print(u.password or "")
   password="$(sed -n 2p <<< "$parts")"
   if [ -n "$password" ]; then export PGPASSWORD="$password"; fi
 }
+
+# Stops a CMS (`uvicorn blog.api:app`) still listening on port $1, so a restart
+# runs the new code and settings. Refuses when another program holds the port.
+# Without lsof it does nothing, and uvicorn reports a busy port itself.
+stop_cms() {
+  local port="$1" pids pid
+  command -v lsof > /dev/null || return 0
+  pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2> /dev/null)" || return 0
+  for pid in $pids; do
+    if ! ps -o command= -p "$pid" | grep -q 'blog\.api:app'; then
+      echo "error: port $port is used by another program (pid $pid): $(ps -o command= -p "$pid")" >&2
+      return 1
+    fi
+  done
+  echo "==> Stopping the CMS already running on port $port (pid $(echo $pids))"
+  kill $pids 2> /dev/null || true
+  for _ in $(seq 50); do
+    lsof -t -iTCP:"$port" -sTCP:LISTEN > /dev/null 2>&1 || return 0
+    sleep 0.2
+  done
+  echo "error: the old CMS (pid $(echo $pids)) did not stop within 10 seconds" >&2
+  return 1
+}

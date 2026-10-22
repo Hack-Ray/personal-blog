@@ -317,7 +317,7 @@ stateDiagram-v2
 
 沒有常駐的排程器。`backend/scripts/start.sh` 每次啟動依序執行：
 
-1. 檢查 `.env`，`docker compose up -d --wait`（Postgres 16，只綁 `127.0.0.1:5432`）。
+1. 檢查 `.env`；8000 埠上已有 CMS（`blog.api:app`）時先停掉它，被其他程式佔用時中止（`lib.sh` 的 `stop_cms`）；`docker compose up -d --wait`（Postgres 16，只綁 `127.0.0.1:5432`）。
 2. `backup.sh`。備份失敗**而且**有待執行的 migration 時中止。
 3. `alembic upgrade head`。
 4. `python -m blog.maintenance`。
