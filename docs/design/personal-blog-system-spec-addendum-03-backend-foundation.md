@@ -120,6 +120,10 @@
   - `COOKIE_SECURE` 預設關閉（本機 HTTP）；以 HTTPS 提供時必須設為 `1`。
   - CMS 在 session 過期時以覆蓋層顯示登入表單，不卸載編輯器；重新登入後自動補存未儲存的內容。
 - **Consequences**：遷移到 AWS 時需要 HTTPS 與 `COOKIE_SECURE=1`；若有多個程序，登入節流需改為共用儲存。
+- **2026-10-22 更新**（#29、#34）：
+  - 登入節流改存在資料庫的 `sign_in_attempts`，依來源位址計算，在檢查密碼前先計數。連續 5 次失敗後以 30 秒起倍增、最長 15 分鐘的間隔封鎖，成功登入即清除。同時驗證密碼的請求最多 2 個，密碼最長 1024 字元。
+  - session 改為登入後 3 天失效，閒置 1 天也失效；CMS 提供「登出所有裝置」。
+  - `COOKIE_SECURE` 改由 `CMS_ENV` 決定預設值（`cloud` 預設開啟），開啟時 cookie 名稱為 `__Host-cms_session` 並加 HSTS。
 - **Supersedes**：Baseline 12「CMS Auth」項目。
 
 ### BE-010：從 CMS 更新網站與部署追蹤
@@ -267,6 +271,17 @@
   - Tailscale ACL 只允許作者的帳號連到主機，並開啟裝置核准。主機的金鑰不到期，作者裝置的金鑰保留到期。
   - 不另外加 TOTP：通過核准的裝置是第一道驗證，密碼是第二道。
 - **Consequences**：雲端的 CMS 設 `CMS_ENV=cloud`，`ALLOWED_HOSTS` 與 `CMS_ORIGIN` 用主機的 MagicDNS 名稱。步驟與裝置遺失時的處理見 `docs/cloud-access.md`。CMS 要開放給 tailnet 以外的網路時，必須重新評估第二道驗證。
+- **Supersedes**：無。
+
+### BE-021：本機與雲端用同一份程式碼，雲端 CMS 以 tag 部署
+
+- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Context**：CMS 先在作者電腦上執行，之後要能放到雲端主機。若為雲端開一條長期分支，每個修正都要做兩次，CI 與部署也都綁在 `main`。
+- **Decision**：
+  - 不開長期的雲端分支。能用同一種做法同時適用本機與雲端的，就不做成選項，例如定期維護是同一個指令 `python -m blog.maintenance`。
+  - 只有真的不同的設定放進 `.env`，由 `backend/blog/config.py` 啟動時一次讀取並檢查。`CMS_ENV=local|cloud` 只決定預設值，每一項都能個別覆寫。
+  - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式。workflow 透過 Tailscale 的 GitHub Action 連到主機，主機仍不開進站連接埠（BE-020）。
+- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 要等運算服務決定後再寫（`docs/backlog.md`「需要先決定的事」）。
 - **Supersedes**：無。
 
 ## Known gaps

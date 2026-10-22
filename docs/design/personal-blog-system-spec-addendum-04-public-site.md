@@ -150,6 +150,19 @@
   - 發布前檢查：按「發布」時，若沒有 Tag、有圖片沒有替代文字、標題超過 60 字、有 `http://` 連結或圖片、內文有 `TODO`、或封面圖已不在文章中，先列出提醒並詢問是否仍要發布。提醒不會阻擋發布。
 - **Consequences**：預覽與網站的 renderer 是兩份程式碼（`cms/src/preview.ts` 與 `frontend/src/content/markdown.ts`），修改其一時要同步另一份。
 
+### FE-013：文章不允許原始 HTML，網址採白名單
+
+- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Context**：CMS 預覽與公開網站原本都會輸出文章裡的 HTML 與 `javascript:` 連結。預覽與 CMS 同源，貼上的內容一顯示就能帶著 session 發布或刪除文章。只跳脫 HTML 也不夠，`[x](javascript:...)` 是標準的 Markdown 語法。
+- **Decision**：
+  - 文章與關於頁介紹裡的原始 HTML 一律跳脫成純文字。
+  - 連結只允許 `https:`、`http:`、`mailto:`、`#` 錨點和相對路徑；圖片只允許 `images/` 開頭的路徑和 `https:`。
+  - 其他網址讓 build 失敗（`frontend/src/content/url-policy.ts`），CMS 預覽不輸出、發布前檢查擋下。CMS 另外警告含原始 HTML 的文章。
+  - 規則的測試案例放在 `frontend/test-fixtures/url-policy.json`，前端與 CMS 共用。
+  - 之後需要嵌入影片或摺疊區塊時，為那一種需求加專用的 Markdown 語法，由 renderer 產生固定的 HTML，不重新開放原始 HTML。
+- **Consequences**：作者確認現有文章沒有使用原始 HTML，上線不改變顯示（#27）。
+- **Supersedes**：無。
+
 ## Open Questions
 
 - 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。

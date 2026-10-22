@@ -71,6 +71,7 @@
 - **Decision**：
   - Exporter push 後，由 CMS 觸發程式碼 repo 的 workflow，並帶入內容 repo 的 commit SHA。程式碼 repo 的 push 亦觸發建置，使用內容 repo 的 HEAD。
   - Build 前先執行完整的 CI（`deploy.yml` 以 `workflow_call` 呼叫 `ci.yml`）。CI 失敗即不建置、不部署（2026-10-21 使用者指定）。
+    - 2026-10-22 更新（#26，使用者選擇）：只有程式碼 push 到 `main` 時才執行 CI，CMS 觸發的內容發布（`workflow_dispatch`）略過 CI，因為內容發布不改程式碼，而該版程式碼在 push 時已通過 CI。`build` 不再等待 CI，與 CI 並行；`deploy` 等兩者都成功或 CI 被略過。內容本身仍由 build 時的 Snapshot 驗證與連結檢查把關。
   - Build 前驗證 Snapshot：`schema_version` 可識別、manifest 列出的每篇文章檔案存在、文章引用的每張圖片存在。驗證失敗即不部署，舊網站維持上線。
   - 部署以 workflow `concurrency` 序列化。
   - 部署前檢查：本次建置的內容 commit 若已不是內容 repo 的 HEAD，則略過部署（較新的建置會接手）。
@@ -83,7 +84,7 @@
 - **Decision**：
   - 每週圖片 GC 與 30 天到期永久刪除，改為「CMS 啟動時補跑已到期工作」；工作必須可重複執行並收斂到相同結果。Baseline 8.3 與 7.3 的保留規則不變。
   - 本機版的 CMS 只在寫作時啟動，不常駐，所以不在執行中定期排程（使用者 2026-10-20 確認）。
-  - 2026-10-22 更新：工作移到 `python -m blog.maintenance`。本機由 `start.sh` 在啟動時執行，雲端用排程執行（backlog A7）。長時間不啟動 CMS 時，到期的工作延到下次啟動才執行；這只延後刪除，不影響已部署的網站。
+  - 2026-10-22 更新：工作移到 `python -m blog.maintenance`。本機由 `start.sh` 在啟動時執行，雲端用排程執行（#31）。長時間不啟動 CMS 時，到期的工作延到下次啟動才執行；這只延後刪除，不影響已部署的網站。
   - V1 的建置／部署失敗通知使用 GitHub 內建的 workflow 失敗 Email 通知。
   - 舊 Published Version 與圖片的清理，仍須等新網站部署成功後才可執行（Baseline 6.3、8.3 不變）；CMS 以 GitHub API 查詢部署結果。
 - **Supersedes**：Baseline 9.3「持續失敗需以 Email 通知管理員」的實作方式於 V1 定為 GitHub 內建通知；8.3「每週五一次」改為到期補跑，寬限期規則不變。
