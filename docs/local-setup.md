@@ -264,7 +264,7 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 | `docker compose up` 說 port 5432 已被使用 | 你的電腦已經有 PostgreSQL 在跑。把 `compose.yaml` 的 `127.0.0.1:5432:5432` 改成 `127.0.0.1:5433:5432`，並把 `.env` 的 `DATABASE_URL` 改成 `:5433` |
 | `Cannot connect to the Docker daemon` | Docker Desktop 沒開，或 Linux 上 docker 服務沒啟動 |
 | `/admin/` 回 404 | 還沒執行第 7 節的 `npm run build` |
-| 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次會鎖 15 分鐘，重啟後端可解除 |
+| 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次後要等 30 秒，之後每錯一次加倍（最長 15 分鐘）；一小時沒有嘗試就重新計算 |
 | 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
 | 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |

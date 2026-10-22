@@ -10,6 +10,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 log = logging.getLogger(__name__)
 LOCAL_DATABASE_URL = "postgresql+psycopg://blog:blog@127.0.0.1:5432/blog"
@@ -61,6 +62,22 @@ def _optional(env: Mapping[str, str], name: str) -> str | None:
     return env.get(name, "").strip() or None
 
 
+def _origin(value: str) -> str:
+    """Normalizes CMS_ORIGIN to the form a browser sends in the Origin header."""
+    error = ConfigError(f"CMS_ORIGIN must be a scheme and host such as https://cms.example.ts.net, not {value!r}")
+    try:
+        u = urlsplit(value.rstrip("/"))
+        port = u.port
+    except ValueError as e:
+        raise error from e
+    if u.scheme not in ("http", "https") or not u.hostname or u.path or u.query or u.fragment or u.username or u.password:
+        raise error
+    host = f"[{u.hostname}]" if ":" in u.hostname else u.hostname
+    if port in (None, {"http": 80, "https": 443}[u.scheme]):
+        return f"{u.scheme}://{host}"
+    return f"{u.scheme}://{host}:{port}"
+
+
 def load(env: Mapping[str, str] = os.environ) -> Settings:
     cms_env = env.get("CMS_ENV", "local").strip() or "local"
     if cms_env not in ("local", "cloud"):
@@ -79,9 +96,7 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         raise ConfigError("ALLOWED_HOSTS must list the CMS's host names; * is not allowed")
     cms_origin = required_in_cloud("CMS_ORIGIN", None)
     if cms_origin is not None:
-        cms_origin = cms_origin.rstrip("/")
-        if not cms_origin.startswith(("http://", "https://")) or "/" in cms_origin.split("://", 1)[1]:
-            raise ConfigError(f"CMS_ORIGIN must be a scheme and host such as https://cms.example.ts.net, not {cms_origin!r}")
+        cms_origin = _origin(cms_origin)
 
     token = _optional(env, "CMS_GITHUB_TOKEN")
     if token is None and (token := _optional(env, "GITHUB_TOKEN")):

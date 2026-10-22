@@ -19,8 +19,10 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         err instanceof ApiError && err.status === 401
           ? "密碼錯誤。"
           : err instanceof ApiError && err.status === 429
-            ? "失敗次數過多，請 15 分鐘後再試。"
-            : String(err),
+            ? `失敗次數過多，請 ${err.message.match(/in (\d+) seconds/)?.[1] ?? "幾"} 秒後再試。`
+            : err instanceof ApiError && err.status === 503
+              ? "同時有太多登入嘗試，請稍後再試。"
+              : String(err),
       );
     } finally {
       setBusy(false);

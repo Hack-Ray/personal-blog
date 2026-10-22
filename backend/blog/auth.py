@@ -5,21 +5,34 @@ import base64
 import getpass
 import hashlib
 import hmac
+import math
 import secrets
-import time
+import threading
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from blog.db import SessionLocal
-from blog.models import AdminCredential, AdminSession
+from blog.models import AdminCredential, AdminSession, SignInAttempt
 
-SESSION_TTL = timedelta(days=7)
+SESSION_TTL = timedelta(days=3)
+IDLE_TIMEOUT = timedelta(days=1)
+# last_seen_at is written at most this often, not on every request.
+SEEN_RESOLUTION = timedelta(minutes=5)
 MIN_PASSWORD_LENGTH = 12
+MAX_PASSWORD_LENGTH = 1024
+# A client may fail this many times before it has to wait; each further
+# failure doubles the wait, up to MAX_BACKOFF.
 MAX_FAILURES = 5
-LOCKOUT = 15 * 60
+BACKOFF = timedelta(seconds=30)
+MAX_BACKOFF = timedelta(minutes=15)
+# A client that has not tried for this long starts again from zero.
+ATTEMPTS_RESET = timedelta(hours=1)
+# Each check takes about 32 MiB for scrypt; more wait or are refused.
+CONCURRENT_CHECKS = 2
+CHECK_WAIT = 10
 
 _SCRYPT = {"n": 2**15, "r": 8, "p": 1, "maxmem": 64 * 1024 * 1024}
 
@@ -56,60 +69,87 @@ def set_password(session: Session, password: str) -> None:
     session.commit()
 
 
-class Throttle:
-    """Refuses sign-in for 15 minutes after 5 consecutive failures. In memory,
-    which is enough for one local process."""
-
-    def __init__(self) -> None:
-        self.failures = 0
-        self.locked_until = 0.0
-
-    def locked(self) -> bool:
-        return time.monotonic() < self.locked_until
-
-    def record(self, ok: bool) -> None:
-        if ok:
-            self.failures = 0
-            return
-        self.failures += 1
-        if self.failures >= MAX_FAILURES:
-            self.failures = 0
-            self.locked_until = time.monotonic() + LOCKOUT
+class TooManyAttempts(Exception):
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(f"too many failed attempts; try again in {retry_after} seconds")
+        self.retry_after = retry_after
 
 
-throttle = Throttle()
+class Busy(Exception):
+    pass
+
+
+_checks = threading.BoundedSemaphore(CONCURRENT_CHECKS)
+
+
+def _count_attempt(session: Session, client: str, now: datetime) -> None:
+    """Counts the attempt before the password is checked, so concurrent
+    guesses cannot slip past the limit. Raises while the client must wait."""
+    session.execute(delete(SignInAttempt).where(SignInAttempt.last_attempt_at < now - ATTEMPTS_RESET))
+    session.execute(
+        insert(SignInAttempt).values(client=client, failures=0, last_attempt_at=now).on_conflict_do_nothing()
+    )
+    attempt = session.scalars(select(SignInAttempt).where(SignInAttempt.client == client).with_for_update()).one()
+    if attempt.blocked_until and attempt.blocked_until > now:
+        session.commit()
+        raise TooManyAttempts(math.ceil((attempt.blocked_until - now).total_seconds()))
+    attempt.failures += 1
+    attempt.last_attempt_at = now
+    if attempt.failures >= MAX_FAILURES:
+        attempt.blocked_until = now + min(MAX_BACKOFF, BACKOFF * 2 ** (attempt.failures - MAX_FAILURES))
+    session.commit()
 
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def sign_in(session: Session, password: str) -> str | None:
-    """Returns a new session token, or None for a wrong or missing password."""
+def sign_in(session: Session, password: str, client: str) -> str | None:
+    """Returns a new session token, or None for a wrong or missing password.
+    Raises TooManyAttempts while `client` must wait, and Busy when too many
+    checks are running."""
+    now = datetime.now(UTC)
+    _count_attempt(session, client, now)
     stored = session.scalar(select(AdminCredential.password_hash).where(AdminCredential.id == 1))
-    ok = stored is not None and verify_password(password, stored)
-    throttle.record(ok)
+    if not _checks.acquire(timeout=CHECK_WAIT):
+        raise Busy("too many sign-in attempts at once; try again shortly")
+    try:
+        ok = stored is not None and verify_password(password, stored)
+    finally:
+        _checks.release()
     if not ok:
         return None
     token = secrets.token_urlsafe(32)
-    now = datetime.now(UTC)
+    session.execute(delete(SignInAttempt).where(SignInAttempt.client == client))
     session.execute(delete(AdminSession).where(AdminSession.expires_at <= now))
-    session.add(AdminSession(token_hash=_token_hash(token), expires_at=now + SESSION_TTL))
+    session.add(AdminSession(token_hash=_token_hash(token), expires_at=now + SESSION_TTL, last_seen_at=now))
     session.commit()
     return token
 
 
 def is_signed_in(session: Session, token: str | None) -> bool:
+    """A session ends SESSION_TTL after sign-in, or after IDLE_TIMEOUT unused."""
     if not token:
         return False
-    expires_at = session.scalar(select(AdminSession.expires_at).where(AdminSession.token_hash == _token_hash(token)))
-    return expires_at is not None and expires_at > datetime.now(UTC)
+    found = session.scalars(select(AdminSession).where(AdminSession.token_hash == _token_hash(token))).one_or_none()
+    now = datetime.now(UTC)
+    if found is None or found.expires_at <= now or found.last_seen_at <= now - IDLE_TIMEOUT:
+        return False
+    if found.last_seen_at <= now - SEEN_RESOLUTION:
+        session.execute(update(AdminSession).where(AdminSession.token_hash == found.token_hash).values(last_seen_at=now))
+        session.commit()
+    return True
 
 
 def sign_out(session: Session, token: str | None) -> None:
     if token:
         session.execute(delete(AdminSession).where(AdminSession.token_hash == _token_hash(token)))
         session.commit()
+
+
+def sign_out_everywhere(session: Session) -> None:
+    session.execute(delete(AdminSession))
+    session.commit()
 
 
 def main() -> None:

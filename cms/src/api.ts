@@ -126,6 +126,7 @@ export const api = {
   session: () => request<{ signed_in: boolean }>("GET", "/session"),
   signIn: (password: string) => request<void>("POST", "/session", { password }),
   signOut: () => request<void>("DELETE", "/session"),
+  signOutEverywhere: () => request<void>("DELETE", "/sessions"),
   list: (state?: ArticleState) => request<ArticleSummary[]>("GET", `/articles${state ? `?state=${state}` : ""}`),
   create: (content: DraftContent) => request<Draft>("POST", "/articles", content),
   draft: (docId: string) => request<Draft>("GET", `/articles/${docId}/draft`),

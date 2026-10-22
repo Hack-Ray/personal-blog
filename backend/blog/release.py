@@ -33,6 +33,8 @@ IN_FLIGHT = (R.DISPATCHED, R.BUILDING)
 RUN_SEARCH_LIMIT = timedelta(minutes=30)
 # Arbitrary key for pg_try_advisory_lock; one release runs at a time.
 LOCK_KEY = 0x7265_6C65
+# A new release waits this long after the previous one was created.
+COOLDOWN = timedelta(seconds=30)
 DEPLOY_STEP = "Deploy to GitHub Pages"
 CLOCK_SKEW = timedelta(minutes=5)
 RUNS_PER_PAGE = 100
@@ -216,6 +218,9 @@ def _create(session: Session, repo: Path, deployer: Deployer | None) -> Release 
             f"the content repo has commit {unknown[:7]} that this CMS did not make; another CMS may be in use."
             " See docs/local-setup.md, section 12"
         )
+    last = session.scalar(select(func.max(Release.created_at)))
+    if last is not None and (wait := last + COOLDOWN - datetime.now(UTC)) > timedelta(0):
+        raise ReleaseBusy(f"a release was just started; try again in {int(wait.total_seconds()) + 1} seconds")
     result = exporter.export(repo) or exporter.head_release(repo)
     if result is None or session.get(Release, result.release_id) is not None:
         return None

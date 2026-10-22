@@ -549,3 +549,14 @@ def test_an_article_purged_during_export_is_left_out_of_the_release_record(repos
 
         assert r.status == R.DISPATCHED
         assert s.query(ReleaseArticle).filter_by(release_id=r.id).count() == 0
+
+
+def test_a_new_release_waits_for_the_cooldown(client, configure, monkeypatch, repos):
+    _, clone = repos
+    configure(content_repo_dir=clone)
+    monkeypatch.setattr(release, "COOLDOWN", timedelta(seconds=30))
+    monkeypatch.setattr(release, "deployer_from_env", FakeDeployer)
+    assert client.post("/api/releases").json()["release"] is not None
+    r = client.post("/api/releases")
+    assert r.status_code == 409
+    assert r.json()["detail"].startswith("a release was just started; try again in ")
