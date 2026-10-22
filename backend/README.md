@@ -18,20 +18,23 @@ uv run --env-file .env python -m blog.auth   # set the admin password (asked twi
 uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
 
+Started this way, the CMS does not run the due maintenance; `scripts/start.sh` does, or run `uv run --env-file .env python -m blog.maintenance`.
+
 `--env-file .env` loads the settings; the backend itself reads only environment variables.
 
 CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs
 
 ## Backup and restore
 
-`scripts/start.sh` (the normal way to start the CMS) starts the database, takes a backup, applies migrations and runs the server. `backups/` is git-ignored; copy it to cloud storage.
+`scripts/start.sh` (the normal way to start the CMS) starts the database, takes a backup, applies migrations, runs due maintenance and starts the server. If the backup fails while migrations are pending, it stops. `backups/` is git-ignored; copy it to cloud storage, or set `BACKUP_TARGET` to another folder or an `s3://` prefix.
 
 ```sh
 scripts/backup.sh                         # writes backups/blog-<UTC>.dump and .sha256
 scripts/restore.sh backups/<file>.dump    # replaces the whole database, then migrates
+uv run --env-file .env python -m blog.maintenance   # due purges, version cleanup, image GC
 ```
 
-Both default to the Docker Compose database; `--url <DATABASE_URL>` targets any PostgreSQL. See `docs/local-setup.md` sections 10–13.
+Both scripts default to the Docker Compose database; `--url <DATABASE_URL>` targets any PostgreSQL, passing the password through `PGPASSWORD` rather than the command line. See `docs/local-setup.md` sections 10–13.
 
 ## Test
 
@@ -67,7 +70,7 @@ One release or retry runs at a time (a Postgres advisory lock; a second request 
 
 ## Version retention
 
-After a release goes live, and at CMS start-up, old Published Versions are deleted when all of these hold: the version is outside the article's newest 3; neither the live release nor any release still in progress contains it; a newer version was published before a release that has gone live; and the article is not pending deletion. Images those versions referenced then fall to the normal 7-day image garbage collection.
+After a release goes live, and whenever `blog.maintenance` runs, old Published Versions are deleted when all of these hold: the version is outside the article's newest 3; neither the live release nor any release still in progress contains it; a newer version was published before a release that has gone live; and the article is not pending deletion. Images those versions referenced then fall to the normal 7-day image garbage collection.
 
 ## Export a release
 
@@ -94,7 +97,7 @@ Before an Auto Save overwrites the draft, the Markdown it replaces is kept as a 
 
 `POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It refuses with 413 an image over 40 million pixels, counting every frame of an animation, or an animation over 300 frames, since decoding holds every pixel in memory. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. An article references an image when its Markdown contains an image (inline or reference-style) whose URL starts with `images/`. Text in code, plain links and raw HTML `<img>` do not count. The frontend applies the same rule, and both test suites check it against `frontend/test-fixtures/image-refs.json`. The exporter copies every image the exported articles reference into `images/`, one at a time, and fails without writing anything if one is missing. An image already in the content repo is not read again: its file name is the hash of its bytes.
 
-Garbage collection runs at CMS start-up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
+Garbage collection runs in `blog.maintenance`: once at start-up through `scripts/start.sh`, and on a schedule for a CMS that stays up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
 
 ## Draft and publish protocol
 

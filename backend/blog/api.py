@@ -1,7 +1,5 @@
 import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -13,20 +11,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import articles, auth, config, exporter, images, profile, release, retention, taxa
+from blog import articles, auth, config, exporter, images, profile, release, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    with SessionLocal() as session:
-        now = datetime.now(UTC)
-        articles.purge_expired(session, now)
-        retention.cleanup_versions(session)
-        images.collect_garbage(session, now)
-    yield
-
 
 # Logs go to stdout for the host (or CloudWatch) to collect.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -34,7 +21,7 @@ audit = logging.getLogger("blog.audit")
 audit.setLevel(logging.INFO)
 
 docs = {} if config.settings.enable_docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
-app = FastAPI(title="Personal Blog CMS", lifespan=lifespan, **docs)
+app = FastAPI(title="Personal Blog CMS", **docs)
 
 PUBLIC_API = {"/api/session"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
