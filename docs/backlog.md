@@ -35,10 +35,6 @@
   - 證據：`npm run build` 回報 Shiki 的語言檔超過 500 kB，最大的是 `cpp-*.js`，約 797 kB（gzip 約 61 kB）。
   - 影響（**推測**）：這些語言檔是開啟編輯器、遇到該語言時才非同步載入，只影響第一次預覽的速度；CMS 在本機或 Tailscale 內使用，影響很小。
   - 處理：評估是否移除少用的語言，或在 `vite.config.ts` 調整 `chunkSizeWarningLimit`，讓真正的新問題不會被這個警告蓋過。
-- [ ] **G20（低）後端的發布 API 不檢查網址政策。**
-  - 證據：`backend/blog/articles.py` 的 `publish` 只檢查標題、Markdown、封面與圖片存在。網址政策只在 CMS 的發布按鈕（`cms/src/publish-checks.ts`）與網站建置（`frontend/src/content/parse.ts`）檢查。
-  - 影響：繞過 CMS 直接呼叫 API，可以發布含不允許網址的文章，要到「更新網站」的建置失敗才發現，而且整次部署都會失敗，其他文章的更新也上不去。
-  - 處理：後端加上同樣的檢查，並讓後端測試也讀 `frontend/test-fixtures/url-policy.json`，做法比照 `image-refs.json`。
 
 ## 二、上 AWS 前必修
 

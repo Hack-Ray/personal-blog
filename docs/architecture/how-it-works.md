@@ -126,13 +126,13 @@ PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照與 `release_a
 
 **發布**（`publish`）：請求帶的是作者畫面上的完整內容，不是讀資料庫裡的草稿。
 
-1. 驗證：標題與 Markdown 非空白；cover 必須是文章內引用的圖；所有引用的圖都存在。否則 422。
+1. 驗證：標題與 Markdown 非空白；cover 必須是文章內引用的圖；所有引用的圖都存在；連結與圖片網址符合網址政策（`url_policy.blocked`）。否則 422。
 2. 鎖定並比對 revision，`_apply`，revision +1，狀態改為 published，第一次發布時寫入 `first_published_at`。
 3. 新增 Published Version，版本號為目前最大值 +1。
 4. 刪除這篇的所有 Draft Snapshot。
 5. 回傳 `{version, revision, published_at}`，`revision` 等於 `base_revision + 1`。
 
-後端發布**不檢查連結與圖片網址政策**（`url-policy`）。這只由 CMS 的發布按鈕（`urlProblems` 會停用按鈕）與公開網站建置（`parseSnapshot` 的 `blockedUrls`）把關。
+連結與圖片網址政策（`url-policy`）有三處把關：後端發布與儲存 profile（`blog/url_policy.py`，違規回 422；profile 只檢查 `intro`）、CMS 的發布按鈕（`urlProblems` 會停用按鈕）、公開網站建置（`parseSnapshot` 的 `blockedUrls`，是最後一道防線）。
 
 **置頂**：`set_pinned` 不建立新版本，下一次「更新網站」才會反映。
 
@@ -411,7 +411,7 @@ Dockerfile          CMS image（尚不能「更新網站」）
 
 **新增 Profile 欄位**：`backend/blog/profile.py` 的 `ProfileContent`、`frontend/src/content/parse.ts` 的 `parseProfile` 與 `DEFAULT_PROFILE`（兩邊的預設值互為鏡像）、`cms/src/profile-form.ts` 與 `profile-page.tsx`。
 
-**改 Markdown 渲染或網址政策**：同時改 `frontend/src/content/markdown.ts` 與 `cms/src/preview.ts`；網址政策改 `frontend/src/content/url-policy.ts` 後複製到 `cms/src/url-policy.ts`，並更新 `frontend/test-fixtures/url-policy.json`。圖片引用規則改了要同步 `backend/blog/images.py` 的 `refs`、`frontend/src/content/parse.ts` 的 `imagePaths`、`cms/src/cover.ts`，共用 fixture 是 `frontend/test-fixtures/image-refs.json`。
+**改 Markdown 渲染或網址政策**：同時改 `frontend/src/content/markdown.ts` 與 `cms/src/preview.ts`；網址政策改 `frontend/src/content/url-policy.ts` 後複製到 `cms/src/url-policy.ts` 與 `backend/blog/url_policy.py`，並更新 `frontend/test-fixtures/url-policy.json`。圖片引用規則改了要同步 `backend/blog/images.py` 的 `refs`、`frontend/src/content/parse.ts` 的 `imagePaths`、`cms/src/cover.ts`，共用 fixture 是 `frontend/test-fixtures/image-refs.json`。
 
 **新的後台操作**：領域邏輯放在對應的 `backend/blog/<module>.py`，用 `_locked` 與 `ALLOWED_FROM` 表達狀態規則；例外在 `api.py` 對應成 HTTP；路由不需要另外處理驗證。CMS 端在 `api.ts` 加方法，畫面放在對應的 `*-page.tsx`。
 
@@ -438,26 +438,25 @@ Dockerfile          CMS image（尚不能「更新網站」）
    - `cms/src/api.ts` 的 wire type 對 `api.py` 的 Pydantic 模型。
    - `marked` 與 `shiki` 版本：`cms` 與 `frontend` 必須相同（`shared-deps.test.ts`）。Dependabot 的 major bump 要合成一個 PR。
    - 登入錯誤訊息：CMS 用正規表示式 `in (\d+) seconds` 解析 `TooManyAttempts` 的文字，改措辭會壞掉倒數。
-6. **後端發布不檢查網址政策。** 用 API 直接發布含不允許網址的文章會成功，直到「更新網站」的建置失敗才發現。網站建置是最後一道防線，`ContentError` 讓整次部署失敗。
-7. **Taxon 名稱是全域、最後寫入者勝。** Published Version 指向 Taxon 列，所以改名會改到已上線文章下次匯出的名稱。這也是改名與合併要讓草稿 revision +1 的原因。
-8. **Published Version 不是完全不可變。** 合併 Taxon 時會 UPDATE `topic_id`／`series_id`，資料保留會 DELETE 舊版本。
-9. **沒有變更時要按「重試」。** 「沒有變更」的判斷忽略 `release_id`，所以 FAILED 之後若沒有新內容，「更新網站」只會說沒有變更，必須按最新那一列的「重試」。
-10. **狀態只在頁面開著時更新。** refresh 是拉取式，沒有人開「網站發布」頁就沒有人問 GitHub，DEPLOYED 也就不會被記錄，版本清理不會進行。
-11. **remote 檢查只在建立時做，而且失敗時放行。** 另一台電腦推過內容時會擋下（訊息指向 `local-setup.md` 第 12 節）；解法是在 clone 裡 `git pull`（第 14 節）。CMS 從不 fetch 或 pull。
-12. **`/admin` 只在 import 時掛載。** 第一次 `npm run build` 之後要重啟後端。
-13. **設定與 engine 在 import 時讀取。** 測試的 `conftest.py` 先把 `TEST_DATABASE_URL` 複製到 `DATABASE_URL` 才 import `blog`。程式在呼叫時讀 `config.settings.X`，所以 monkeypatch 有效。
-14. **測試是破壞性的。** `conftest.py` 會對 `TEST_DATABASE_URL` 做 `alembic downgrade base` 再 upgrade，每個測試後 truncate。不要指向真正的資料庫。
-15. **反向代理之後**：要設定 `CMS_ORIGIN`（否則 Origin 檢查用到 http://），登入節流依 `request.client.host`，需要 uvicorn 的 `FORWARDED_ALLOW_IPS` 才會是真實 IP。
-16. **CSRF 依賴 `SameSite=Strict` 加 Origin 檢查。** 沒帶 `Origin` 的請求會通過 Origin 檢查。
-17. **編輯器靜默行為**：Topic 不合法時完全不自動儲存；不合法的 tag／series 會被丟掉後才送出。
-18. **兩種 409**：`RevisionConflict`（有 `current_revision`，進入衝突橫幅）與 `InvalidTransition`（有 `state`，顯示一般錯誤且不重試）。
-19. **`first_published_at` 在第一次發布時固定。** migration 0007 回填的值可能比實際發布時間晚。
-20. **網站的測試綁定範例資料。** `verify-site.sh` 與 e2e 寫死 sample 的 `doc_id`、`/personal-blog` 與 `https://example.com`。CI 用假的 `GISCUS_*` 建置。
-21. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
-22. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
-23. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
-24. **Docker image 還不能「更新網站」。** image 裡沒有內容 repo clone、git 身分與 push 認證。
-25. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
+6. **Taxon 名稱是全域、最後寫入者勝。** Published Version 指向 Taxon 列，所以改名會改到已上線文章下次匯出的名稱。這也是改名與合併要讓草稿 revision +1 的原因。
+7. **Published Version 不是完全不可變。** 合併 Taxon 時會 UPDATE `topic_id`／`series_id`，資料保留會 DELETE 舊版本。
+8. **沒有變更時要按「重試」。** 「沒有變更」的判斷忽略 `release_id`，所以 FAILED 之後若沒有新內容，「更新網站」只會說沒有變更，必須按最新那一列的「重試」。
+9. **狀態只在頁面開著時更新。** refresh 是拉取式，沒有人開「網站發布」頁就沒有人問 GitHub，DEPLOYED 也就不會被記錄，版本清理不會進行。
+10. **remote 檢查只在建立時做，而且失敗時放行。** 另一台電腦推過內容時會擋下（訊息指向 `local-setup.md` 第 12 節）；解法是在 clone 裡 `git pull`（第 14 節）。CMS 從不 fetch 或 pull。
+11. **`/admin` 只在 import 時掛載。** 第一次 `npm run build` 之後要重啟後端。
+12. **設定與 engine 在 import 時讀取。** 測試的 `conftest.py` 先把 `TEST_DATABASE_URL` 複製到 `DATABASE_URL` 才 import `blog`。程式在呼叫時讀 `config.settings.X`，所以 monkeypatch 有效。
+13. **測試是破壞性的。** `conftest.py` 會對 `TEST_DATABASE_URL` 做 `alembic downgrade base` 再 upgrade，每個測試後 truncate。不要指向真正的資料庫。
+14. **反向代理之後**：要設定 `CMS_ORIGIN`（否則 Origin 檢查用到 http://），登入節流依 `request.client.host`，需要 uvicorn 的 `FORWARDED_ALLOW_IPS` 才會是真實 IP。
+15. **CSRF 依賴 `SameSite=Strict` 加 Origin 檢查。** 沒帶 `Origin` 的請求會通過 Origin 檢查。
+16. **編輯器靜默行為**：Topic 不合法時完全不自動儲存；不合法的 tag／series 會被丟掉後才送出。
+17. **兩種 409**：`RevisionConflict`（有 `current_revision`，進入衝突橫幅）與 `InvalidTransition`（有 `state`，顯示一般錯誤且不重試）。
+18. **`first_published_at` 在第一次發布時固定。** migration 0007 回填的值可能比實際發布時間晚。
+19. **網站的測試綁定範例資料。** `verify-site.sh` 與 e2e 寫死 sample 的 `doc_id`、`/personal-blog` 與 `https://example.com`。CI 用假的 `GISCUS_*` 建置。
+20. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
+21. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
+22. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
+23. **Docker image 還不能「更新網站」。** image 裡沒有內容 repo clone、git 身分與 push 認證。
+24. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
 
 ## 6. 尚未確認
 
@@ -468,6 +467,6 @@ Dockerfile          CMS image（尚不能「更新網站」）
 
 已確認的事項（不再列為未確認）：
 
-- 後端 `articles.publish` 只檢查標題、Markdown、cover 與圖片存在，不檢查網址政策。
+- 後端 `articles.publish` 檢查標題、Markdown、cover、圖片存在與網址政策。
 - `GET /api/articles` 不帶 `state` 回傳所有狀態。
 - `retention` 的受保護集合不含 push_failed、dispatch_failed、failed。這是安全的：重試這些狀態時推送或 dispatch 的是已經存在的 commit，不會從資料庫重新匯出，刪掉資料庫裡的舊版本不影響它們。

@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from ulid import ULID
 
-from blog import images
+from blog import images, url_policy
 from blog.models import Article, ArticleState, DraftSnapshot, PublishedVersion, RetiredDocId, Series, Tag, Topic, WorkingDraft
 
 PENDING_DELETION_RETENTION = timedelta(days=30)
@@ -216,6 +216,8 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
         raise NotPublishable("the cover must be an image the article contains")
     if gone := images.missing(session, content.markdown):
         raise NotPublishable(f"images not found: {', '.join(sorted(gone))}")
+    if bad := url_policy.blocked(content.markdown):
+        raise NotPublishable(f"links or images not allowed: {', '.join(bad)}")
     draft = _locked_draft(session, doc_id, Action.PUBLISH, base_revision)
     _apply(session, draft, content)
     draft.revision += 1
