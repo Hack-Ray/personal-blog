@@ -5,7 +5,7 @@ from enum import StrEnum
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
 
 from blog import images, url_policy
@@ -99,21 +99,25 @@ class InvalidTransition(Exception):
         self.state = state
 
 
-def _get_or_create[T: (Topic, Tag, Series)](session: Session, model: type[T], taxon: Taxon) -> T:
-    """The name last saved for a slug wins, everywhere the slug is used (BE-003)."""
-    stmt = insert(model).values(slug=taxon.slug, name=taxon.name)
-    session.execute(stmt.on_conflict_do_update(index_elements=["slug"], set_={"name": stmt.excluded.name}))
-    return session.scalars(select(model).where(model.slug == taxon.slug)).one()
+def _get_or_create[T: (Topic, Tag, Series)](session: Session, model: type[T], taxa: list[Taxon]) -> list[T]:
+    """The name last saved for a slug wins, everywhere the slug is used (BE-003).
+    Returns the rows in the order of `taxa`, which must not repeat a slug."""
+    if not taxa:
+        return []
+    stmt = insert(model).values([{"slug": t.slug, "name": t.name} for t in taxa])
+    stmt = stmt.on_conflict_do_update(index_elements=["slug"], set_={"name": stmt.excluded.name}).returning(model)
+    rows = {row.slug: row for row in session.scalars(stmt, execution_options={"populate_existing": True})}
+    return [rows[t.slug] for t in taxa]
 
 
 def _apply(session: Session, draft: WorkingDraft, content: DraftContent) -> None:
     draft.title = content.title
     draft.markdown = content.markdown
-    draft.topic = _get_or_create(session, Topic, content.topic)
-    draft.tags = [_get_or_create(session, Tag, t) for t in {t.slug: t for t in content.tags}.values()]
+    [draft.topic] = _get_or_create(session, Topic, [content.topic])
+    draft.tags = _get_or_create(session, Tag, list({t.slug: t for t in content.tags}.values()))
     draft.excerpt = content.excerpt
     draft.cover = content.cover
-    draft.series = _get_or_create(session, Series, content.series) if content.series else None
+    draft.series = _get_or_create(session, Series, [content.series])[0] if content.series else None
     draft.updated_at = func.now()
     images.mark_referenced(session, content.markdown)
 
@@ -160,7 +164,7 @@ def get_article(session: Session, doc_id: str) -> Article:
 
 
 def list_articles(session: Session, state: ArticleState | None = None) -> list[Article]:
-    query = select(Article).order_by(Article.created_at.desc())
+    query = select(Article).options(selectinload(Article.draft)).order_by(Article.created_at.desc())
     if state is not None:
         query = query.where(Article.state == state)
     return list(session.scalars(query))
