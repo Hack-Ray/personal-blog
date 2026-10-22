@@ -7,6 +7,7 @@ never leaves a half-written snapshot behind.
 
 import argparse
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -149,8 +150,17 @@ def write_snapshot(files: dict[str, bytes], repo: Path) -> bool:
     return True
 
 
+# Seconds before a git command is given up, so a stalled push cannot hold the
+# release lock forever.
+GIT_TIMEOUT = 120
+# Never wait for a password prompt nobody will answer.
+GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True, timeout=GIT_TIMEOUT, env=GIT_ENV
+    ).stdout
 
 
 def _stage(repo: Path) -> None:
@@ -192,6 +202,26 @@ def head_release(repo: Path) -> ExportResult | None:
 
 def push(repo: Path) -> None:
     _git(repo, "push", "--quiet")
+
+
+def unknown_remote_commit(repo: Path) -> str | None:
+    """The commit the upstream branch points at, when this clone does not
+    have it: someone else, such as another CMS, pushed to the content repo.
+    None when the remote holds nothing new or cannot be reached (the push
+    then fails on its own)."""
+    try:
+        branch = _git(repo, "symbolic-ref", "--quiet", "--short", "HEAD").strip()
+        remote = _git(repo, "config", f"branch.{branch}.remote").strip()
+        ref = _git(repo, "config", f"branch.{branch}.merge").strip()
+        line = _git(repo, "ls-remote", remote, ref).split()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+    if not line or not _has_head(repo):
+        return None
+    known = subprocess.run(
+        ["git", "-C", str(repo), "merge-base", "--is-ancestor", line[0], "HEAD"], capture_output=True, timeout=GIT_TIMEOUT
+    )
+    return None if known.returncode == 0 else line[0]
 
 
 def export(repo: Path, push_commit: bool = False) -> ExportResult | None:

@@ -349,7 +349,14 @@ def _content_repo() -> Path:
 
 @app.get("/api/releases")
 def list_releases(session: SessionDep) -> list[ReleaseOut]:
-    return [ReleaseOut.of(r) for r in release.recent(session, release.deployer_from_env())]
+    return [ReleaseOut.of(r) for r in release.recent(session)]
+
+
+@app.post("/api/releases/refresh")
+def refresh_releases(session: SessionDep) -> list[ReleaseOut]:
+    """Asks GitHub how the dispatched releases are doing, then lists them."""
+    release.refresh_in_flight(session, release.deployer_from_env())
+    return [ReleaseOut.of(r) for r in release.recent(session)]
 
 
 @app.post("/api/releases")
@@ -358,7 +365,7 @@ def create_release(session: SessionDep) -> CreatedRelease:
     is null when nothing changed since the last export."""
     try:
         created = release.create(session, _content_repo(), release.deployer_from_env())
-    except exporter.ExportError as e:
+    except (exporter.ExportError, release.ReleaseError) as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
     return CreatedRelease(release=ReleaseOut.of(created) if created else None)
 

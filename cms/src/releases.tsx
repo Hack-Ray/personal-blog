@@ -13,8 +13,9 @@ const LABEL: Record<ReleaseStatus, string> = {
   superseded: "已被較新的發布取代",
   failed: "建置或部署失敗",
 };
-const RETRYABLE: ReleaseStatus[] = ["push_failed", "dispatch_failed", "failed"];
-const PENDING: ReleaseStatus[] = ["exported", "pushed", "dispatched", "building"];
+// exported and pushed only last while 更新網站 runs; one left there was cut off.
+const RETRYABLE: ReleaseStatus[] = ["exported", "push_failed", "pushed", "dispatch_failed", "failed"];
+const PENDING: ReleaseStatus[] = ["dispatched", "building"];
 const time = new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short" });
 
 export function Releases() {
