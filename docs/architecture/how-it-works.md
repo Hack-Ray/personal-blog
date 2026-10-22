@@ -291,7 +291,7 @@ stateDiagram-v2
 | 快照面板 | `GET .../snapshots`、`POST .../snapshots/{id}/restore` |
 | 分類 `#/taxa` | `GET /api/taxa`、`PUT /api/taxa/{kind}/{slug}`、`POST .../merge`、`DELETE ...` |
 | 個人資料 `#/profile` | `GET /api/profile`、`PUT /api/profile` |
-| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`POST /api/releases`、`POST /api/releases/{id}/retry` |
+| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/releases`、`POST /api/releases/{id}/retry` |
 
 `GET /api/articles` 不帶 `state` 時回傳所有狀態，「文章」分頁在前端濾掉 pending_deletion。`GET /api/releases` 與 `/healthz` CMS 沒有用到。
 
@@ -311,7 +311,7 @@ stateDiagram-v2
 
 **離開保護**（`leave-guard.ts`）：`beforeunload` 加上 router 自己的 `confirm()`（hash 變更不觸發 `beforeunload`，取消時以 `history.replaceState` 還原）。
 
-**網站發布頁**（`releases.tsx`）：列表一律透過 `POST /api/releases/refresh` 取得，所以每次開頁都會問 GitHub。有 dispatched／building 時每 15 秒輪詢一次。只有第一列且狀態可重試時顯示「重試」。`token-warning.ts` 在 `CMS_GITHUB_TOKEN` 快到期時警告。
+**網站發布頁**（`releases.tsx`）：列表一律透過 `POST /api/releases/refresh` 取得，所以每次開頁都會問 GitHub。有 dispatched／building 時每 15 秒輪詢一次。只有第一列且狀態可重試時顯示「重試」。`token-warning.ts` 在 `CMS_GITHUB_TOKEN` 快到期時警告。部署從最近一次 dispatch 起等待超過 10 分鐘時（`deploy-delay.ts`），頁面另外呼叫 `GET /api/github-status`，由後端代查 githubstatus.com 上影響 Actions 或 Pages 的事故並顯示（PUB-009）。
 
 ### 3.6 背景維護、備份與資料保留
 
