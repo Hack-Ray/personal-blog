@@ -42,7 +42,7 @@
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
   - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。（BE-017 加入 `profile.json`。）
   - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
-- **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先完成 `docs/setup-todo.md` 的 B4 token。
+- **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先建立 CMS 用的 GitHub token。
 
 ### BE-005：Article Lifecycle 狀態機
 
@@ -133,7 +133,7 @@
   - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run：只列出 release 建立時間前 5 分鐘（容許本機與 GitHub 的時鐘誤差）之後建立的 run，逐頁查詢，同名的 run 取最新的一個（重試會再啟動一次）；以 job 中 `Deploy to GitHub Pages` 步驟是否被跳過，判斷是已上線還是被取代。
   - 只有最新一筆 release 可以重試；重試會從失敗的那一步繼續。新 release 建立時，較舊且停在失敗狀態的 release 標記為 superseded。
   - 狀態在開啟「網站發布」頁面時向 GitHub 查詢；有未完成的 release 時每 15 秒更新一次。V1 不自動重試，失敗通知沿用 GitHub 的 Email（PUB-005）。
-- **Consequences**：真實的 GitHub API 呼叫要等 `docs/setup-todo.md` 的 A、B4 完成後才能驗證；目前以假的 GitHub API 與本機 bare repo 測試。
+- **Consequences**：真實的 GitHub API 呼叫要等內容 repo、Pages 與 token 設定完成後才能驗證；目前以假的 GitHub API 與本機 bare repo 測試。
 - **Supersedes**：無；實作 PUB-004 的觸發方式（Addendum 02 Open Question）。
 
 ### BE-011：Published Version 保留與清理
