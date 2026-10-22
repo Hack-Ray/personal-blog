@@ -28,9 +28,7 @@
 
 這些問題和是否上 AWS 無關。
 
-- [ ] **G17（低）後端沒有統一的程式碼格式。**
-  - 證據：CI 只執行 `ruff check`，沒有 `ruff format --check`。2026-10-22 在 `backend/` 執行 `uv run ruff format --check blog tests`，有 16 個檔案會被重新排版。
-  - 處理：一次性執行 `ruff format`，再在 CI 加上 `ruff format --check`。排版的 commit 要和功能修改分開。
+目前沒有。
 
 ## 二、上 AWS 前必修
 

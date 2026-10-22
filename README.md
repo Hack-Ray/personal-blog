@@ -109,7 +109,7 @@ CI（`.github/workflows/ci.yml`）在每個 pull request 與每次 push 到 `mai
 
 ```sh
 # backend：需要 PostgreSQL 與 Node 22（契約測試會執行前端的 Snapshot parser）
-cd backend && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
+cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 
 # cms
 cd cms && npm ci && npm test && npm run build
@@ -224,7 +224,7 @@ CI (`.github/workflows/ci.yml`) runs these three suites on every pull request an
 
 ```sh
 # backend: needs PostgreSQL and Node 22 (a contract test runs the frontend's Snapshot parser)
-cd backend && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
+cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 
 # cms
 cd cms && npm ci && npm test && npm run build
