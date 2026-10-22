@@ -42,6 +42,15 @@ def test_lists_each_kind_with_live_article_counts(client):
     assert usage(client, "series") == {"s": ("S", 1, True)}
 
 
+def test_a_series_no_article_uses_is_listed_as_not_in_use(client):
+    # Articles outside any series store NULL, which must not make the series' usage unknown.
+    doc_id = create(client, series={"slug": "s", "name": "S"})
+    create(client)
+    r = client.put(f"/api/articles/{doc_id}/draft", json={"base_revision": 1, **draft()})
+    assert r.status_code == 200, r.text
+    assert usage(client, "series") == {"s": ("S", 0, False)}
+
+
 def test_rename_changes_the_name_everywhere(client):
     doc_id = create(client)
     assert client.put("/api/taxa/topics/backend", json={"name": " 後端 "}).status_code == 204
