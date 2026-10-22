@@ -5,10 +5,11 @@
 #   docker run --env-file backend/.env -p 127.0.0.1:8000:8000 blog-cms
 #
 # DATABASE_URL must reach the database from inside the container, where
-# 127.0.0.1 is the container itself. Use host.docker.internal (on Linux, also
-# pass --add-host=host.docker.internal:host-gateway), or --network host on
-# Linux. With --network host, -p does nothing and uvicorn listens on every
-# interface of the machine: append
+# 127.0.0.1 is the container itself. On macOS and Windows, use
+# host.docker.internal. On Linux, backend/compose.yaml publishes the database
+# on the host's 127.0.0.1 only, which host.docker.internal cannot reach, so
+# use --network host instead. Then -p does nothing and uvicorn would listen on
+# every interface of the machine; append
 # "uvicorn blog.api:app --host 127.0.0.1 --port 8000 --proxy-headers" to the
 # docker run line to keep it local. Behind a proxy, set FORWARDED_ALLOW_IPS to the
 # proxy's address as the container sees it, so sign-in limits count real
