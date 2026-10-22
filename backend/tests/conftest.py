@@ -17,6 +17,9 @@ from blog.api import app  # noqa: E402
 from blog.db import SessionLocal, engine  # noqa: E402
 
 ADMIN_PASSWORD = "correct horse battery staple"
+# Production cost makes every sign-in take about 0.1 s; hashes record their own
+# cost, so a cheaper one only speeds the tests up.
+auth._SCRYPT["n"] = 2**10
 # The address the CMS is served on (docs/local-setup.md); the API refuses other hosts.
 BASE_URL = "http://127.0.0.1:8000"
 
