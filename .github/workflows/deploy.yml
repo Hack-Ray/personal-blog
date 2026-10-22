@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       content_sha:
-        description: Commit of personal-blog-content to build (defaults to its HEAD)
+        description: Commit of the content repo to build (defaults to its HEAD)
         required: false
 
 permissions:
@@ -22,8 +22,11 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Per-site settings are repository variables (Settings → Secrets and variables →
+# Actions → Variables), so a fork changes no code. See docs/fork-and-deploy.md.
 env:
-  CONTENT_REPO: Hack-Ray/personal-blog-content
+  # Defaults to <this repo>-content, e.g. you/personal-blog-content.
+  CONTENT_REPO: ${{ vars.CONTENT_REPO || format('{0}-content', github.repository) }}
 
 jobs:
   ci:
@@ -47,6 +50,10 @@ jobs:
       - id: content
         run: echo "sha=$(git -C site-data rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      # The Pages URL, custom domain included, sets the site's origin and basePath.
+      - id: pages
+        uses: actions/configure-pages@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -68,13 +75,19 @@ jobs:
         working-directory: frontend
         env:
           SITE_DATA_DIR: ${{ github.workspace }}/site-data
+          SITE_ORIGIN: ${{ steps.pages.outputs.origin }}
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          GISCUS_REPO: ${{ vars.GISCUS_REPO || github.repository }}
+          GISCUS_REPO_ID: ${{ vars.GISCUS_REPO_ID }}
+          GISCUS_CATEGORY: ${{ vars.GISCUS_CATEGORY || 'Announcements' }}
+          GISCUS_CATEGORY_ID: ${{ vars.GISCUS_CATEGORY_ID }}
 
       # A link in an article to a page or image the build does not have fails
       # here, like a missing image does above.
       - run: node scripts/check-links.ts
         working-directory: frontend
-
-      - uses: actions/configure-pages@v5
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - uses: actions/upload-pages-artifact@v4
         with:

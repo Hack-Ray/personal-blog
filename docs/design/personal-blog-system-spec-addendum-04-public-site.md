@@ -1,8 +1,10 @@
 # Personal Blog — Addendum 04：Public Site
 
+> **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
+
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
 > **日期**：2026-10-20
-> **Status 說明**：使用者授權依助理建議進行，以下標為 Accepted (delegated)。使用者可隨時推翻。
+> **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
 

@@ -296,6 +296,14 @@ def test_the_token_endpoint_reports_an_unconfigured_token(client, monkeypatch):
     assert client.get("/api/github-token").json() == {"configured": False, "expires_at": None}
 
 
+def test_a_token_without_a_deploy_repo_dispatches_nowhere(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.delenv("DEPLOY_REPO", raising=False)
+    assert release.deployer_from_env() is None
+    monkeypatch.setenv("DEPLOY_REPO", "someone/personal-blog")
+    assert release.deployer_from_env().repo == "someone/personal-blog"
+
+
 def test_github_client_reports_http_errors(github):
     with pytest.raises(release.ReleaseError, match="returned 404"):
         github.dispatch("abc")

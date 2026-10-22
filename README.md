@@ -29,10 +29,10 @@ A personal blog and portfolio. Writing happens in a CMS that runs on your own co
 | `backend/` | 本機 CMS API。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
 | `cms/` | CMS 介面，由後端在 `/admin/` 提供。 | Vite、React、TypeScript |
 | `frontend/` | 公開網站，從內容 Snapshot 產生靜態頁面。 | Next.js（`output: "export"`）、TypeScript、marked、shiki |
-| `docs/` | 系統規格（Baseline 與 Addendum 01–04）、本機安裝步驟、設定清單。 | |
+| `docs/` | Fork 與部署教學、本機安裝步驟；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
 | `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站。 | GitHub Actions |
 
-網站內容不在這個 repo，而在 private repo `Hack-Ray/personal-blog-content`。發布流程：
+網站內容不在這個 repo，而在另一個 private 內容 repo（本站是 `Hack-Ray/personal-blog-content`）。發布流程：
 
 1. 在 CMS 按「發布」：在資料庫建立一個新的 Published Version。這一步不會改變網站。
 2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章、網站名稱與簡介、關於頁匯出成 Snapshot（`manifest.json`、`profile.json`、`articles/`、`images/`），commit 並 push 到內容 repo，再啟動 `Deploy site` workflow。
@@ -72,7 +72,7 @@ python3 -m http.server --directory out 3000         # 打開 http://localhost:30
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16，只開放 127.0.0.1:5432
-cp .env.example .env                                 # 之後填 CONTENT_REPO_DIR 與 GITHUB_TOKEN
+cp .env.example .env                                 # 之後填 CONTENT_REPO_DIR、DEPLOY_REPO 與 GITHUB_TOKEN
 uv sync
 uv run --env-file .env alembic upgrade head          # 建立資料表
 uv run --env-file .env python -m blog.auth           # 設定管理員密碼（至少 12 字元）
@@ -82,23 +82,24 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 打開 <http://127.0.0.1:8000/admin/> 登入。請保持 `--host 127.0.0.1`，不要改成 `0.0.0.0`。
 
-要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）與 GitHub token（`GITHUB_TOKEN`），設定方式見 [`docs/setup-todo.md`](docs/setup-todo.md)。
+要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
 
 #### 3. 改成你自己的部落格
 
-Fork 這個 repo 後，需要換掉以下幾處：
+Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一篇文章的完整步驟見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)）：
 
-| 位置 | 要改的內容 |
+| 位置 | 要設定的內容 |
 | --- | --- |
-| `.github/workflows/deploy.yml` 的 `CONTENT_REPO` | 你的內容 repo |
+| 你的 GitHub 帳號 | 建立 private 內容 repo，預設名稱是 `<fork 名稱>-content`，例如 `you/personal-blog-content` |
+| repo 的 Settings → Pages | Source 選 GitHub Actions。網站網址與 basePath 由 Pages 決定，自訂網域也一樣 |
 | repo 的 Actions secret `CONTENT_REPO_TOKEN` | 可以讀取你的內容 repo 的 token |
-| repo 的 Settings → Pages | Source 選 GitHub Actions |
-| 在 `backend/.env` 加上 `DEPLOY_REPO` | 你的程式 repo（預設 `Hack-Ray/personal-blog`） |
-| `frontend/next.config.ts` 或環境變數 `BASE_PATH`、`SITE_ORIGIN` | 你的 Pages 網址；使用自訂網域時 `BASE_PATH` 設為空字串 |
-| `frontend/src/app/posts/[docId]/comments.tsx` | 從 <https://giscus.app> 取得的 repo 與分類 ID |
-| `frontend/src/app/layout.tsx` 頁尾 | 你的名字與 GitHub 連結 |
+| repo 的 Actions variable `CONTENT_REPO`（選用） | 內容 repo 不叫 `<fork 名稱>-content` 時才需要 |
+| repo 的 Actions variables `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（選用） | 從 <https://giscus.app> 取得；沒設定就不顯示留言 |
+| `backend/.env` 的 `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` |
 
-網站名稱、簡介與關於頁在 CMS 的「網站與關於」頁編輯，不需要改程式。
+這是作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。要把 CMS 放到雲端或把網站放在其他靜態主機，可以自行決定，文件不涵蓋。
+
+網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。
 
 #### 4. 開發與測試
 
@@ -143,10 +144,10 @@ Your computer                              GitHub
 | `backend/` | The local CMS API. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
 | `cms/` | The CMS UI, served by the backend at `/admin/`. | Vite, React, TypeScript |
 | `frontend/` | The public site, generated as static pages from a content Snapshot. | Next.js (`output: "export"`), TypeScript, marked, shiki |
-| `docs/` | System spec (Baseline and Addendum 01–04), local setup guide, setup checklist. Written in Traditional Chinese. | |
+| `docs/` | Fork and deploy guide, local setup guide; `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
 | `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site. | GitHub Actions |
 
-The site's content does not live in this repo. It lives in the private repo `Hack-Ray/personal-blog-content`. Publishing works like this:
+The site's content does not live in this repo. It lives in a separate private content repo (this site's is `Hack-Ray/personal-blog-content`). Publishing works like this:
 
 1. Press "發布" (Publish) in the CMS. This creates a new Published Version in the database and does not change the site.
 2. Press "更新網站" (Update site) on the "網站發布" (Releases) page. The backend exports every published article, the site name and description, and the About page as a Snapshot (`manifest.json`, `profile.json`, `articles/`, `images/`), commits and pushes it to the content repo, and starts the `Deploy site` workflow.
@@ -186,7 +187,7 @@ Without `BASE_PATH`, the site is built under `/personal-blog/`, the path GitHub 
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16, reachable only on 127.0.0.1:5432
-cp .env.example .env                                 # fill in CONTENT_REPO_DIR and GITHUB_TOKEN later
+cp .env.example .env                                 # fill in CONTENT_REPO_DIR, DEPLOY_REPO and GITHUB_TOKEN later
 uv sync
 uv run --env-file .env alembic upgrade head          # create the tables
 uv run --env-file .env python -m blog.auth           # set the admin password (12+ characters)
@@ -196,23 +197,24 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 Open <http://127.0.0.1:8000/admin/> and sign in. Keep `--host 127.0.0.1`; do not change it to `0.0.0.0`.
 
-"更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`) and a GitHub token (`GITHUB_TOKEN`). [`docs/setup-todo.md`](docs/setup-todo.md) explains how to set both up.
+"更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`), your fork (`DEPLOY_REPO`) and a GitHub token (`GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
 
 #### 3. Make it your own blog
 
-After forking, replace these:
+A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](docs/fork-and-deploy.md), in Traditional Chinese, walks from the fork to the first published article):
 
-| Where | What to change |
+| Where | What to set |
 | --- | --- |
-| `CONTENT_REPO` in `.github/workflows/deploy.yml` | Your content repo |
+| Your GitHub account | Create a private content repo, by default named `<fork name>-content`, e.g. `you/personal-blog-content` |
+| Repo Settings → Pages | Set Source to GitHub Actions. Pages decides the site URL and basePath, custom domains included |
 | Actions secret `CONTENT_REPO_TOKEN` | A token that can read your content repo |
-| Repo Settings → Pages | Set Source to GitHub Actions |
-| Add `DEPLOY_REPO` to `backend/.env` | Your code repo (defaults to `Hack-Ray/personal-blog`) |
-| `frontend/next.config.ts`, or the `BASE_PATH` and `SITE_ORIGIN` environment variables | Your Pages URL; with a custom domain set `BASE_PATH` to an empty string |
-| `frontend/src/app/posts/[docId]/comments.tsx` | The repo and category IDs from <https://giscus.app> |
-| The footer in `frontend/src/app/layout.tsx` | Your name and GitHub link |
+| Actions variable `CONTENT_REPO` (optional) | Only when the content repo is not named `<fork name>-content` |
+| Actions variables `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` (optional) | From <https://giscus.app>; without them the site has no comments |
+| `DEPLOY_REPO` in `backend/.env` | Your fork, e.g. `you/personal-blog` |
 
-The site name, description and About page are edited in the CMS on the "網站與關於" (Site and About) page, with no code change.
+This is the author's own setup: the CMS runs locally and the site deploys to GitHub Pages. Running the CMS in the cloud or serving the site from another static host is up to you; the docs don't cover it.
+
+The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release.
 
 #### 4. Develop and test
 

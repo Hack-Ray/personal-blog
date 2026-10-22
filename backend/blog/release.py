@@ -116,11 +116,12 @@ class GitHubActions:
 
 def deployer_from_env() -> Deployer | None:
     token = os.environ.get("GITHUB_TOKEN")
-    if not token:
+    repo = os.environ.get("DEPLOY_REPO")
+    if not token or not repo:
         return None
     return GitHubActions(
         token=token,
-        repo=os.environ.get("DEPLOY_REPO", "Hack-Ray/personal-blog"),
+        repo=repo,
         workflow=os.environ.get("DEPLOY_WORKFLOW", "deploy.yml"),
         ref=os.environ.get("DEPLOY_REF", "main"),
         api_url=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
@@ -149,7 +150,7 @@ def _advance(session: Session, release: Release, repo: Path, deployer: Deployer 
         session.commit()
     if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED):
         if deployer is None:
-            _set(release, R.DISPATCH_FAILED, "GITHUB_TOKEN is not set; start the deploy workflow on GitHub instead")
+            _set(release, R.DISPATCH_FAILED, "GITHUB_TOKEN or DEPLOY_REPO is not set; start the deploy workflow on GitHub instead")
         else:
             try:
                 deployer.dispatch(release.content_commit)
