@@ -106,7 +106,9 @@ def test_export_writes_metadata_and_the_update_time_of_a_republished_article(cli
     client.put(f"/api/articles/{doc_id}/pinned", json={"pinned": True})
     export(repo)
     article = json.loads((repo / f"articles/{doc_id}.json").read_text())
-    z = lambda iso: iso.replace("+00:00", "Z")
+    def z(iso):
+        return iso.replace("+00:00", "Z")
+
     assert article["published_at"] == z(first["published_at"])
     assert article["updated_at"] == z(second["published_at"])
     assert (article["excerpt"], article["cover"], article["series"]) == ("Short", f"images/{image_id}", SERIES)

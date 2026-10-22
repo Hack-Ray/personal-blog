@@ -13,8 +13,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One run at a time. A newer queued run replaces older queued ones, and a
 # running build is allowed to finish (Baseline 9.2).
@@ -40,6 +38,10 @@ jobs:
   # runs the unit tests and typecheck, so this job only builds.
   build:
     runs-on: ubuntu-latest
+    # configure-pages reads the site's URL.
+    permissions:
+      contents: read
+      pages: read
     outputs:
       content_sha: ${{ steps.content.outputs.sha }}
     steps:
@@ -61,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -94,6 +96,10 @@ jobs:
 
   deploy:
     needs: [ci, build]
+    # Only this job publishes, so only it may write to Pages.
+    permissions:
+      pages: write
+      id-token: write
     # A skipped ci would otherwise skip deploy too.
     if: ${{ !cancelled() && needs.build.result == 'success' && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
     runs-on: ubuntu-latest

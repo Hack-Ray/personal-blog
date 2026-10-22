@@ -146,9 +146,10 @@ scripts/start.sh
 `start.sh` 依序：
 
 1. `docker compose up -d --wait` 啟動資料庫並等到可連線。
-2. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。
+2. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。如果這時還有新的 migration 沒執行，就停止啟動，因為沒有備份就無法復原 migration 出的問題。
 3. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
-4. 啟動 CMS：http://127.0.0.1:8000/admin/
+4. `python -m blog.maintenance`：執行到期的清理（見下方）。
+5. 啟動 CMS：http://127.0.0.1:8000/admin/
 
 關閉：按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
 
@@ -160,7 +161,7 @@ uv sync
 scripts/start.sh
 ```
 
-CMS 每次啟動時會自動執行到期的清理：待刪除滿 30 天的文章、已上線後不再需要的舊版本、7 天沒有引用的圖片。
+`start.sh` 每次啟動時會執行到期的清理：待刪除滿 30 天的文章、已上線後不再需要的舊版本、7 天沒有引用的圖片。直接用 `uvicorn` 啟動時不會執行，可以手動跑 `uv run --env-file .env python -m blog.maintenance`。同一時間只會有一個清理在執行，另一個會直接跳過。
 
 ## 10. 備份
 
@@ -173,7 +174,7 @@ cd personal-blog/backend
 scripts/backup.sh
 ```
 
-每次備份會在 `backend/backups/` 產生兩個檔案：
+每次備份會在 `backend/backups/` 產生兩個檔案。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
 
 - `blog-<UTC 時間>.dump`：整個資料庫（PostgreSQL custom format）
 - `blog-<UTC 時間>.dump.sha256`：檢查碼，還原時用來確認檔案沒有損壞
@@ -197,10 +198,10 @@ scripts/backup.sh
 - （選用）如果 CMS 很久才開一次，也可以用 cron 另外排程每天備份（`crontab -e` 加入一行，路徑改成你的）：
 
   ```cron
-  0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
+  0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
   ```
 
-  cron 的 PATH 很短，所以要把 `docker` 所在的目錄加進去（`which docker` 可查）。
+  cron 的 PATH 很短，所以要把 `docker` 和 `uv` 所在的目錄加進去（`which docker uv` 可查）。
 
 ## 11. 還原
 
@@ -211,12 +212,14 @@ cd personal-blog/backend
 scripts/restore.sh backups/blog-20261020T120000Z.dump
 ```
 
+備份在 S3 時，直接給 `s3://` 位址，腳本會先下載。
+
 腳本會：
 
 1. 用 `.sha256` 檢查備份檔沒有損壞（不符就停止）。
 2. 要求你輸入 `restore` 確認。
 3. 清空資料庫並還原備份。
-4. 執行 `alembic upgrade head`，所以舊程式版本的備份也能還原到新版程式。
+4. 執行 `alembic upgrade head`（連到 `.env` 的 `DATABASE_URL`），所以舊程式版本的備份也能還原到新版程式。
 
 還原後重新啟動後端即可。管理員密碼與備份當時相同。
 
@@ -246,7 +249,7 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 
 ## 13. 之後搬到 AWS
 
-兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有 PostgreSQL 16 的用戶端工具（`pg_dump`、`pg_restore`、`psql`）。
+兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有和資料庫同一個大版本（目前是 16）的 PostgreSQL 用戶端工具（`pg_dump`、`pg_restore`、`psql`）。密碼會透過 `PGPASSWORD` 傳給這些工具，不會出現在它們的命令列。`--url` 的網址本身仍會出現在 `backup.sh`/`restore.sh` 的命令列；不想這樣時改用 `--env`，從環境變數或 `.env` 的 `DATABASE_URL` 讀取。
 
 ```sh
 # 從本機 Docker 備份
@@ -256,6 +259,18 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 ```
 
 在雲端執行 CMS 時，設 `CMS_ENV=cloud`，並填 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉。CMS 必須放在網域的根目錄（例如 `https://cms.<tailnet>.ts.net/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
+
+雲端的 CMS 會一直開著，所以清理與備份要排程執行，例如在主機上用 cron：
+
+```cron
+PATH=/home/<user>/.local/bin:/usr/local/bin:/usr/bin:/bin
+0 * * * * cd /srv/personal-blog/backend && uv run --env-file .env python -m blog.maintenance
+0 3 * * * cd /srv/personal-blog/backend && scripts/backup.sh --env
+```
+
+cron 的 PATH 很短，第一行要包含 `uv` 和 `aws` 所在的目錄（`which uv aws` 可查）。`backup.sh --env` 從 `.env` 讀 `DATABASE_URL` 和 `BACKUP_TARGET`，後者設成 `s3://...` 時就會備份到 S3。S3 bucket 請開啟版本控制與加密，並設定保存天數。
+
+repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔，用法寫在檔案開頭。容器裡的 `127.0.0.1` 是容器自己，所以 `DATABASE_URL` 要改成容器連得到的位址。同一時間只跑一個容器；換新版前，先用一次性的容器備份，再執行 migration，任何一步失敗就停止。目前還不能從容器裡「更新網站」，要等發布方式與 GitHub 憑證決定後再補。
 
 ## 14. 常見問題
 

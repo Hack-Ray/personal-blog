@@ -309,7 +309,7 @@ def purge(session: Session, doc_id: str) -> None:
 
 def purge_expired(session: Session, now: datetime) -> list[str]:
     """Permanently deletes articles pending deletion for 30 days or more.
-    Safe to run any number of times; run it on CMS start-up (PUB-005)."""
+    Safe to run any number of times; blog.maintenance runs it (PUB-005)."""
     expired = session.scalars(
         select(Article)
         .where(Article.state == S.PENDING_DELETION, Article.deleted_at <= now - PENDING_DELETION_RETENTION)

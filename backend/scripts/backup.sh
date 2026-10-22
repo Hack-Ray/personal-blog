@@ -3,33 +3,42 @@
 # images (stored in PostgreSQL), releases and the admin password hash.
 #
 #   scripts/backup.sh                  # from the Docker Compose database
+#   scripts/backup.sh --env            # from DATABASE_URL in the environment or .env
 #   scripts/backup.sh --url <URL>      # from any PostgreSQL, e.g. on AWS
-#   scripts/backup.sh --out <dir>      # where to write (default: backups/)
+#   scripts/backup.sh --out <target>   # a folder or s3://bucket/prefix
 #
 # Writes blog-<timestamp>.dump (pg_dump custom format) and a .sha256 beside it.
+# The target defaults to BACKUP_TARGET (environment or .env), then backups/.
+# An s3:// target needs the aws CLI. --env keeps the password out of this
+# script's command line; --url puts it there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/lib.sh
 
-# macOS ships shasum; Linux ships sha256sum.
-sha256() { if command -v sha256sum > /dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
-
-url="" out="backups"
+url="" out="$(env_value BACKUP_TARGET)"
+out="${out:-backups}"
 while [ $# -gt 0 ]; do
   case "$1" in
+    --env) url="$(env_value DATABASE_URL)"; [ -n "$url" ] || { echo "DATABASE_URL is not set" >&2; exit 2; }; shift ;;
     --url) url="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
-mkdir -p "$out"
-file="$out/blog-$(date -u +%Y%m%dT%H%M%SZ).dump"
+case "$out" in
+  s3://*) dir="$(mktemp -d)" ;;
+  *) dir="$out"; mkdir -p "$dir" ;;
+esac
+name="blog-$(date -u +%Y%m%dT%H%M%SZ).dump"
+file="$dir/$name"
 partial="$file.partial"
-trap 'rm -f "$partial"' EXIT
+trap 'rm -f "$partial"; [ "$dir" = "$out" ] || rm -rf "$dir"' EXIT
 
 if [ -n "$url" ]; then
-  pg_dump --format=custom --no-owner --dbname="${url/+psycopg/}" --file="$partial"
+  use_url "$url"
+  pg_dump --format=custom --no-owner --dbname="$libpq" --file="$partial"
 else
   docker compose exec -T db pg_dump --format=custom --no-owner -U blog blog > "$partial"
 fi
@@ -42,5 +51,9 @@ else
 fi
 
 mv "$partial" "$file"
-(cd "$out" && sha256 "$(basename "$file")" > "$(basename "$file").sha256")
-echo "Backup written: $file ($(du -h "$file" | cut -f1))"
+(cd "$dir" && sha256 "$name" > "$name.sha256")
+if [ "$dir" != "$out" ]; then
+  aws s3 cp --quiet "$file.sha256" "${out%/}/$name.sha256"
+  aws s3 cp --quiet "$file" "${out%/}/$name"
+fi
+echo "Backup written: ${out%/}/$name ($(du -h "$file" | cut -f1))"

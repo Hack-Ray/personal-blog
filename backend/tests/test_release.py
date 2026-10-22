@@ -515,7 +515,7 @@ def test_a_commit_the_database_never_recorded_is_released(repos, monkeypatch):
 
     deployer = FakeDeployer()
     with SessionLocal() as s:
-        doc_id = publish(s)
+        publish(s)
         monkeypatch.setattr(exporter, "export", crash_after_commit)
         with pytest.raises(RuntimeError):
             release.create(s, clone, deployer)
