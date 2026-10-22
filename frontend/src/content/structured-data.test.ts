@@ -4,7 +4,7 @@ import type { DocId, PublishedArticle, Slug } from "./model.ts";
 import { blogPosting, jsonLd, webSite } from "./structured-data.ts";
 
 const taxon = (name: string) => ({ slug: name.toLowerCase() as Slug, name });
-const profile = { name: "Ray" };
+const profile = { name: "Ray", links: [] };
 
 const base: PublishedArticle = {
   state: "published",
@@ -31,6 +31,19 @@ test("a bare article gets the required fields and none of the optional ones", ()
   assert.ok(d.author.url.endsWith("/about/"));
   assert.ok(!("image" in d));
   assert.ok(!("keywords" in d));
+  assert.ok(!("sameAs" in d.author));
+});
+
+test("the author lists the profile's https links as sameAs, without mailto", () => {
+  const links = [
+    { label: "GitHub", url: "https://github.com/Hack-Ray" },
+    { label: "Email", url: "mailto:me@example.com" },
+    { label: "LinkedIn", url: "https://www.linkedin.com/in/example" },
+  ];
+  assert.deepEqual(blogPosting(base, { name: "Ray", links }).author.sameAs, [
+    "https://github.com/Hack-Ray",
+    "https://www.linkedin.com/in/example",
+  ]);
 });
 
 test("cover, tags and updatedAt show up when the article has them", () => {
