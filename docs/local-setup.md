@@ -150,7 +150,8 @@ scripts/start.sh
 3. **自動備份一次**到 `backend/backups/`（見第 10 節）。備份失敗時會顯示警告，但 CMS 仍會啟動；請先處理警告再開始編輯。如果這時還有新的 migration 沒執行，就停止啟動，因為沒有備份就無法復原 migration 出的問題。
 4. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
 5. `python -m blog.maintenance`：執行到期的清理（見下方）。
-6. 啟動 CMS：http://127.0.0.1:8000/admin/
+6. 原 repo 有比 `backend/pyproject.toml` 新的 release 時，顯示一行提醒。只提醒、不改程式碼；離線時略過，最多等 3 秒。設定與停用方式見 README 的「跟上原 repo 的更新」。
+7. 啟動 CMS：http://127.0.0.1:8000/admin/
 
 關閉：按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
 

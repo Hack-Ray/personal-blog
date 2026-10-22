@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the local CMS: stop one already running, then database, a backup,
-# migrations, due maintenance, then the server.
+# migrations, due maintenance, a check for a newer release, then the server.
 #
 #   scripts/start.sh
 #
@@ -33,6 +33,8 @@ uv run --env-file .env alembic upgrade head
 
 echo "==> Running due maintenance"
 uv run --env-file .env python -m blog.maintenance
+
+check_release
 
 echo "==> CMS on http://127.0.0.1:8000/admin/ (Ctrl+C to stop)"
 exec uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000

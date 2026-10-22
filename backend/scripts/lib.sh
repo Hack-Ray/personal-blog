@@ -54,3 +54,22 @@ stop_cms() {
   echo "error: the old CMS (pid $(echo $pids)) did not stop within 10 seconds" >&2
   return 1
 }
+
+# Prints a notice when the upstream repo has a release newer than this
+# checkout's version (pyproject.toml). Never fails: offline, rate-limited,
+# no release yet, or UPDATE_CHECK_REPO=off all print nothing. It only tells;
+# merging the update stays the user's choice.
+check_release() {
+  local repo api current latest
+  repo="$(env_value UPDATE_CHECK_REPO)"; repo="${repo:-Hack-Ray/personal-blog}"
+  [ "$repo" = off ] && return 0
+  command -v curl > /dev/null || return 0
+  api="$(env_value GITHUB_API_URL)"; api="${api:-https://api.github.com}"
+  current="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)"
+  latest="$(curl -fsS --max-time 3 "$api/repos/$repo/releases/latest" 2> /dev/null \
+    | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p')" || return 0
+  [ -n "$latest" ] && [ -n "$current" ] && [ "$latest" != "$current" ] || return 0
+  [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)" = "$latest" ] || return 0
+  echo "==> A new release is out: v$latest (this copy is $current). Notes: https://github.com/$repo/releases/latest"
+  echo "    To update, sync your fork and run 'git pull' (README, \"Keep your fork up to date\")."
+}

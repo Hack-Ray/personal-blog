@@ -127,4 +127,4 @@ CMS_GITHUB_TOKEN=<第 4 步的 token>
 ## 之後
 
 - 日常啟動、備份、還原與搬電腦：[`local-setup.md`](./local-setup.md) 第 9 到 12 節。
-- 跟上原 repo 的更新：在 fork 頁面按 Sync fork，再在本機 `git pull`，依 `local-setup.md` 第 9 節更新套件並重啟。
+- 跟上原 repo 的更新：在 fork 頁面按 Sync fork，再在本機 `git pull`，依 `local-setup.md` 第 9 節更新套件並重啟。完整步驟見 [README](../README.md) 的「跟上原 repo 的更新」。
