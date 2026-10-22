@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type SearchDoc, search } from "./search.ts";
+import { type SearchDoc, prepareIndex, search } from "./search.ts";
 
 const doc = (docId: string, overrides: Partial<SearchDoc> = {}): SearchDoc => ({
   docId,
@@ -12,7 +12,7 @@ const doc = (docId: string, overrides: Partial<SearchDoc> = {}): SearchDoc => ({
   ...overrides,
 });
 
-const ids = (index: SearchDoc[], q: string) => search(index, q).map((h) => h.doc.docId);
+const ids = (index: SearchDoc[], q: string) => search(prepareIndex(index), q).map((h) => h.doc.docId);
 
 test("matches Chinese text without word segmentation", () => {
   const index = [doc("a", { text: "我們用樂觀鎖處理併發" }), doc("b", { text: "無關內容" })];
@@ -39,5 +39,5 @@ test("equal scores list newer articles first", () => {
 });
 
 test("an empty query returns nothing", () => {
-  assert.deepEqual(search([doc("a", { text: "x" })], "   "), []);
+  assert.deepEqual(search(prepareIndex([doc("a", { text: "x" })]), "   "), []);
 });

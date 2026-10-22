@@ -1,0 +1,2646 @@
+{
+  "date": "2026-10-22",
+  "status": "measured",
+  "baselineCommit": "a59075d5a4a7d35332e29c00271b93cc8bb5542c",
+  "protocol": {
+    "trialsPerSidePerScenario": 5,
+    "order": "A,B,A,B for each scenario",
+    "freshContextPerScenarioTrial": true,
+    "viewport": "390x844",
+    "mobile": true,
+    "downloadBitsPerSecond": 1600000,
+    "uploadBitsPerSecond": 750000,
+    "roundTripLatencyMs": 150,
+    "cpuSlowdown": 4,
+    "gzipLevel": 6,
+    "basePath": "/personal-blog",
+    "inputMode": "fill",
+    "typeDelayMsPerCharacter": null,
+    "searchPattern": "\\/search(?:[-/]).*\\.json$",
+    "timer": "Before focus, one animation frame after focus inside the timer, fill commits the full phrase, exact final input assertion, then expected visible result",
+    "warmUpdateTimer": "Before focus and fill until expected result is visible after complete search payload download",
+    "completionMetric": "Full download uses all advertised ResourceTiming responseEnd values on both sides. Progressive UI completed status is a candidate-only diagnostic, never an equivalent baseline readiness measure.",
+    "cancellationPolicy": "Only canceled ERR_ABORTED Fetch requests with explicit Next RSC prefetch headers or paired same-route RSC prefetch evidence are diagnostics. Active search, scripts, styles, HTTP failures and console errors remain failures.",
+    "transferMetric": "CDP Network.loadingFinished.encodedDataLength includes encoded body and transport overhead. Body bytes at hit use CDP Network.dataReceived. Server logs record exact encoded body lengths.",
+    "limitations": [
+      "Fill commits a complete Chinese phrase. It does not reproduce keyboard IME composition or per-character input latency. Physical IME behavior is unverified.",
+      "Immediate synthetic sequential Chinese input lost its first character under CPU4x in diagnostic runs. Such runs are rejected, not repaired or accepted.",
+      "Synthetic Chinese prose reuses repository paragraphs and may compress better than independent posts.",
+      "Local in-process server uses HTTP/1.1 and gzip. CDN, HTTP/2, Brotli, DNS and TLS are not simulated.",
+      "No automatic speedup verdict. A separate untimed profile must identify the limiter before interpreting a measured difference.",
+      "Mobile viewport and CPU/network throttling are desktop Chromium emulation, not a physical phone."
+    ]
+  },
+  "environment": {
+    "node": "v22.22.0",
+    "platform": "linux",
+    "architecture": "x64",
+    "logicalCpus": 9,
+    "loadAverageStart": [
+      0.83,
+      1.28,
+      1.33
+    ],
+    "chromium": "141.0.7390.37",
+    "loadAverageEnd": [
+      1.64,
+      1.54,
+      1.43
+    ]
+  },
+  "corpus": {
+    "schemaVersion": 1,
+    "generator": "bench-search-generate.mjs",
+    "seed": 20261022,
+    "articleCount": 1000,
+    "topicCount": 20,
+    "tagCount": 60,
+    "years": [
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "images": 0,
+    "characters": {
+      "min": 1531,
+      "median": 4756,
+      "max": 8463,
+      "total": 4797750
+    },
+    "paragraphCount": 132,
+    "sourceCorpus": [
+      {
+        "path": "docs/backlog.md",
+        "sha256": "ddf4951e2b6bafad621f7c3983fd662a6960efea856df097c88effd15b040656",
+        "bytes": 32452
+      },
+      {
+        "path": "docs/cloud-access.md",
+        "sha256": "4986a657b7b1c51ab0ddc3a5416d6afc36514da798686cfa6cc7f641db15336f",
+        "bytes": 4771
+      },
+      {
+        "path": "docs/design/personal-blog-system-spec-addendum-01-domain-model.md",
+        "sha256": "35fd18bb0311234eb7a6b5c4f969abad974603f03c55ae54185ec8b351018102",
+        "bytes": 3775
+      },
+      {
+        "path": "docs/design/personal-blog-system-spec-addendum-02-publishing-pipeline.md",
+        "sha256": "7a5dd5a1683ce8991793aef9cda8f437c1cdd3fdf50b88527d4894e94de5ea1a",
+        "bytes": 10178
+      },
+      {
+        "path": "docs/design/personal-blog-system-spec-addendum-03-backend-foundation.md",
+        "sha256": "861fca31f40df829fde2b2de9889c366bfca2ec3092025f0c778bb07d5068c68",
+        "bytes": 26594
+      },
+      {
+        "path": "docs/design/personal-blog-system-spec-addendum-04-public-site.md",
+        "sha256": "0be64aa9e05ec17fabbe96662c4f5ef166b4901d89b224f73187c5fb63dcc8e4",
+        "bytes": 17031
+      },
+      {
+        "path": "docs/design/personal-blog-system-spec-baseline-v1.0.md",
+        "sha256": "d4695b6369c971cadd05f3cd844a3c1343974c29843ff6b622e8210b4235f4d6",
+        "bytes": 23200
+      },
+      {
+        "path": "docs/fork-and-deploy.md",
+        "sha256": "a0616b7f0702e4968aa233e7992164361782268379f29579890597503c38335a",
+        "bytes": 7946
+      },
+      {
+        "path": "docs/local-setup.md",
+        "sha256": "6866ed92c129317a554c84ff27d57040401a5c5ec4fee59db8d50d79ee67f068",
+        "bytes": 14771
+      },
+      {
+        "path": "docs/maintainer-notes.md",
+        "sha256": "050d5d870b7553f555a7e39d877aee8cb0f4d2ed3ee68f700d747296288b0bcf",
+        "bytes": 2576
+      }
+    ],
+    "snapshotSha256": "69b0d797a8cf3e2789699ee8822714f1eba5407faffad440bde7c8d7d79acb8e",
+    "probes": {
+      "title": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000"
+      },
+      "body": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669
+      }
+    }
+  },
+  "variants": {
+    "A": {
+      "payload": {
+        "files": 1,
+        "rawBytes": 8591974,
+        "gzipBytes": 2100925,
+        "entries": [
+          {
+            "path": "/personal-blog/search-index.json",
+            "rawBytes": 8591974,
+            "gzipBytes": 2100925,
+            "sha256": "d82c0ea0f5262893888e467ac2f434d045b7ddc323b0c741849c20255aadd36f"
+          }
+        ],
+        "inactiveExportedEntries": []
+      },
+      "measurements": {
+        "title": {
+          "focusToExpectedHitMs": {
+            "n": 5,
+            "median": 15126.899999999441,
+            "min": 14891.700000000186,
+            "max": 15514.399999999441
+          },
+          "searchEncodedTransferBytes": {
+            "n": 5,
+            "median": 2101197,
+            "min": 2101196,
+            "max": 2101197
+          },
+          "searchEncodedBodyBytesAtHit": {
+            "n": 5,
+            "median": 2100925,
+            "min": 2100925,
+            "max": 2100925
+          },
+          "searchFilesRequested": {
+            "n": 5,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "searchFilesCompletedAtHit": {
+            "n": 5,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "searchDownloadElapsedMs": {
+            "n": 5,
+            "median": 11082.786000000313,
+            "min": 11067.509999999776,
+            "max": 11089.334999999031
+          },
+          "fullCorpusDownloadMsFromFocus": {
+            "n": 5,
+            "median": 11124.5,
+            "min": 11109.699999999255,
+            "max": 11216.399999999441
+          },
+          "progressiveUiCompleteMsFromFocus": null,
+          "warmQueryUpdateMs": {
+            "n": 30,
+            "median": 250.85000000009313,
+            "min": 183.09999999962747,
+            "max": 333.1000000005588
+          },
+          "failedRuns": 0,
+          "errors": 0
+        },
+        "body": {
+          "focusToExpectedHitMs": {
+            "n": 5,
+            "median": 15084,
+            "min": 14776.299999999814,
+            "max": 16459.599999999627
+          },
+          "searchEncodedTransferBytes": {
+            "n": 5,
+            "median": 2101197,
+            "min": 2101197,
+            "max": 2101197
+          },
+          "searchEncodedBodyBytesAtHit": {
+            "n": 5,
+            "median": 2100925,
+            "min": 2100925,
+            "max": 2100925
+          },
+          "searchFilesRequested": {
+            "n": 5,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "searchFilesCompletedAtHit": {
+            "n": 5,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "searchDownloadElapsedMs": {
+            "n": 5,
+            "median": 11074.803000000305,
+            "min": 11054.971000000834,
+            "max": 11087.918999999762
+          },
+          "fullCorpusDownloadMsFromFocus": {
+            "n": 5,
+            "median": 11172.799999999814,
+            "min": 11114.700000000186,
+            "max": 11291.900000000373
+          },
+          "progressiveUiCompleteMsFromFocus": null,
+          "warmQueryUpdateMs": {
+            "n": 30,
+            "median": 223.25,
+            "min": 156.30000000074506,
+            "max": 520
+          },
+          "failedRuns": 0,
+          "errors": 0
+        }
+      }
+    },
+    "B": {
+      "payload": {
+        "files": 5,
+        "rawBytes": 9015863,
+        "gzipBytes": 2118083,
+        "entries": [
+          {
+            "path": "/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+            "rawBytes": 2097579,
+            "gzipBytes": 497603,
+            "sha256": "82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4"
+          },
+          {
+            "path": "/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+            "rawBytes": 2113730,
+            "gzipBytes": 506712,
+            "sha256": "1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e"
+          },
+          {
+            "path": "/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+            "rawBytes": 2144691,
+            "gzipBytes": 516771,
+            "sha256": "a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76"
+          },
+          {
+            "path": "/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+            "rawBytes": 2094132,
+            "gzipBytes": 498890,
+            "sha256": "fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1"
+          },
+          {
+            "path": "/personal-blog/search-metadata.json",
+            "rawBytes": 565731,
+            "gzipBytes": 98107,
+            "sha256": "4b521f7829177c59f679e5c2fe2fd5921bba1bf87f0455bd5701943e22ef752c"
+          }
+        ],
+        "inactiveExportedEntries": [
+          {
+            "path": "/personal-blog/search-index.json",
+            "rawBytes": 8591974,
+            "gzipBytes": 2100925,
+            "sha256": "d82c0ea0f5262893888e467ac2f434d045b7ddc323b0c741849c20255aadd36f"
+          }
+        ]
+      },
+      "measurements": {
+        "title": {
+          "focusToExpectedHitMs": {
+            "n": 5,
+            "median": 1163.7999999998137,
+            "min": 1129.2000000001863,
+            "max": 1225.2999999998137
+          },
+          "searchEncodedTransferBytes": {
+            "n": 5,
+            "median": 2119437,
+            "min": 2119435,
+            "max": 2119437
+          },
+          "searchEncodedBodyBytesAtHit": {
+            "n": 5,
+            "median": 98107,
+            "min": 98107,
+            "max": 98107
+          },
+          "searchFilesRequested": {
+            "n": 5,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "searchFilesCompletedAtHit": {
+            "n": 5,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "searchDownloadElapsedMs": {
+            "n": 5,
+            "median": 15408.617999999784,
+            "min": 15274.310999999754,
+            "max": 15619.292999999598
+          },
+          "fullCorpusDownloadMsFromFocus": {
+            "n": 5,
+            "median": 15461.700000000186,
+            "min": 15321.200000000186,
+            "max": 15669
+          },
+          "progressiveUiCompleteMsFromFocus": {
+            "n": 5,
+            "median": 16446.099999999627,
+            "min": 16289.200000000186,
+            "max": 16832.299999999814
+          },
+          "warmQueryUpdateMs": {
+            "n": 30,
+            "median": 91.00000000046566,
+            "min": 63.10000000055879,
+            "max": 189.20000000018626
+          },
+          "failedRuns": 0,
+          "errors": 0
+        },
+        "body": {
+          "focusToExpectedHitMs": {
+            "n": 5,
+            "median": 16710.39999999944,
+            "min": 16347.200000000186,
+            "max": 17961
+          },
+          "searchEncodedTransferBytes": {
+            "n": 5,
+            "median": 2119437,
+            "min": 2119437,
+            "max": 2119440
+          },
+          "searchEncodedBodyBytesAtHit": {
+            "n": 5,
+            "median": 2118083,
+            "min": 2118083,
+            "max": 2118083
+          },
+          "searchFilesRequested": {
+            "n": 5,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "searchFilesCompletedAtHit": {
+            "n": 5,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "searchDownloadElapsedMs": {
+            "n": 5,
+            "median": 15524.963999999687,
+            "min": 15083.271000000648,
+            "max": 16422.80999999959
+          },
+          "fullCorpusDownloadMsFromFocus": {
+            "n": 5,
+            "median": 15610.899999999441,
+            "min": 15125.599999999627,
+            "max": 16545.60000000056
+          },
+          "progressiveUiCompleteMsFromFocus": {
+            "n": 5,
+            "median": 16712.799999999814,
+            "min": 16351,
+            "max": 17970.900000000373
+          },
+          "warmQueryUpdateMs": {
+            "n": 30,
+            "median": 105.54999999934807,
+            "min": 64.69999999925494,
+            "max": 216.5
+          },
+          "failedRuns": 0,
+          "errors": 0
+        }
+      }
+    }
+  },
+  "runs": [
+    {
+      "variant": "A",
+      "iteration": 1,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 14891.700000000186,
+        "performanceTimeMs": 17673.599999999627
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2288.0999999996275,
+        "idlePerformanceMs": 2749,
+        "firstFramePerformanceMs": 2749.899999999441,
+        "readyPerformanceMs": 2752
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11124.5,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101196,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101196,
+          "downloadMs": 11082.785999999942
+        }
+      ],
+      "prefetchCancellationDiagnostics": 43,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 292.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 260.20000000018626
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 268
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 256.20000000018626
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 301.09999999962747
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 241
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 1,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 1129.2000000001863,
+        "performanceTimeMs": 4142.799999999814
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2510,
+        "idlePerformanceMs": 2970.0999999996275,
+        "firstFramePerformanceMs": 2971.2000000001863,
+        "readyPerformanceMs": 2977.4000000003725
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15431.600000000559,
+      "progressiveUiCompleteMsFromFocus": 16410.10000000056,
+      "searchEncodedTransferBytes": 2119435,
+      "searchEncodedBodyBytesAtHit": 98107,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98376,
+          "downloadMs": 740.7430000002933
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499160,
+          "downloadMs": 3616.5170000003855
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2737.2299999997267
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2685.3320000000167
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2653.0039999997825
+        }
+      ],
+      "prefetchCancellationDiagnostics": 46,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 140.29999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 92.6000000005588
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 72.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 101.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 98.20000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 77.20000000018626
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 2,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 15126.899999999441,
+        "performanceTimeMs": 17894.299999999814
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2232,
+        "idlePerformanceMs": 2697.4000000003725,
+        "firstFramePerformanceMs": 2699,
+        "readyPerformanceMs": 2717
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11109.699999999255,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101196,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101196,
+          "downloadMs": 11070.423000000119
+        }
+      ],
+      "prefetchCancellationDiagnostics": 34,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 280.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 251.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 185.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 241.40000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 207.20000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 197.8999999994412
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 2,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 1159.6000000005588,
+        "performanceTimeMs": 4016.2000000001863
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2590.7000000001863,
+        "idlePerformanceMs": 2804,
+        "firstFramePerformanceMs": 2804.899999999441,
+        "readyPerformanceMs": 2814
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15321.200000000186,
+      "progressiveUiCompleteMsFromFocus": 16289.200000000186,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 98107,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 701.3459999998304
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3624.2539999993824
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2737.1299999995244
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2686.123000000407
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2638.6570000004212
+        }
+      ],
+      "prefetchCancellationDiagnostics": 50,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 107.30000000074506
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 82
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 89.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 87.6000000005588
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 76.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 81.70000000018626
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 3,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 15332.900000000373,
+        "performanceTimeMs": 18008.799999999814
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2199.7000000001863,
+        "idlePerformanceMs": 2634.7999999998137,
+        "firstFramePerformanceMs": 2635.7999999998137,
+        "readyPerformanceMs": 2641.7999999998137
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11114.200000001118,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11067.509999999857
+        }
+      ],
+      "prefetchCancellationDiagnostics": 34,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 267.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 261.20000000018626
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 183.09999999962747
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 229.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 249.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 239.59999999962747
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 3,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 1225.2999999998137,
+        "performanceTimeMs": 4029.7999999998137
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2543.899999999441,
+        "idlePerformanceMs": 2755.699999999255,
+        "firstFramePerformanceMs": 2756.899999999441,
+        "readyPerformanceMs": 2775.2999999998137
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15605.799999999814,
+      "progressiveUiCompleteMsFromFocus": 16616.299999999814,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 98107,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 714.1780000001745
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3642.4230000002353
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2739.644999999655
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2692.1030000003157
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2650.9390000001076
+        }
+      ],
+      "prefetchCancellationDiagnostics": 47,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 177.09999999962747
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 88.09999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 118.8999999994412
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 112.8999999994412
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 120.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 108.70000000018626
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 4,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 14916.200000000186,
+        "performanceTimeMs": 17832.10000000056
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2493.9000000003725,
+        "idlePerformanceMs": 2874.300000000745,
+        "firstFramePerformanceMs": 2875.300000000745,
+        "readyPerformanceMs": 2880.100000000559
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11140.900000000373,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11089.334999999664
+        }
+      ],
+      "prefetchCancellationDiagnostics": 37,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 212.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 333.1000000005588
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 252.3999999994412
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 288.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 229.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 201.40000000037253
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 4,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 1163.7999999998137,
+        "performanceTimeMs": 3878.7999999998137
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2319.5,
+        "idlePerformanceMs": 2669.7000000001863,
+        "firstFramePerformanceMs": 2670.7999999998137,
+        "readyPerformanceMs": 2679.0999999996275
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15461.700000000186,
+      "progressiveUiCompleteMsFromFocus": 16446.099999999627,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 98107,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 715.8610000005865
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3560.3549999996176
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2785.4159999997137
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2715.530000000399
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2638.2439999997587
+        }
+      ],
+      "prefetchCancellationDiagnostics": 51,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 189.20000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 123.8999999994412
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 63.10000000055879
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 83.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 76.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 83.09999999962747
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 5,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 15514.399999999441,
+        "performanceTimeMs": 18719.39999999944
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2479.7999999998137,
+        "idlePerformanceMs": 3134.699999999255,
+        "firstFramePerformanceMs": 3136.2999999998137,
+        "readyPerformanceMs": 3150.699999999255
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11216.399999999441,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11083.788999999342
+        }
+      ],
+      "prefetchCancellationDiagnostics": 36,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 266.70000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 239.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 256.20000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 327.40000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 221.29999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 234
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 5,
+      "scenario": "title",
+      "expected": {
+        "query": "漸進搜尋標題驗證",
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "kind": "title"
+      },
+      "hit": {
+        "docId": "01BENCH00000000000000000Z8",
+        "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH00000000000000000Z8/",
+        "query": "漸進搜尋標題驗證",
+        "elapsedMs": 1193.7999999998137,
+        "performanceTimeMs": 4065.7999999998137
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2372.199999999255,
+        "idlePerformanceMs": 2800.7999999998137,
+        "firstFramePerformanceMs": 2815.399999999441,
+        "readyPerformanceMs": 2832.7999999998137
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15669,
+      "progressiveUiCompleteMsFromFocus": 16832.299999999814,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 98107,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 710.3919999999562
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3640.7239999998637
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2737.938000000213
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2706.3829999997324
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2643.1460000003426
+        }
+      ],
+      "prefetchCancellationDiagnostics": 53,
+      "warmUpdates": [
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 155.29999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 77.09999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 124.3999999994412
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 65.79999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 64.90000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 105.1000000005588
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 1,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 14776.299999999814,
+        "performanceTimeMs": 17803.299999999814
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2522.2999999998137,
+        "idlePerformanceMs": 2948.7000000001863,
+        "firstFramePerformanceMs": 2949.7000000001863,
+        "readyPerformanceMs": 2965.2999999998137
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11226.099999999627,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11087.918999999602
+        }
+      ],
+      "prefetchCancellationDiagnostics": 42,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 239.1000000005588
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 202.69999999925494
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 238.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 215.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 187.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 156.30000000074506
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 1,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16710.39999999944,
+        "performanceTimeMs": 19614
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2307.100000000559,
+        "idlePerformanceMs": 2847.800000000745,
+        "firstFramePerformanceMs": 2849.7000000001863,
+        "readyPerformanceMs": 2856.5
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15610.899999999441,
+      "progressiveUiCompleteMsFromFocus": 16712.799999999814,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 2118083,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 5,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 697.6539999996021
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3708.6269999999786
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2733.527000000322
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2723.732000000382
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2674.4849999995495
+        }
+      ],
+      "prefetchCancellationDiagnostics": 54,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 119.09999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 78.09999999962747
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 83.8999999994412
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 105.69999999925494
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 121.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 85
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 2,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16054.299999999814,
+        "performanceTimeMs": 18872.39999999944
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2308.0999999996275,
+        "idlePerformanceMs": 2752.5,
+        "firstFramePerformanceMs": 2762.7999999998137,
+        "readyPerformanceMs": 2776.399999999441
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11114.700000000186,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11074.718999999277
+        }
+      ],
+      "prefetchCancellationDiagnostics": 31,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 283.40000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 278.90000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 200.20000000018626
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 241.09999999962747
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 212.09999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 162.6000000005588
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 2,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16347.200000000186,
+        "performanceTimeMs": 19226.700000000186
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2357.7000000001863,
+        "idlePerformanceMs": 2832.7999999998137,
+        "firstFramePerformanceMs": 2833,
+        "readyPerformanceMs": 2840.399999999441
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15125.599999999627,
+      "progressiveUiCompleteMsFromFocus": 16351,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 2118083,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 5,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 682.8789999999572
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3581.756000000496
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2783.610000000408
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2681.2380000001212
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2647.9040000003806
+        }
+      ],
+      "prefetchCancellationDiagnostics": 55,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 152.09999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 87.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 93.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 93.29999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 81
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 72.3999999994412
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 3,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 15084,
+        "performanceTimeMs": 17889.700000000186
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2282.4000000003725,
+        "idlePerformanceMs": 2763.9000000003725,
+        "firstFramePerformanceMs": 2764.9000000003725,
+        "readyPerformanceMs": 2768.4000000003725
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11291.900000000373,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11074.80299999952
+        }
+      ],
+      "prefetchCancellationDiagnostics": 38,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 285
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 238.20000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 240.30000000074506
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 194.8999999994412
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 187.40000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 220.69999999925494
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 3,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16415.60000000056,
+        "performanceTimeMs": 19171.700000000186
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2332.5,
+        "idlePerformanceMs": 2690.0999999996275,
+        "firstFramePerformanceMs": 2692.2000000001863,
+        "readyPerformanceMs": 2701.4000000003725
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 15345,
+      "progressiveUiCompleteMsFromFocus": 16419.200000000186,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 2118083,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 5,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 730.9359999999288
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3690.486999999848
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2735.55800000031
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2680.9880000000703
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2638.4079999997994
+        }
+      ],
+      "prefetchCancellationDiagnostics": 58,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 129.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 96.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 89.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 116.70000000018626
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 102.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 105.3999999994412
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 4,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 14987.700000000186,
+        "performanceTimeMs": 18091.200000000186
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2571.100000000559,
+        "idlePerformanceMs": 3054.9000000003725,
+        "firstFramePerformanceMs": 3055.9000000003725,
+        "readyPerformanceMs": 3066.7000000001863
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11128,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11078.663999999662
+        }
+      ],
+      "prefetchCancellationDiagnostics": 41,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 219.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 331.80000000074506
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 230.79999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 277.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 203.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 224.5
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 4,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16979.5,
+        "performanceTimeMs": 19702.700000000186
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2274.2000000001863,
+        "idlePerformanceMs": 2674.2999999998137,
+        "firstFramePerformanceMs": 2676,
+        "readyPerformanceMs": 2686.5999999996275
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 16025.099999999627,
+      "progressiveUiCompleteMsFromFocus": 16982.700000000186,
+      "searchEncodedTransferBytes": 2119437,
+      "searchEncodedBodyBytesAtHit": 2118083,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 5,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 713.2709999996223
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3558.6530000000494
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517042,
+          "downloadMs": 2785.957000000053
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506983,
+          "downloadMs": 2695.8089999998265
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497874,
+          "downloadMs": 2658.252000000175
+        }
+      ],
+      "prefetchCancellationDiagnostics": 48,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 113.40000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 109.79999999981374
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 110
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 64.69999999925494
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 96.90000000037253
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 88
+        }
+      ]
+    },
+    {
+      "variant": "A",
+      "iteration": 5,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:34589/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 16459.599999999627,
+        "performanceTimeMs": 19399.199999999255
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2364.399999999441,
+        "idlePerformanceMs": 2832.2999999998137,
+        "firstFramePerformanceMs": 2839.7999999998137,
+        "readyPerformanceMs": 2842.5999999996275
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 11172.799999999814,
+      "progressiveUiCompleteMsFromFocus": null,
+      "searchEncodedTransferBytes": 2101197,
+      "searchEncodedBodyBytesAtHit": 2100925,
+      "serverSearchBytes": 2100925,
+      "searchFilesRequested": 1,
+      "searchFilesCompletedAtHit": 1,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:34589/personal-blog/search-index.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 2101197,
+          "downloadMs": 11054.971000000478
+        }
+      ],
+      "prefetchCancellationDiagnostics": 40,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 520
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 357.40000000037253
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 267.1000000005588
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 210.19999999925494
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 222
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 202.1000000005588
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "iteration": 5,
+      "scenario": "body",
+      "expected": {
+        "query": "封存年度內文探針",
+        "docId": "01BENCH0000000000000000001",
+        "year": 2023,
+        "title": "後端設計的設計紀錄 0001",
+        "offset": 669,
+        "kind": "body"
+      },
+      "hit": {
+        "docId": "01BENCH0000000000000000001",
+        "title": "後端設計的設計紀錄 0001",
+        "href": "http://127.0.0.1:44567/personal-blog/posts/01BENCH0000000000000000001/",
+        "query": "封存年度內文探針",
+        "elapsedMs": 17961,
+        "performanceTimeMs": 21174.699999999255
+      },
+      "pageReadiness": {
+        "method": "requestIdleCallback then two animation frames",
+        "startedPerformanceMs": 2430.399999999441,
+        "idlePerformanceMs": 3068.5999999996275,
+        "firstFramePerformanceMs": 3069.399999999441,
+        "readyPerformanceMs": 3083.899999999441
+      },
+      "searchRequestsBeforeFocus": 0,
+      "completePayload": true,
+      "fullCorpusDownloadMsFromFocus": 16545.60000000056,
+      "progressiveUiCompleteMsFromFocus": 17970.900000000373,
+      "searchEncodedTransferBytes": 2119440,
+      "searchEncodedBodyBytesAtHit": 2118083,
+      "serverSearchBytes": 2118083,
+      "searchFilesRequested": 5,
+      "searchFilesCompletedAtHit": 5,
+      "errors": [],
+      "searchRequests": [
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-metadata.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 98377,
+          "downloadMs": 709.6890000002531
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2026-fd969772e707d3b3841bb11e1cb8e77371e2809463c7651d96423193d1ee4ed1/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 499161,
+          "downloadMs": 3655.815999999504
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2025-a64f6ae58414a9812632b54ceb5c9f94842f1a27d767af4224f0a26413be4a76/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 517043,
+          "downloadMs": 2746.766999999636
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2024-1eed69b6529cf04fe95e36bf38b3d1228658c412db0cc17cab1eb467f950788e/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 506984,
+          "downloadMs": 2757.5870000000577
+        },
+        {
+          "url": "http://127.0.0.1:44567/personal-blog/search-data/2023-82fcf0a35fb7ad5c0653c4d8e0bfe3e195c33dba7f0873581e843f055d75abc4/chunk.json",
+          "status": 200,
+          "finished": true,
+          "encoding": "gzip",
+          "encodedTransferBytes": 497875,
+          "downloadMs": 2657.752000000073
+        }
+      ],
+      "prefetchCancellationDiagnostics": 50,
+      "warmUpdates": [
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 196.59999999962747
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 216.5
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 201.79999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 116
+        },
+        {
+          "query": "漸進搜尋標題驗證",
+          "docId": "01BENCH00000000000000000Z8",
+          "title": "漸進搜尋標題驗證：網站導覽的設計紀錄 1000",
+          "elapsedMs": 140.29999999981374
+        },
+        {
+          "query": "封存年度內文探針",
+          "docId": "01BENCH0000000000000000001",
+          "title": "後端設計的設計紀錄 0001",
+          "elapsedMs": 116
+        }
+      ]
+    }
+  ],
+  "scorer": {
+    "status": "measured",
+    "scope": "CPU scorer only. Prepared keys are built before timing. This does not measure end-to-end search loading or network time.",
+    "index": {
+      "sha256": "d82c0ea0f5262893888e467ac2f434d045b7ddc323b0c741849c20255aadd36f",
+      "docs": 1000
+    },
+    "corpusSha256": "69b0d797a8cf3e2789699ee8822714f1eba5407faffad440bde7c8d7d79acb8e",
+    "environment": {
+      "node": "v22.22.0",
+      "logicalCpus": 9,
+      "loadAverageStart": [
+        1.4,
+        1.49,
+        1.42
+      ],
+      "loadAverageEnd": [
+        1.31,
+        1.46,
+        1.41
+      ]
+    },
+    "sourceSha256": {
+      "A": "c59d3cd4fe9548d9bd638af5889f9c88d565fbae6adeea5c346afef8a6a55d8f",
+      "B": "61e589aa946db5a1fda2d5fc2c96dfd3e470085510e5ee83dcaeaed4a512179f"
+    },
+    "querySet": [
+      "漸進搜尋標題驗證",
+      "封存年度內文探針",
+      "快照",
+      "發布",
+      "資料 模型",
+      "api",
+      "測試",
+      "SEARCH",
+      "不存在的關鍵字",
+      "  靜態   網站  ",
+      "",
+      "   ",
+      "後端",
+      "自動化",
+      "快取",
+      "標籤"
+    ],
+    "trials": 5,
+    "queriesPerSample": 100,
+    "errors": 0,
+    "runs": [
+      {
+        "iteration": 1,
+        "side": "A",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 2764.2613599999995
+      },
+      {
+        "iteration": 1,
+        "side": "B",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 167.22731099999964
+      },
+      {
+        "iteration": 2,
+        "side": "A",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 2275.9019180000005
+      },
+      {
+        "iteration": 2,
+        "side": "B",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 169.86459900000045
+      },
+      {
+        "iteration": 3,
+        "side": "A",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 2221.8448630000003
+      },
+      {
+        "iteration": 3,
+        "side": "B",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 173.5783510000001
+      },
+      {
+        "iteration": 4,
+        "side": "A",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 2192.089410999999
+      },
+      {
+        "iteration": 4,
+        "side": "B",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 188.98463000000083
+      },
+      {
+        "iteration": 5,
+        "side": "A",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 2359.599656999999
+      },
+      {
+        "iteration": 5,
+        "side": "B",
+        "queries": 100,
+        "hits": 35636,
+        "checksum": 324331263,
+        "elapsedMs": 176.62972400000217
+      }
+    ],
+    "millisecondsPerQuery": {
+      "A": {
+        "n": 5,
+        "median": 22.759019180000006,
+        "min": 21.920894109999992,
+        "max": 27.642613599999994
+      },
+      "B": {
+        "n": 5,
+        "median": 1.7357835100000012,
+        "min": 1.6722731099999963,
+        "max": 1.8898463000000083
+      }
+    }
+  },
+  "sourceHashes": {
+    "frontend/src/content/search.ts": "61e589aa946db5a1fda2d5fc2c96dfd3e470085510e5ee83dcaeaed4a512179f",
+    "frontend/src/content/search-assets.ts": "72e8b7ab69c48276b6f07485a6dc55083ba4f1465dc9a56708205bfb5230bcdf",
+    "frontend/src/app/search/load-index.ts": "663b2ed3c48a8acf0d55c71042c11fc368e1665d2c5f998586cb09eb22de193f",
+    "frontend/scripts/bench-search-run.mjs": "03de447fa4eefef1b3bd6b00b561f93aa59096a58fe398faea05a93547d2303c",
+    "frontend/scripts/bench-search-generate.mjs": "64304222d816657969f9fc0057f6d74dd045f2ff2f127b72de7184933583e6c6"
+  },
+  "verification": {
+    "unitTestsPassed": 116,
+    "browserTestsPassed": 20,
+    "typecheck": "pass",
+    "staticSiteChecks": "pass with CI giscus test IDs",
+    "exportCases": [
+      "1000 prefixed",
+      "sample prefixed",
+      "empty prefixed",
+      "sample root"
+    ],
+    "toolingControlsPassed": 5
+  },
+  "profileEvidence": {
+    "kind": "separate untimed legacy CPU profile",
+    "queries": 2000,
+    "aggregateHits": 1371000,
+    "bodyLowercasePositionTicks": 41652,
+    "substringScoringPositionTicks": 3181,
+    "baselineSource": "frontend/src/content/search.ts:45 at baselineCommit"
+  },
+  "excludedRuns": "Earlier exploratory global-locator, prefetch-abort and query-reset failures were inconclusive. The final 20-run protocol started fresh after six readiness-validation smokes; it did not retry inputs or combine samples from earlier protocols."
+}

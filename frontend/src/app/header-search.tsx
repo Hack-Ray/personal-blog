@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { type SearchDoc, search } from "../content/search.ts";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { search } from "../content/search.ts";
 import { BASE_PATH } from "../site.ts";
-import { loadIndex } from "./search/load-index.ts";
+import { subscribeSearch, getSearchSnapshot, getServerSearchSnapshot, startSearch } from "./search/load-index.ts";
+import { SearchStatus } from "./search/search-status.tsx";
 import { onQueryChange, readQuery, writeQuery } from "./search/query.ts";
 
 const PREVIEW_LIMIT = 5;
@@ -14,7 +15,7 @@ export function HeaderSearch() {
   const pathname = usePathname();
   const onSearchPage = pathname === "/search/";
   const [query, setQuery] = useState("");
-  const [index, setIndex] = useState<SearchDoc[]>();
+  const snapshot = useSyncExternalStore(subscribeSearch, getSearchSnapshot, getServerSearchSnapshot);
   const [open, setOpen] = useState(false);
   const form = useRef<HTMLFormElement>(null);
 
@@ -38,9 +39,8 @@ export function HeaderSearch() {
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
 
-  const hits = useMemo(() => (index && query.trim() ? search(index, query) : []), [index, query]);
-  // The search page already lists results live, so the dropdown would repeat them.
-  const showPreview = open && !onSearchPage && index !== undefined && query.trim() !== "";
+  const hits = useMemo(() => search(snapshot.docs, query), [snapshot.docs, query]);
+  const showPreview = open && !onSearchPage && query.trim() !== "";
 
   return (
     <form
@@ -49,10 +49,7 @@ export function HeaderSearch() {
       method="get"
       action={`${BASE_PATH}/search/`}
       onSubmit={(e) => onSearchPage && e.preventDefault()}
-      onFocus={() => {
-        setOpen(true);
-        loadIndex().then(setIndex, () => {});
-      }}
+      onFocus={() => setOpen(true)}
       onBlur={(e) => {
         // relatedTarget is null on a tap; only a Tab out of the form closes here.
         if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
@@ -65,6 +62,7 @@ export function HeaderSearch() {
         aria-label="搜尋文章"
         placeholder="搜尋文章"
         autoComplete="off"
+        onFocus={() => { void startSearch(); }}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -74,9 +72,7 @@ export function HeaderSearch() {
       />
       {showPreview && (
         <div className="search-preview">
-          <p className="meta" role="status">
-            {hits.length} 篇符合
-          </p>
+          <SearchStatus snapshot={snapshot} count={hits.length} />
           {hits.length > 0 && (
             <ul>
               {hits.slice(0, PREVIEW_LIMIT).map(({ doc }) => (
