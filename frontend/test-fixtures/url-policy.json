@@ -1,0 +1,95 @@
+[
+  {
+    "name": "https, http, mailto, anchors and relative paths are links",
+    "markdown": "[a](https://x.dev) [b](http://x.dev) [c](mailto:me@x.dev) [d](#top) [e](/posts/X/) [f](../tags/go/) [g](notes.md)",
+    "blocked": []
+  },
+  {
+    "name": "snapshot and https images",
+    "markdown": "![a](images/abc.webp) ![b](https://x.dev/b.png)",
+    "blocked": []
+  },
+  {
+    "name": "javascript: link",
+    "markdown": "[x](javascript:alert(1))",
+    "blocked": [
+      "javascript:alert(1)"
+    ]
+  },
+  {
+    "name": "scheme in mixed case",
+    "markdown": "[x](JaVaScRiPt:alert(1))",
+    "blocked": [
+      "JaVaScRiPt:alert(1)"
+    ]
+  },
+  {
+    "name": "scheme split by a tab",
+    "markdown": "[x](<java\tscript:alert(1)>)",
+    "blocked": [
+      "java\tscript:alert(1)"
+    ]
+  },
+  {
+    "name": "scheme written with an entity",
+    "markdown": "[x](&#106;avascript:alert(1))",
+    "blocked": [
+      "&#106;avascript:alert(1)"
+    ]
+  },
+  {
+    "name": "data: and vbscript: links",
+    "markdown": "[a](data:text/html,x) [b](vbscript:x)",
+    "blocked": [
+      "data:text/html,x",
+      "vbscript:x"
+    ]
+  },
+  {
+    "name": "protocol-relative link",
+    "markdown": "[x](//evil.example/)",
+    "blocked": [
+      "//evil.example/"
+    ]
+  },
+  {
+    "name": "reference-style javascript: link",
+    "markdown": "[x][r]\n\n[r]: javascript:alert(1)",
+    "blocked": [
+      "javascript:alert(1)"
+    ]
+  },
+  {
+    "name": "http and data images",
+    "markdown": "![a](http://x.dev/a.png) ![b](data:image/png;base64,AAAA)",
+    "blocked": [
+      "http://x.dev/a.png",
+      "data:image/png;base64,AAAA"
+    ]
+  },
+  {
+    "name": "images outside images/",
+    "markdown": "![a](/uploads/a.png) ![b](javascript:alert(1))",
+    "blocked": [
+      "/uploads/a.png",
+      "javascript:alert(1)"
+    ]
+  },
+  {
+    "name": "URLs inside code are not links",
+    "markdown": "`[x](javascript:alert(1))`\n\n```\n![a](data:x)\n```",
+    "blocked": []
+  },
+  {
+    "name": "colon written with a named entity",
+    "markdown": "[x](javascript&colon;alert(1))",
+    "blocked": [
+      "javascript&colon;alert(1)"
+    ]
+  },
+  {
+    "name": "ampersand in a relative link",
+    "markdown": "[x](/search?a=1&amp;b=2)",
+    "blocked": []
+  }
+]
