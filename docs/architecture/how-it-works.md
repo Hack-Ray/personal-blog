@@ -236,7 +236,7 @@ stateDiagram-v2
 - `TERMINAL = {deployed, superseded, failed}`。`RETRYABLE = {exported, push_failed, pushed, dispatch_failed, failed}`。failed 對取代邏輯而言是終結，但仍可重試。
 - `POST /api/releases/{id}/retry` 只接受 RETRYABLE 而且是**最新**（id 最大）的 Release。從失敗的那一步繼續。重試不做 remote 檢查也不受冷卻限制。
 - 建立新 Release 時，較舊的 exported／push_failed／pushed／dispatch_failed 直接改 superseded。較舊的 dispatched／building 不動，留給 refresh 從 GitHub 判斷。
-- `deploy.yml` 的 `concurrency: pages`、`cancel-in-progress: false`：同時只跑一個 run，新的 pending run 取消舊的 pending run（CMS 看到 cancelled，記為 superseded）。
+- `deploy.yml` 的 build job 用 `pages-build`、deploy job 用 `pages-deploy` 兩個 concurrency group，`cancel-in-progress: false`：同時只跑一個 build 與一個 deploy，新的 pending job 取消舊的 pending job，整個 run 因此是 cancelled（CMS 記為 superseded）。concurrency 設在 job 而不是整個 run，所以跳過 build 的 push run 不會取消排隊中的內容發布。
 - deploy job 在部署前 `ls-remote` 內容 repo HEAD。HEAD 已經不是這次建置的 commit 就 skip `Deploy to GitHub Pages`（CMS 記為 superseded）。所以只有最新的內容會上線。
 - FAILED 重試會 dispatch 同一個 commit。保留的 `run_id` 當作「跳過 id 不大於它的 run」，避免又認到舊的失敗 run。
 
@@ -344,7 +344,7 @@ stateDiagram-v2
 | Workflow | 觸發 | 內容 |
 |---|---|---|
 | `ci.yml` | pull_request、`workflow_call`（push 到 main 時由 `deploy.yml` 呼叫） | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、Playwright、空 Snapshot build。**cms**：測試、build。**backend**：Postgres 16 service、`ruff check`、`ruff format --check`、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
-| `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**build**：checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
+| `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**site-changes**：只在 push 時執行，比對 `github.event.before` 與這次 commit，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才輸出 `changed=true`；找不到前一個 commit 時也視為有改。**build**：push 時只在 site-changes 不是 `false` 時執行，`workflow_dispatch` 一律執行；checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
 | `token-expiry.yml` | 每週一 01:00 UTC | 讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
 | `cms-image.yml` | 獨立 | 建 Docker image、跑 migration、測 backup／restore、探測 `/healthz` |
 
@@ -427,7 +427,7 @@ Dockerfile          CMS image（尚不能「更新網站」）
 
 1. **「發布」不會更新網站。** 作者與開發者都容易誤會。只有「更新網站」會匯出與部署，而且一次匯出全部已發布內容。
 2. **`deploy.yml` 的 `run-name` 與 step 名稱 `Deploy to GitHub Pages` 是 CMS 的介面。** 改名會讓 CMS 找不到 run（30 分鐘後 FAILED）或把每次部署都記成 superseded。`deploy.yml` 與 `release.py` 的註解互相指向。
-3. **程式碼 push 到 main 也會跑 `deploy.yml`**（標題為 `Deploy content HEAD`），共用 `pages` concurrency group。它可能取消一個排隊中的 CMS run，CMS 顯示 superseded，但內容其實隨那次 push 的 run（建置內容 HEAD）上線。
+3. **程式碼 push 到 main 也會跑 `deploy.yml`**（標題為 `Deploy content HEAD`）。有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 時才會 build，並和 CMS 的 run 共用 `pages-build`／`pages-deploy` concurrency group。它可能取消一個排隊中的 CMS run，CMS 顯示 superseded，但內容其實隨那次 push 的 run（建置內容 HEAD）上線。只改文件、後端或 CMS 的 push 只跑 ci，網站不會重新部署。
 4. **Snapshot 契約跨三個專案。** 匯出由 `exporter.render_snapshot` 寫，網站由 `parse.ts` 讀，後端測試用 `check-snapshot.ts` 當契約測試。改欄位要三邊一起改（見第 4 節）。
 5. **手寫鏡像要一起改**：
    - `cms/src/preview.ts` 對 `frontend/src/content/markdown.ts`（沒有測試確認兩者輸出相同）。
