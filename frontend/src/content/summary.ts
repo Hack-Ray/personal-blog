@@ -7,7 +7,9 @@ export function plainText(markdown: string): string {
     .replace(CODE_BLOCK, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<\/?[a-z][^>]*>/gi, " ")
+    // Autolinks keep their address; anything else shaped like a tag is dropped.
+    .replace(/<((?:[a-z][a-z0-9+.-]*:|[^\s<>@]+@)[^\s<>]*)>/gi, "$1")
+    .replace(/<\/?[a-z][a-z0-9-]*(?:\s[^>]*)?\/?>/gi, " ")
     .replace(/^#+\s+/gm, "")
     .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, "")
     .replace(/[*_`>~]/g, "")
