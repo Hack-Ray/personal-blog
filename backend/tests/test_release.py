@@ -10,6 +10,7 @@ from sqlalchemy import func, select, text
 
 from blog import articles, exporter, release
 from blog.db import SessionLocal, engine
+from blog.github import GitHubClient
 from blog.models import PublishedVersion, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
@@ -391,7 +392,7 @@ def github():
     FakeGitHub.requests, FakeGitHub.responses, FakeGitHub.headers, FakeGitHub.runs = [], {}, {}, []
     server = HTTPServer(("127.0.0.1", 0), FakeGitHub)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield release.GitHubActions("tok", "o/r", "deploy.yml", "main", api_url=f"http://127.0.0.1:{server.server_port}")
+    yield release.GitHubActions(GitHubClient("tok", f"http://127.0.0.1:{server.server_port}"), "o/r", "deploy.yml", "main")
     server.shutdown()
 
 
@@ -474,7 +475,7 @@ def incident(name, *components):
 
 
 def test_the_status_endpoint_lists_only_incidents_that_hold_up_a_deploy(client, configure, github):
-    configure(github_status_url=github.api_url)
+    configure(github_status_url=github.client.api_url)
     FakeGitHub.responses = {
         INCIDENTS: (
             200,
@@ -497,14 +498,14 @@ def test_the_status_endpoint_lists_only_incidents_that_hold_up_a_deploy(client, 
 
 
 def test_the_status_endpoint_is_empty_when_nothing_is_open(client, configure, github):
-    configure(github_status_url=github.api_url)
+    configure(github_status_url=github.client.api_url)
     FakeGitHub.responses = {INCIDENTS: (200, {"incidents": []})}
     assert client.get("/api/github-status").json() == {"incidents": []}
 
 
 @pytest.mark.parametrize("response", [(500, {"message": "boom"}), (200, {"unexpected": True}), (200, {"incidents": [{"name": "x"}]})])
 def test_the_status_endpoint_answers_502_when_githubstatus_fails(client, configure, github, response):
-    configure(github_status_url=github.api_url)
+    configure(github_status_url=github.client.api_url)
     FakeGitHub.responses = {INCIDENTS: response}
     assert client.get("/api/github-status").status_code == 502
 

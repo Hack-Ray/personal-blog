@@ -34,6 +34,8 @@ SIGNATURES: list[tuple[bytes, int, str, str]] = [
 ]
 
 MARKDOWN = MarkdownIt("commonmark")
+# An image id never needs percent-encoding, which took a quarter of each parse.
+MARKDOWN.normalizeLink = lambda url: url
 
 
 class UnsupportedImage(Exception):
@@ -157,7 +159,8 @@ def collect_garbage(session: Session, now: datetime) -> list[str]:
     sources = select(WorkingDraft.markdown).union_all(
         select(DraftSnapshot.markdown), select(PublishedVersion.markdown), select(Profile.content["intro"].astext)
     )
-    for (markdown,) in session.execute(sources):
+    # A draft usually matches its latest Published Version.
+    for markdown in set(session.scalars(sources)):
         referenced |= refs(markdown)
 
     session.execute(update(Image).where(Image.id.in_(referenced)).values(unreferenced_since=None))
