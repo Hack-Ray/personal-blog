@@ -17,12 +17,20 @@
 - [x] **CMS 上 AWS 後的存取控制：用 Tailscale。**（2026-10-22 作者決定）
   - 主機的 Security Group 不開任何進站 port。主機只主動連出到 Tailscale，CMS 只有登入作者的 Tailscale 帳號、經作者核准的裝置連得到。
   - CMS 原本的密碼登入保留，作為第二層。
-  - 因為外人碰不到登入頁，以下項目已調降：A3、A4 由必修降為中，A10、A11 由高降為中，A15 由中降為低。A1、A2 和 A5–A8 與網路暴露無關，仍是必修。實作見 A0。
+  - 因為外人碰不到登入頁，以下項目已調降：A3、A4 由必修降為中，A10、A11 由高降為中，A15 由中降為低。A1、A2 和 A5–A8 與網路暴露無關，仍是必修。實作見 A0；設定切換見 A23、A24。
   - 考慮過的其他做法：
     - IP 白名單：家用與行動網路的 IP 會變，而且 IP 不代表身分。
     - SSM port forwarding：每次都要先下指令，手機幾乎不能用。
     - Cloudflare Access 或 AWS Verified Access：CMS 會有公開網址。
     - 用 MAC 位址限制：做不到，MAC 位址不會跨路由器傳到 AWS。
+- [x] **本機與雲端用同一份程式碼，以 `.env` 切換。**（2026-10-22 作者決定）
+  - 不開長期獨立的雲端分支。分支一分開，每個修正都要做兩次，CI 與部署也都綁在 `main`。
+  - 原則一：能用同一種做法同時適用兩邊的，就不做成選項。例如發布改用 GitHub API（A5），定期維護做成同一個指令（A7）。
+  - 原則二：只有真的不同的地方才放進 `.env`，集中在一個設定模組讀取與檢查（A23）。fork 這個專案的人也能自己選本機或雲端。
+- [x] **雲端 CMS 以 tag 觸發部署。**（2026-10-22 作者決定）
+  - 合併到 `main` 只部署公開網站，不更新雲端 CMS。
+  - 推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式（A6）。
+  - 部署 workflow 透過 Tailscale 的 GitHub Action 連到主機，主機仍然不開進站 port。
 - [ ] **發布方式。** 二選一：
   - 在容器裡維護內容 repo 的 git clone。
   - 改用 GitHub Git Data API 直接建立 commit，不需要本機 clone，CMS 可以不保存狀態。建議用這個（見 A5）。
@@ -153,6 +161,34 @@
   - 主機的節點金鑰關閉到期，作者自己裝置的金鑰保留到期，並寫下裝置遺失時的撤銷步驟。
   - 文件：更新 `docs/local-setup.md` 或新增雲端部署文件，以及 Addendum 03 的部署決策。
 
+- [ ] **A23 設定模組與 `CMS_ENV`。**
+  - 現況：設定分散在各模組，用 `os.environ.get` 讀取，缺值時默默使用本機預設（`api.py:33`、`backend/blog/db.py`、`release.py:118-132`）。
+  - 處理：
+    - 新增一個設定模組，啟動時一次讀取並檢查全部設定。缺少必填值或格式不對時，直接啟動失敗。
+    - `CMS_ENV=local|cloud` 只決定下列各項的預設值，每一項都可以用環境變數個別覆寫：
+
+      | 設定 | `local` 預設 | `cloud` 預設 |
+      | --- | --- | --- |
+      | `ALLOWED_HOSTS` | `127.0.0.1,localhost` | 必填，例如 `cms.<tailnet>.ts.net` |
+      | `CMS_ORIGIN` | `http://127.0.0.1:8000` | 必填，例如 `https://cms.<tailnet>.ts.net` |
+      | `COOKIE_SECURE` | 關 | 開 |
+      | `DATABASE_URL` | Docker 的 Postgres | 必填 |
+      | `BACKUP_TARGET` | `backend/backups/` | 必填，例如 `s3://<bucket>/cms/` |
+      | `ENABLE_DOCS` | 開 | 關 |
+
+    - `.env.example` 分成本機與雲端兩段範例，`docs/local-setup.md` 說明各項設定。
+  - A1、A2、A9 都依賴這個模組，建議最先做。
+- [ ] **A24 同一時間只能有一個 CMS 在寫入。**
+  - 原因：本機 CMS 和雲端 CMS 各有自己的資料庫，卻都推送到同一個內容 repo。兩邊同時使用時，草稿和版本會分歧，而且後推送的一方會覆蓋或被拒絕。
+  - 處理：
+    - 寫下切換流程：
+      1. 在原本的 CMS 備份。
+      2. 把備份還原到新的 CMS。
+      3. 停用原本的 CMS。
+
+      切回來時反向進行。
+    - 加一道防呆：「更新網站」前比對內容 repo 的 HEAD，是不是這個資料庫最後一筆 release 的 commit。不是的話，拒絕發布並提示「另一個 CMS 可能在使用中」。
+    - 搭配 A5 的「parent 必須是目前的 HEAD」，兩個 CMS 同時推送時，後推送的一方會失敗，不會覆蓋。
 - [ ] **A1 Host 白名單寫死成 localhost。**
   - 證據：`backend/blog/api.py:55`，`allowed_hosts=["127.0.0.1", "localhost"]`。
   - 影響：所有經過網域或 Load Balancer 的請求都會收到 400，健康檢查也會失敗。
@@ -177,7 +213,7 @@
     - 兩次同時發布會互相刪掉對方寫到一半的檔案，或寫入相同的主鍵而回 500。
     - Load Balancer 的閒置逾時（ALB 預設 60 秒）比 push 還短時，作者看到逾時，可能再按一次（**推測**）。
   - 處理：
-    - 建議：改用 GitHub Git Data API 建立 commit，以「parent 必須是目前的 HEAD」為條件更新 ref。這樣 CMS 不需要本機 clone。
+    - 建議：改用 GitHub Git Data API 建立 commit，以「parent 必須是目前的 HEAD」為條件更新 ref。這樣 CMS 不需要本機 clone，本機與雲端用同一種做法，不需要設定切換。
     - 發布與重試用 Postgres advisory lock 序列化，鎖被佔用時回 409。
     - 改成背景工作，請求立刻回 202。
     - git 子程序加逾時。
@@ -191,6 +227,8 @@
     - 寫 multi-stage Dockerfile：先用 Node 建置 `cms/dist`，再 `uv sync --locked --no-dev`；包含 git，以非 root 執行。
     - 每次部署前，用一次性的工作先備份，再執行 `alembic upgrade head`。
     - 只跑一個 instance。
+    - 部署由 `cms-v*` tag 觸發，和公開網站的部署分開。workflow 用 Tailscale 的 GitHub Action 連到主機，依序備份、migration、更新程式；任何一步失敗就停止。
+    - 本機繼續用 `start.sh`，流程相同：先備份，再 migration，再啟動。
 - [ ] **A7 定期維護只在程式啟動時執行。**
   - 證據：`api.py:20-27` 的 lifespan 是 `purge_expired`、`cleanup_versions`、`collect_garbage` 唯一的定期呼叫點。
   - 影響：
@@ -198,14 +236,17 @@
     - 圖片 GC 也不會執行。
     - 多個 instance 同時啟動時，`collect_garbage` 會鎖住四張表，擋住所有存檔。
   - 處理：
-    - 把三個工作移到 `python -m blog.maintenance`，用 EventBridge 排程執行。
+    - 把三個工作移到 `python -m blog.maintenance`。本機由 `start.sh` 在啟動時呼叫一次，雲端用排程呼叫（單台主機用 systemd timer 或 cron，用 ECS 時用 EventBridge）。程式碼只有一份。
+    - 用 `pg_try_advisory_lock` 確保同一時間只有一個執行。
     - PUB-005「只在 CMS 啟動時執行」改為「本機在啟動時執行，雲端用排程執行」。
 - [ ] **A8 CMS 長時間執行時沒有備份。**
   - 證據：備份只在 `start.sh:17-20` 執行，而且放在本機資料夾。
   - 處理：
-    - RDS 開啟自動備份、point-in-time recovery 與刪除保護。
-    - 定期執行 `pg_dump`，存到有版本控制、加密的 S3。
-    - 定期練習還原。
+    - `backup.sh` 與 `restore.sh` 本機與雲端共用。只把「存到哪裡」改成讀取 `BACKUP_TARGET`（A23），可以是本機資料夾或 `s3://` 位址。兩邊用相同的 sha256 檢查碼與 `pg_restore --list` 驗證。
+    - 本機：照現在的做法，啟動時備份到資料夾（可以連到 Google Drive）。
+    - 雲端：每天排程備份到 S3。S3 開啟版本控制與加密，設定保存天數。
+    - 用 RDS 時，另外開啟自動備份、point-in-time recovery 與刪除保護。
+    - 定期實際演練還原，包括 A24 的切換流程。
 
 ### 高
 
