@@ -1,5 +1,7 @@
 # Personal Blog — Addendum 02：Publishing Pipeline（Snapshot-based Build）
 
+> **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
+
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)（截至 2026-10-11），[Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)
 > **日期**：2026-10-20
 > **來源**：Architecture Change Proposal B-01

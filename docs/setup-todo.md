@@ -6,7 +6,7 @@
 
 > **2026-10-20**：A、B 區已在作者的 Mac 上完成，並以測試文章走完「CMS 發布 → 更新網站 → GitHub Pages」全流程。實際做法與原文不同之處寫在各項的「實際做法」。
 
-依據：[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)。
+依據：[Addendum 02](./design/personal-blog-system-spec-addendum-02-publishing-pipeline.md)。
 
 ## A. 部署網站前必須完成
 

@@ -29,7 +29,7 @@ A personal blog and portfolio. Writing happens in a CMS that runs on your own co
 | `backend/` | 本機 CMS API。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
 | `cms/` | CMS 介面，由後端在 `/admin/` 提供。 | Vite、React、TypeScript |
 | `frontend/` | 公開網站，從內容 Snapshot 產生靜態頁面。 | Next.js（`output: "export"`）、TypeScript、marked、shiki |
-| `docs/` | Fork 與部署教學、本機安裝步驟、系統規格（Baseline 與 Addendum 01–04）。 | |
+| `docs/` | Fork 與部署教學、本機安裝步驟；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
 | `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站。 | GitHub Actions |
 
 網站內容不在這個 repo，而在另一個 private 內容 repo（本站是 `Hack-Ray/personal-blog-content`）。發布流程：
@@ -144,7 +144,7 @@ Your computer                              GitHub
 | `backend/` | The local CMS API. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
 | `cms/` | The CMS UI, served by the backend at `/admin/`. | Vite, React, TypeScript |
 | `frontend/` | The public site, generated as static pages from a content Snapshot. | Next.js (`output: "export"`), TypeScript, marked, shiki |
-| `docs/` | Fork and deploy guide, local setup guide, system spec (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
+| `docs/` | Fork and deploy guide, local setup guide; `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
 | `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site. | GitHub Actions |
 
 The site's content does not live in this repo. It lives in a separate private content repo (this site's is `Hack-Ray/personal-blog-content`). Publishing works like this:
