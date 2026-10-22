@@ -343,7 +343,7 @@ stateDiagram-v2
 
 | Workflow | 觸發 | 內容 |
 |---|---|---|
-| `ci.yml` | pull_request、push 到 main、`workflow_call` | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、Playwright、空 Snapshot build。**cms**：測試、build。**backend**：Postgres 16 service、ruff、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
+| `ci.yml` | pull_request、`workflow_call`（push 到 main 時由 `deploy.yml` 呼叫） | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、Playwright、空 Snapshot build。**cms**：測試、build。**backend**：Postgres 16 service、ruff、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
 | `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**build**：checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
 | `token-expiry.yml` | 每週一 01:00 UTC | 讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
 | `cms-image.yml` | 獨立 | 建 Docker image、跑 migration、測 backup／restore、探測 `/healthz` |
@@ -452,13 +452,12 @@ Dockerfile          CMS image（尚不能「更新網站」）
 17. **編輯器靜默行為**：Topic 不合法時完全不自動儲存；不合法的 tag／series 會被丟掉後才送出。
 18. **兩種 409**：`RevisionConflict`（有 `current_revision`，進入衝突橫幅）與 `InvalidTransition`（有 `state`，顯示一般錯誤且不重試）。
 19. **`first_published_at` 在第一次發布時固定。** migration 0007 回填的值可能比實際發布時間晚。
-20. **CI 在 main 上跑兩次。** `ci.yml` 自己對 push 到 main 觸發，`deploy.yml` 又在 push 時以 `workflow_call` 呼叫它。
-21. **網站的測試綁定範例資料。** `verify-site.sh` 與 e2e 寫死 sample 的 `doc_id`、`/personal-blog` 與 `https://example.com`。CI 用假的 `GISCUS_*` 建置。
-22. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
-23. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
-24. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
-25. **Docker image 還不能「更新網站」。** image 裡沒有內容 repo clone、git 身分與 push 認證。
-26. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
+20. **網站的測試綁定範例資料。** `verify-site.sh` 與 e2e 寫死 sample 的 `doc_id`、`/personal-blog` 與 `https://example.com`。CI 用假的 `GISCUS_*` 建置。
+21. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
+22. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
+23. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
+24. **Docker image 還不能「更新網站」。** image 裡沒有內容 repo clone、git 身分與 push 認證。
+25. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
 
 ## 6. 尚未確認
 

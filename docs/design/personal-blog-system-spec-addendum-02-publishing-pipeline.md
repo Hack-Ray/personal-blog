@@ -72,6 +72,7 @@
   - Exporter push 後，由 CMS 觸發程式碼 repo 的 workflow，並帶入內容 repo 的 commit SHA。程式碼 repo 的 push 亦觸發建置，使用內容 repo 的 HEAD。
   - Build 前先執行完整的 CI（`deploy.yml` 以 `workflow_call` 呼叫 `ci.yml`）。CI 失敗即不建置、不部署（2026-10-21 使用者指定）。
     - 2026-10-22 更新（#26，使用者選擇）：只有程式碼 push 到 `main` 時才執行 CI，CMS 觸發的內容發布（`workflow_dispatch`）略過 CI，因為內容發布不改程式碼，而該版程式碼在 push 時已通過 CI。`build` 不再等待 CI，與 CI 並行；`deploy` 等兩者都成功或 CI 被略過。內容本身仍由 build 時的 Snapshot 驗證與連結檢查把關。
+    - 2026-10-22 更新（G19）：`ci.yml` 拿掉自己的 `push` 觸發，只保留 `pull_request` 與 `workflow_call`。push 到 `main` 時只由 `deploy.yml` 呼叫一次 CI，不再另外跑一次獨立的 `CI` workflow。
   - Build 前驗證 Snapshot：`schema_version` 可識別、manifest 列出的每篇文章檔案存在、文章引用的每張圖片存在。驗證失敗即不部署，舊網站維持上線。
   - 部署以 workflow `concurrency` 序列化。
   - 部署前檢查：本次建置的內容 commit 若已不是內容 repo 的 HEAD，則略過部署（較新的建置會接手）。

@@ -105,7 +105,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 
 #### 4. 開發與測試
 
-CI（`.github/workflows/ci.yml`）在每次 push 與 pull request 執行以下三組測試：
+CI（`.github/workflows/ci.yml`）在每個 pull request 與每次 push 到 `main`（由 `deploy.yml` 呼叫）執行以下三組測試：
 
 ```sh
 # backend：需要 PostgreSQL 與 Node 22（契約測試會執行前端的 Snapshot parser）
@@ -220,7 +220,7 @@ The site name, description, About page and footer are edited in the CMS on the "
 
 #### 4. Develop and test
 
-CI (`.github/workflows/ci.yml`) runs these three suites on every push and pull request:
+CI (`.github/workflows/ci.yml`) runs these three suites on every pull request and on every push to `main` (called from `deploy.yml`):
 
 ```sh
 # backend: needs PostgreSQL and Node 22 (a contract test runs the frontend's Snapshot parser)

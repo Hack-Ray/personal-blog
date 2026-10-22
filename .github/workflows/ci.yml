@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  # Branches are checked through their pull request; main after each merge.
-  push:
-    branches: [main]
+  # Branches are checked through their pull request. Pushes to main run this
+  # through deploy.yml, so it has no push trigger of its own.
   pull_request:
   workflow_call:
 

@@ -33,7 +33,7 @@ env:
 jobs:
   # A content release (workflow_dispatch from the CMS) changes no code, and the
   # push that put this code on main already ran ci; the build job still checks
-  # the content. Pushes to main run ci here too.
+  # the content. This is the only place pushes to main run ci.
   ci:
     if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
