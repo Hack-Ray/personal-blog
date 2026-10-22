@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import text
 
-from blog import auth
+from blog import auth, config
 from blog.db import SessionLocal, engine
 from blog.models import AdminSession
 from tests.conftest import ADMIN_PASSWORD, BASE_URL
@@ -43,7 +43,7 @@ def test_session_cookie_is_httponly_and_strict(anon):
 
 def test_only_a_hash_of_the_session_token_is_stored(anon):
     anon.post("/api/session", json={"password": ADMIN_PASSWORD})
-    token = anon.cookies[auth.SESSION_COOKIE]
+    token = anon.cookies[config.settings.session_cookie]
     with SessionLocal() as s:
         stored = s.scalars(text("SELECT token_hash FROM admin_sessions")).all()
     assert token not in stored
@@ -53,7 +53,7 @@ def test_only_a_hash_of_the_session_token_is_stored(anon):
 def test_wrong_password_is_rejected(anon):
     r = anon.post("/api/session", json={"password": "not the password"})
     assert r.status_code == 401
-    assert auth.SESSION_COOKIE not in anon.cookies
+    assert config.settings.session_cookie not in anon.cookies
 
 
 def test_five_failures_lock_sign_in_even_for_the_right_password(anon):
@@ -135,3 +135,14 @@ def test_cms_responses_carry_security_headers(anon, path):
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
     assert headers["x-content-type-options"] == "nosniff"
     assert headers["referrer-policy"] == "same-origin"
+
+
+def test_sign_in_attempts_and_changes_are_logged(anon, caplog):
+    anon.post("/api/session", json={"password": "wrong password!!"})
+    anon.post("/api/session", json={"password": ADMIN_PASSWORD})
+    anon.get("/api/articles")
+    lines = [r.getMessage() for r in caplog.records if r.name == "blog.audit"]
+    assert lines == [
+        "method=POST path=/api/session status=401 client=testclient",
+        "method=POST path=/api/session status=204 client=testclient",
+    ]

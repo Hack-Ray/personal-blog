@@ -7,7 +7,8 @@ import blog.models  # noqa: F401  registers tables on Base.metadata
 from blog.db import Base, database_url
 
 if context.config.config_file_name is not None:
-    fileConfig(context.config.config_file_name)
+    # Keep the CMS loggers working when migrations run inside it (tests).
+    fileConfig(context.config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

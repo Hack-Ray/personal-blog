@@ -1,8 +1,9 @@
-import os
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from blog.config import settings
 
 
 class Base(DeclarativeBase):
@@ -10,10 +11,13 @@ class Base(DeclarativeBase):
 
 
 def database_url() -> str:
-    return os.environ.get("DATABASE_URL", "postgresql+psycopg://blog:blog@127.0.0.1:5432/blog")
+    return settings.database_url
 
 
-engine = create_engine(database_url())
+# A managed database (RDS) closes idle connections; check before use and
+# replace connections well before such limits. For TLS, add
+# ?sslmode=verify-full to DATABASE_URL.
+engine = create_engine(database_url(), pool_pre_ping=True, pool_recycle=1800)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 

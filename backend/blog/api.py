@@ -1,18 +1,18 @@
-import os
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, StringConstraints
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from blog import articles, auth, exporter, images, profile, release, retention, taxa
+from blog import articles, auth, config, exporter, images, profile, release, retention, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseStatus, WorkingDraft
 
@@ -27,10 +27,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="Personal Blog CMS", lifespan=lifespan)
+# Logs go to stdout for the host (or CloudWatch) to collect.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+audit = logging.getLogger("blog.audit")
+audit.setLevel(logging.INFO)
 
-# Set COOKIE_SECURE=1 once the CMS is served over HTTPS.
-COOKIE_SECURE = os.environ.get("COOKIE_SECURE") == "1"
+docs = {} if config.settings.enable_docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+app = FastAPI(title="Personal Blog CMS", lifespan=lifespan, **docs)
+
 PUBLIC_API = {"/api/session"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -40,11 +44,14 @@ async def require_admin(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/"):
         origin = request.headers.get("origin")
-        if request.method in UNSAFE_METHODS and origin and origin != f"{request.url.scheme}://{request.url.netloc}":
+        # Behind an HTTPS proxy the request itself may look like http://, so the
+        # configured origin wins when there is one.
+        expected = config.settings.cms_origin or f"{request.url.scheme}://{request.url.netloc}"
+        if request.method in UNSAFE_METHODS and origin and origin != expected:
             return JSONResponse({"detail": "cross-origin request refused"}, status_code=status.HTTP_403_FORBIDDEN)
         if path not in PUBLIC_API:
             with SessionLocal() as session:
-                if not auth.is_signed_in(session, request.cookies.get(auth.SESSION_COOKIE)):
+                if not auth.is_signed_in(session, request.cookies.get(config.settings.session_cookie)):
                     return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
     return await call_next(request)
 
@@ -67,23 +74,43 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": ADMIN_CSP,
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
+    # Only once the CMS is on HTTPS, which COOKIE_SECURE says.
+    **({"Strict-Transport-Security": "max-age=31536000"} if config.settings.cookie_secure else {}),
 }
 
 
-# Added after require_admin so its refusals get the headers too. /docs is left
-# alone: its page loads Swagger UI from a CDN.
+# Added after require_admin so its refusals get the headers and the audit
+# line too. /docs is left alone: its page loads Swagger UI from a CDN.
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/admin", "/api/")) or request.url.path == "/":
+    path = request.url.path
+    if path.startswith(("/admin", "/api/")) or path == "/":
         response.headers.update(SECURITY_HEADERS)
+    # Every change, sign-in attempts included, leaves one line; bodies are not logged.
+    if path.startswith("/api/") and request.method in UNSAFE_METHODS:
+        client = request.client.host if request.client else "-"
+        audit.info("method=%s path=%s status=%d client=%s", request.method, path, response.status_code, client)
     return response
 
 
 # Added last so it runs first. A web page that rebinds its own domain to
 # 127.0.0.1 reaches the CMS with that domain as Host; refusing it keeps such a
-# page from trying passwords or locking sign-in.
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+# page from trying passwords or locking sign-in. /healthz answers any host so
+# a load balancer or monitor can reach it by address.
+@app.middleware("http")
+async def trusted_host(request: Request, call_next):
+    host = request.headers.get("host", "").split(":")[0]
+    if request.url.path != "/healthz" and host not in config.settings.allowed_hosts:
+        return PlainTextResponse("Invalid host header", status_code=status.HTTP_400_BAD_REQUEST)
+    return await call_next(request)
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz() -> dict[str, str]:
+    with SessionLocal() as session:
+        session.execute(text("SELECT 1"))
+    return {"status": "ok"}
 
 SessionDep = Annotated[Session, Depends(get_session)]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)]
@@ -190,8 +217,8 @@ class SessionOut(BaseModel):
 
 
 @app.get("/api/session")
-def get_session_status(session: SessionDep, cms_session: Annotated[str | None, Cookie()] = None) -> SessionOut:
-    return SessionOut(signed_in=auth.is_signed_in(session, cms_session))
+def get_session_status(request: Request, session: SessionDep) -> SessionOut:
+    return SessionOut(signed_in=auth.is_signed_in(session, request.cookies.get(config.settings.session_cookie)))
 
 
 @app.post("/api/session", status_code=status.HTTP_204_NO_CONTENT)
@@ -202,20 +229,20 @@ def sign_in(body: SignInBody, response: Response, session: SessionDep) -> None:
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "wrong password")
     response.set_cookie(
-        auth.SESSION_COOKIE,
+        config.settings.session_cookie,
         token,
         max_age=int(auth.SESSION_TTL.total_seconds()),
         httponly=True,
         samesite="strict",
-        secure=COOKIE_SECURE,
+        secure=config.settings.cookie_secure,
         path="/",
     )
 
 
 @app.delete("/api/session", status_code=status.HTTP_204_NO_CONTENT)
-def sign_out(response: Response, session: SessionDep, cms_session: Annotated[str | None, Cookie()] = None) -> None:
-    auth.sign_out(session, cms_session)
-    response.delete_cookie(auth.SESSION_COOKIE, path="/")
+def sign_out(request: Request, response: Response, session: SessionDep) -> None:
+    auth.sign_out(session, request.cookies.get(config.settings.session_cookie))
+    response.delete_cookie(config.settings.session_cookie, path="/", secure=config.settings.cookie_secure, httponly=True, samesite="strict")
 
 
 @app.exception_handler(articles.ArticleNotFound)
@@ -370,7 +397,7 @@ class TokenOut(BaseModel):
 
 @app.get("/api/github-token")
 def github_token() -> TokenOut:
-    """The CMS's own GITHUB_TOKEN, so the releases page can warn before it expires."""
+    """The CMS's own CMS_GITHUB_TOKEN, so the releases page can warn before it expires."""
     deployer = release.deployer_from_env()
     if not isinstance(deployer, release.GitHubActions):
         return TokenOut(configured=False, expires_at=None)
@@ -493,10 +520,8 @@ def get_image(image_id: str, session: SessionDep) -> Response:
     return Response(data, media_type=image.content_type, headers={"cache-control": "private, max-age=31536000, immutable"})
 
 
-CMS_DIST = Path(os.environ.get("CMS_DIST", Path(__file__).resolve().parents[2] / "cms" / "dist"))
-
-if CMS_DIST.is_dir():
-    app.mount("/admin", StaticFiles(directory=CMS_DIST, html=True), name="cms")
+if config.settings.cms_dist.is_dir():
+    app.mount("/admin", StaticFiles(directory=config.settings.cms_dist, html=True), name="cms")
 
     @app.get("/", include_in_schema=False)
     def _root() -> RedirectResponse:

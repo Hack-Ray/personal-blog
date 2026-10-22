@@ -3,7 +3,6 @@ PUB-004): export a snapshot, push it to the content repo, start the deploy
 workflow, and follow that run until the site is live."""
 
 import json
-import os
 import subprocess
 import urllib.error
 import urllib.parse
@@ -17,7 +16,7 @@ from typing import Protocol
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from blog import exporter, retention
+from blog import config, exporter, retention
 from blog.models import Article, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
@@ -115,22 +114,14 @@ class GitHubActions:
 
 
 def deployer_from_env() -> Deployer | None:
-    token = os.environ.get("GITHUB_TOKEN")
-    repo = os.environ.get("DEPLOY_REPO")
-    if not token or not repo:
+    s = config.settings
+    if not s.github_token or not s.deploy_repo:
         return None
-    return GitHubActions(
-        token=token,
-        repo=repo,
-        workflow=os.environ.get("DEPLOY_WORKFLOW", "deploy.yml"),
-        ref=os.environ.get("DEPLOY_REF", "main"),
-        api_url=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
-    )
+    return GitHubActions(token=s.github_token, repo=s.deploy_repo, workflow=s.deploy_workflow, ref=s.deploy_ref, api_url=s.github_api_url)
 
 
 def content_repo_from_env() -> Path | None:
-    path = os.environ.get("CONTENT_REPO_DIR")
-    return Path(path) if path else None
+    return config.settings.content_repo_dir
 
 
 def _set(release: Release, status: ReleaseStatus, detail: str | None = None) -> None:
@@ -150,7 +141,7 @@ def _advance(session: Session, release: Release, repo: Path, deployer: Deployer 
         session.commit()
     if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED):
         if deployer is None:
-            _set(release, R.DISPATCH_FAILED, "GITHUB_TOKEN or DEPLOY_REPO is not set; start the deploy workflow on GitHub instead")
+            _set(release, R.DISPATCH_FAILED, "CMS_GITHUB_TOKEN or DEPLOY_REPO is not set; start the deploy workflow on GitHub instead")
         else:
             try:
                 deployer.dispatch(release.content_commit)

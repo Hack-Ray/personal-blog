@@ -9,7 +9,7 @@ Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding
 Step-by-step guide (Docker, first run, daily use, backup and restore): [`docs/local-setup.md`](../docs/local-setup.md).
 
 ```sh
-cp .env.example .env                 # then fill in CONTENT_REPO_DIR, DEPLOY_REPO and GITHUB_TOKEN
+cp .env.example .env                 # then fill in CONTENT_REPO_DIR, DEPLOY_REPO and CMS_GITHUB_TOKEN
 docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
 uv run --env-file .env alembic upgrade head
@@ -59,7 +59,7 @@ In the CMS, 網站發布 → 更新網站 (`POST /api/releases`) exports the pub
 |---|---|
 | `CONTENT_REPO_DIR` | local clone of your content repo with push access |
 | `DEPLOY_REPO` | your fork of this repo, e.g. `you/personal-blog`, whose `deploy.yml` a release starts |
-| `GITHUB_TOKEN` | fine-grained token with Actions read/write on `DEPLOY_REPO`; without it or `DEPLOY_REPO` releases stop at "無法啟動部署" |
+| `CMS_GITHUB_TOKEN` | fine-grained token with Actions read/write on `DEPLOY_REPO`; without it or `DEPLOY_REPO` releases stop at "無法啟動部署". `GITHUB_TOKEN` is still read when it is unset |
 | `DEPLOY_WORKFLOW`, `DEPLOY_REF`, `GITHUB_API_URL` | defaults `deploy.yml`, `main`, `https://api.github.com` |
 
 ## Version retention

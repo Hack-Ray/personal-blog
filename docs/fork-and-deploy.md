@@ -83,7 +83,7 @@ Fine-grained token：Repository access 只選你的 fork，Permissions 只給 **
 ```sh
 CONTENT_REPO_DIR=/Users/<你>/personal-blog-content   # 第 2 步的 clone
 DEPLOY_REPO=<你的帳號>/personal-blog
-GITHUB_TOKEN=<第 4 步的 token>
+CMS_GITHUB_TOKEN=<第 4 步的 token>
 ```
 
 預期結果：http://127.0.0.1:8000/admin/ 可以登入。`.env` 的設定在第 7 步「更新網站」時才會用到，有錯時會在那裡顯示。
@@ -105,7 +105,7 @@ GITHUB_TOKEN=<第 4 步的 token>
 |---|---|
 | 「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完重啟後端 |
 | 「push 失敗」 | 在內容 repo 目錄試 `git push --dry-run`，修好 git 認證後按「重試」 |
-| 「無法啟動部署」 | `.env` 沒設 `GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 沒有 fork 的 Actions read/write；修好後重啟後端並按「重試」 |
+| 「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 沒有 fork 的 Actions read/write；修好後重啟後端並按「重試」 |
 | 部署失敗 | 打開紀錄裡的 workflow 連結，對照第 3 步的表格 |
 
 ## 8. 確認網站

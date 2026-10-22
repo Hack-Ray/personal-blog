@@ -93,11 +93,12 @@ cp .env.example .env
 
 | 變數 | 填什麼 | 何時需要 |
 |---|---|---|
-| `DATABASE_URL` | 保持預設 | 一定要 |
+| `CMS_ENV` | 保持 `local` | 一定要（留空也是 `local`） |
 | `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節） | 使用「更新網站」時 |
 | `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` | 使用「更新網站」時 |
-| `GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token | 使用「更新網站」時 |
-| `COOKIE_SECURE` | 留空 | 只有以 HTTPS 提供 CMS 時設為 `1` |
+| `CMS_GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token（舊的 `.env` 叫 `GITHUB_TOKEN`，仍然有效） | 使用「更新網站」時 |
+
+其他設定在本機都有預設值，不用填：`DATABASE_URL`（Docker 的資料庫）、`ALLOWED_HOSTS`（`127.0.0.1,localhost`）、`COOKIE_SECURE`（關）、`ENABLE_DOCS`（開，`/docs` 可看 API 文件）。設定有錯或缺少時，CMS 不會啟動，並在終端機說明是哪一項。
 
 `.env` 已被 `.gitignore` 排除，**不要 commit 它**。
 
@@ -131,7 +132,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 ## 8. 讓「更新網站」可以用
 
-「更新網站」需要你自己的內容 repo、GitHub Pages 與兩個 token。步驟見 [`fork-and-deploy.md`](./fork-and-deploy.md) 第 2 到 5 步，完成後在 `backend/.env` 填好 `CONTENT_REPO_DIR`、`DEPLOY_REPO`、`GITHUB_TOKEN` 並重新啟動後端。
+「更新網站」需要你自己的內容 repo、GitHub Pages 與兩個 token。步驟見 [`fork-and-deploy.md`](./fork-and-deploy.md) 第 2 到 5 步，完成後在 `backend/.env` 填好 `CONTENT_REPO_DIR`、`DEPLOY_REPO`、`CMS_GITHUB_TOKEN` 並重新啟動後端。
 
 ## 9. 日常啟動與關閉
 
@@ -244,7 +245,7 @@ scripts/backup.sh
 scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<password>@<host>:5432/<db>'
 ```
 
-在雲端以 HTTPS 提供 CMS 時，記得設定 `COOKIE_SECURE=1`。
+在雲端執行 CMS 時，設 `CMS_ENV=cloud`，並填 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉。CMS 必須放在網域的根目錄（例如 `https://cms.<tailnet>.ts.net/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
 
 ## 14. 常見問題
 
@@ -255,7 +256,7 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 | `/admin/` 回 404 | 還沒執行第 7 節的 `npm run build` |
 | 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次會鎖 15 分鐘，重啟後端可解除 |
 | 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
-| 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
+| 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |
 
 ## 15. （選用）執行後端測試
