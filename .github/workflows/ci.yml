@@ -47,7 +47,7 @@ jobs:
         run: node scripts/check-links.ts
       # The browser download is cached; the system packages it needs are not.
       - id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
