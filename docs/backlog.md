@@ -165,7 +165,7 @@
 
 ### 必修
 
-- [x] **A0 用 Tailscale 隔離 CMS。**（#DOCS，見 `docs/cloud-access.md`）
+- [x] **A0 用 Tailscale 隔離 CMS。**（#51，見 `docs/cloud-access.md`）
   - 主機的 Security Group 進站規則全部移除，包括 SSH。管理主機改用 Tailscale SSH 或 SSM。
   - 用 `tailscale serve` 提供 HTTPS。它會向 Tailscale 取得 `*.ts.net` 憑證，再轉給只綁定 `127.0.0.1:8000` 的 uvicorn，所以 uvicorn 不用改成 `0.0.0.0`。
   - Tailscale ACL 只允許作者的裝置連到 CMS 主機，並開啟新裝置核准（device approval）。
@@ -291,7 +291,7 @@
   - 處理：
     - 失敗紀錄存進資料庫，依來源 IP 計算，改用退避而不是全站鎖定。
     - 計數在檢查密碼之前原子地遞增。
-- [x] **A4 只有一組密碼，沒有第二道驗證。**（#DOCS：以 Tailscale 為第一道驗證，暫不加 TOTP）（原為必修）
+- [x] **A4 只有一組密碼，沒有第二道驗證。**（#51：以 Tailscale 為第一道驗證，暫不加 TOTP）（原為必修）
   - 證據：`auth.py:88-100`。
   - 影響：密碼外洩後，攻擊者可以發布內容、永久刪除文章，並部署網站。
   - 處理：Tailscale 已是第一道驗證（裝置金鑰）。之後若要再加強，可以加 TOTP。
