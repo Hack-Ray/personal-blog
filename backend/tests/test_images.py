@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError
 
 from blog import images, maintenance
 from blog.db import SessionLocal, engine
-from blog.exporter import ExportError, export
+from blog.exporter import ExportError, export, render_snapshot, write_snapshot
 
 
 def encode(fmt, size=(8, 4), color="red", **save):
@@ -88,6 +88,45 @@ def test_animated_gif_stays_animated(client):
     image_id = upload(client, animated_gif((2000, 100))).json()["id"]
     im = opened(client, image_id)
     assert (im.is_animated, im.n_frames, im.size) == (True, 2, (1440, 72))
+
+
+def test_images_over_the_pixel_budget_are_refused(client, monkeypatch):
+    monkeypatch.setattr(images, "MAX_PIXELS", 2000 * 100 * 2 - 1)
+    assert upload(client, encode("PNG", size=(2000, 100))).status_code == 201
+    r = upload(client, animated_gif((2000, 100)))
+    assert (r.status_code, r.json()["detail"]) == (413, "images are limited to 0 million pixels, counting every frame")
+
+
+def test_animations_with_too_many_frames_are_refused(client, monkeypatch):
+    monkeypatch.setattr(images, "MAX_FRAMES", 1)
+    r = upload(client, animated_gif((4, 4)))
+    assert (r.status_code, r.json()["detail"]) == (413, "animations are limited to 1 frames")
+
+
+def test_animations_whose_frames_grow_the_canvas_are_refused(client):
+    out = io.BytesIO()
+    frames = [Pillow.new("RGB", (10, 10), c) for c in ("red", "blue")]
+    frames[0].save(out, "GIF", save_all=True, append_images=frames[1:], disposal=1)
+    gif = bytearray(out.getvalue())
+    # Place the second frame at (500, 500), past the 10x10 screen.
+    second = [i for i in range(len(gif) - 2) if gif[i : i + 3] == b"\x21\xf9\x04"][1] + 8
+    gif[second + 1 : second + 5] = (500).to_bytes(2, "little") * 2
+    r = upload(client, bytes(gif))
+    assert (r.status_code, r.json()["detail"]) == (415, "every frame of an animation must be the same size")
+
+
+def test_decompression_bombs_are_refused_as_too_large(client, monkeypatch):
+    monkeypatch.setattr(Pillow, "MAX_IMAGE_PIXELS", 100)
+    assert upload(client, encode("PNG", size=(20, 20))).status_code == 413
+
+
+def test_multi_picture_jpegs_keep_only_the_photo(client):
+    out = io.BytesIO()
+    Pillow.new("RGB", (40, 30), "red").save(out, "MPO", save_all=True, append_images=[Pillow.new("RGB", (8, 6), "blue")])
+    r = upload(client, out.getvalue())
+    assert r.status_code == 201
+    im = opened(client, r.json()["id"])
+    assert (getattr(im, "is_animated", False), im.size) == (False, (40, 30))
 
 
 def test_transparency_is_kept(client):
@@ -233,6 +272,24 @@ def test_export_includes_only_images_of_published_versions(client, tmp_path):
 
     assert sorted(p.name for p in (repo / "images").iterdir()) == [used["id"]]
     assert (repo / "images" / used["id"]).read_bytes() == client.get(f"/api/images/{used['id']}").content
+
+
+def test_export_reads_only_images_the_repo_lacks(client, tmp_path):
+    repo = _repo(tmp_path)
+    first, second = upload(client, PNG).json(), upload(client, JPEG).json()
+    doc_id = client.post("/api/articles", json=draft(first["markdown"])).json()["doc_id"]
+    client.post(f"/api/articles/{doc_id}/publish", json=draft(first["markdown"], base_revision=1))
+    export(repo)
+
+    both = f"{first['markdown']}\n\n{second['markdown']}"
+    client.post(f"/api/articles/{doc_id}/publish", json=draft(both, base_revision=2))
+    read = []
+    with SessionLocal() as s:
+        files, image_ids = render_snapshot(s)
+        assert write_snapshot(files, image_ids, repo, lambda i: read.append(i) or images.load(s, i)[1])
+
+    assert read == [second["id"]]
+    assert sorted(p.name for p in (repo / "images").iterdir()) == sorted([first["id"], second["id"]])
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the frontend snapshot parser")

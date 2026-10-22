@@ -1,14 +1,16 @@
 """Content Exporter (Addendum 02, PUB-003).
 
-Reads the public state in one REPEATABLE READ transaction, renders the whole
-snapshot in memory, and only then touches the content repo, so a failed read
-never leaves a half-written snapshot behind.
+Reads the public state in one REPEATABLE READ transaction and renders every
+file except images in memory before touching the content repo. Images are
+written one at a time from the same transaction; an export cut off part-way
+is discarded at the start of the next one.
 """
 
 import argparse
 import json
 import os
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -46,8 +48,9 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def render_snapshot(session: Session) -> dict[str, bytes]:
-    """Returns the snapshot as {relative path: file bytes}."""
+def render_snapshot(session: Session) -> tuple[dict[str, bytes], set[str]]:
+    """Returns the snapshot as {relative path: file bytes} for everything but
+    images, and the ids of the images it needs."""
     latest = session.scalars(
         select(PublishedVersion)
         .join(Article)
@@ -95,11 +98,9 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
     profile = ProfileContent.model_validate(session.get_one(Profile, 1).content)
     files["profile.json"] = _json(profile.public())
     image_ids |= images.refs(profile.intro)
-    data = {i: d for i, d in session.execute(select(ImageData.image_id, ImageData.data).where(ImageData.image_id.in_(image_ids)))}
-    if missing := image_ids - data.keys():
+    stored = set(session.scalars(select(ImageData.image_id).where(ImageData.image_id.in_(image_ids))))
+    if missing := image_ids - stored:
         raise ExportError(f"published content references missing images: {', '.join(sorted(missing))}")
-    for image_id, blob in data.items():
-        files[f"images/{image_id}"] = blob
     files["manifest.json"] = _json(
         {
             "schema_version": SCHEMA_VERSION,
@@ -109,16 +110,16 @@ def render_snapshot(session: Session) -> dict[str, bytes]:
             "archived_articles": [{"doc_id": d} for d in archived],
         }
     )
-    return files
+    return files, image_ids
 
 
-def _read_current(repo: Path) -> dict[str, bytes]:
-    current = {}
+def _current_paths(repo: Path) -> list[str]:
+    paths = []
     for top in SNAPSHOT_PATHS:
         path = repo / top
         for f in [path] if path.is_file() else sorted(p for p in path.rglob("*") if p.is_file()):
-            current[f.relative_to(repo).as_posix()] = f.read_bytes()
-    return current
+            paths.append(f.relative_to(repo).as_posix())
+    return paths
 
 
 def _without_release(manifest: bytes) -> dict:
@@ -128,25 +129,33 @@ def _without_release(manifest: bytes) -> dict:
     return data
 
 
-def _same_content(new: dict[str, bytes], current: dict[str, bytes]) -> bool:
-    if new.keys() != current.keys():
+def _same_content(files: dict[str, bytes], wanted: set[str], current: set[str], repo: Path) -> bool:
+    if wanted != current:
         return False
-    if any(new[k] != current[k] for k in new if k != "manifest.json"):
+    if any(files[k] != (repo / k).read_bytes() for k in files if k != "manifest.json"):
         return False
-    return _without_release(new["manifest.json"]) == _without_release(current["manifest.json"])
+    return _without_release(files["manifest.json"]) == _without_release((repo / "manifest.json").read_bytes())
 
 
-def write_snapshot(files: dict[str, bytes], repo: Path) -> bool:
-    """Makes the repo's snapshot paths match `files`. Returns False, writing
-    nothing, when only the release id and timestamp would change."""
-    current = _read_current(repo)
-    if _same_content(files, current):
+def write_snapshot(files: dict[str, bytes], image_ids: set[str], repo: Path, read_image: Callable[[str], bytes]) -> bool:
+    """Makes the repo's snapshot paths match `files` plus `image_ids`. Returns
+    False, writing nothing, when only the release id and timestamp would change.
+
+    An image's id is the hash of its bytes, so an image already in the repo is
+    never read or rewritten."""
+    images_wanted = {f"images/{i}" for i in image_ids}
+    wanted = files.keys() | images_wanted
+    current = set(_current_paths(repo))
+    if _same_content(files, wanted, current, repo):
         return False
-    for stale in current.keys() - files.keys():
+    for stale in current - wanted:
         (repo / stale).unlink()
     for rel, data in files.items():
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo / rel).write_bytes(data)
+    for rel in sorted(images_wanted - current):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_bytes(read_image(rel.removeprefix("images/")))
     return True
 
 
@@ -228,10 +237,14 @@ def export(repo: Path, push_commit: bool = False) -> ExportResult | None:
     """Exports the current public state into `repo` as one commit. Returns
     None when the published content did not change."""
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, Session(bind=conn) as session:
-        files = render_snapshot(session)
-    _discard_interrupted_export(repo)
-    if not write_snapshot(files, repo):
-        return None
+        files, image_ids = render_snapshot(session)
+        _discard_interrupted_export(repo)
+
+        def read_image(image_id: str) -> bytes:
+            return session.scalars(select(ImageData.data).where(ImageData.image_id == image_id)).one()
+
+        if not write_snapshot(files, image_ids, repo, read_image):
+            return None
     manifest = json.loads(files["manifest.json"])
     _stage(repo)
     _git(repo, "commit", "--quiet", "-m", f"Release {manifest['release_id']}")
