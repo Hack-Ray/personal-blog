@@ -136,7 +136,7 @@
   - 處理：
     - 兩個權限只授予 `deploy` job。
     - `ci.yml` 的 `push` 只限 `main`。
-    - 刪掉 `build` job 裡重複的步驟。
+    - 刪掉 `build` job 裡重複的步驟。（已完成：`build` 改為與 `ci` 並行，重複的 `npm test` 與 `typecheck` 已刪除。）
 - [ ] **G12（低）本機啟動與還原腳本。**
   - `backend/scripts/start.sh:18-23`：備份失敗時仍然執行 migration。應改成備份失敗且有待執行的 migration 時，停止啟動。
   - `backend/scripts/restore.sh:49-52`：沒有讀取 `.env`，資料庫埠改過時，migration 會連到錯誤的資料庫。

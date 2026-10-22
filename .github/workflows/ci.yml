@@ -43,7 +43,16 @@ jobs:
           sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
       - name: Check links in the built site
         run: node scripts/check-links.ts
-      - run: npx playwright install --with-deps chromium
+      # The browser download is cached; the system packages it needs are not.
+      - id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - name: Browser tests
         run: npx playwright test
       - name: Build a site with nothing published yet
@@ -99,6 +108,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
       - uses: astral-sh/setup-uv@v6

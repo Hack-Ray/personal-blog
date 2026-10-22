@@ -32,8 +32,9 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
+  # Runs alongside ci rather than after it; deploy waits for both. ci already
+  # runs the unit tests and typecheck, so this job only builds.
   build:
-    needs: ci
     runs-on: ubuntu-latest
     outputs:
       content_sha: ${{ steps.content.outputs.sha }}
@@ -63,12 +64,6 @@ jobs:
       - run: npm ci
         working-directory: frontend
 
-      - run: npm test
-        working-directory: frontend
-
-      - run: npm run typecheck
-        working-directory: frontend
-
       # Building also validates the snapshot: a missing article file, a version
       # mismatch or a missing image fails here and nothing is deployed.
       - run: npm run build
@@ -94,7 +89,7 @@ jobs:
           path: frontend/out
 
   deploy:
-    needs: build
+    needs: [ci, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
