@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
 
 from blog import auth, config, release  # noqa: E402
 from blog.api import app  # noqa: E402
-from blog.db import SessionLocal, engine  # noqa: E402
+from blog.db import engine  # noqa: E402
 
 ADMIN_PASSWORD = "correct horse battery staple"
 # Production cost makes every sign-in take about 0.1 s; hashes record their own
