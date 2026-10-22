@@ -44,7 +44,7 @@ fi
 
 target="$(sed -E 's#(://[^:/@]*):[^@]*@#\1:***@#' <<< "${url:-the Docker Compose database}")"
 if [ -z "$yes" ]; then
-  read -r -p "Replace ALL data in $target with $file? Type 'restore' to continue: " answer
+  read -r -p "Replace ALL data in $target with $source? Type 'restore' to continue: " answer
   [ "$answer" = "restore" ] || { echo "Cancelled."; exit 1; }
 fi
 

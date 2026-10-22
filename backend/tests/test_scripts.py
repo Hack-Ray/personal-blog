@@ -26,3 +26,9 @@ def test_env_value_reads_env_like_uv_and_lets_the_environment_win(tmp_path):
     assert bash("env_value BACKUP_TARGET", cwd=tmp_path, **env) == "s3://bucket/cms"
     assert bash("env_value BACKUP_TARGET", cwd=tmp_path, BACKUP_TARGET="elsewhere", **env) == "elsewhere"
     assert bash("env_value MISSING", cwd=tmp_path, **env) == ""
+
+
+def test_env_value_reads_plain_lines_without_uv(tmp_path):
+    (tmp_path / "scripts").symlink_to(BACKEND / "scripts")
+    (tmp_path / ".env").write_text('BACKUP_TARGET="s3://bucket/cms"\r\n')
+    assert bash("env_value BACKUP_TARGET", cwd=tmp_path, PATH="/usr/bin:/bin") == "s3://bucket/cms"

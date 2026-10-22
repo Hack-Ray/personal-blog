@@ -198,10 +198,10 @@ scripts/backup.sh
 - （選用）如果 CMS 很久才開一次，也可以用 cron 另外排程每天備份（`crontab -e` 加入一行，路徑改成你的）：
 
   ```cron
-  0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
+  0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
   ```
 
-  cron 的 PATH 很短，所以要把 `docker` 所在的目錄加進去（`which docker` 可查）。
+  cron 的 PATH 很短，所以要把 `docker` 和 `uv` 所在的目錄加進去（`which docker uv` 可查）。
 
 ## 11. 還原
 

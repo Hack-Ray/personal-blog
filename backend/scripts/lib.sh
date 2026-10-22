@@ -3,11 +3,16 @@
 # macOS ships shasum; Linux ships sha256sum.
 sha256() { if command -v sha256sum > /dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 
-# The value of KEY as the CMS sees it: the environment first, then .env,
-# parsed by uv exactly as `uv run --env-file .env` does.
+# The value of a setting as the CMS sees it: the environment first, then
+# .env, parsed by uv exactly as `uv run --env-file .env` does. Without uv
+# (e.g. a short cron PATH), a plain KEY=value line is read instead.
 env_value() {
-  if [ ! -f .env ]; then echo "${!1:-}"; return; fi
-  KEY="$1" uv run --no-sync --env-file .env python -c 'import os; print(os.environ.get(os.environ["KEY"], ""))'
+  if [ -n "${!1+set}" ] || [ ! -f .env ]; then echo "${!1:-}"; return; fi
+  if ! command -v uv > /dev/null; then
+    sed -n "s/^$1=//p" .env | tail -n 1 | tr -d '\r' | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+    return
+  fi
+  BLOG_ENV_KEY="$1" uv run --no-sync --env-file .env python -c 'import os; print(os.environ.get(os.environ["BLOG_ENV_KEY"], ""))'
 }
 
 # Splits a DATABASE_URL into $libpq (no password) and $PGPASSWORD, so the
