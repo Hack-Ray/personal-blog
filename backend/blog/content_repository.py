@@ -135,7 +135,7 @@ def main() -> None:
     repo = release.repo_from_env()
     if not isinstance(repo, GitHubRepository):
         parser.error("adoption requires CONTENT_TRANSPORT=api")
-    with release._exclusive(), SessionLocal() as session:
+    with release.exclusive(), SessionLocal() as session:
         if release.latest(session) is not None:
             parser.error("database already has release history; restore the correct database instead")
         result = repo.prepare(None, adopt=True)

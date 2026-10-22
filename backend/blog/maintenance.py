@@ -10,10 +10,8 @@ schedule (cron or a systemd timer). Every job is safe to repeat.
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
-
 from blog import articles, images, retention
-from blog.db import SessionLocal, engine
+from blog.db import SessionLocal, advisory_lock
 
 # Arbitrary key for pg_try_advisory_lock, distinct from release.LOCK_KEY.
 LOCK_KEY = 0x6D61_696E
@@ -24,17 +22,14 @@ log = logging.getLogger(__name__)
 def run(now: datetime | None = None) -> bool:
     """Returns False, doing nothing, when another run holds the lock."""
     now = now or datetime.now(UTC)
-    with engine.connect() as conn:
-        if not conn.scalar(select(func.pg_try_advisory_lock(LOCK_KEY))):
+    with advisory_lock(LOCK_KEY) as acquired:
+        if not acquired:
             log.info("maintenance is already running elsewhere; skipped")
             return False
-        try:
-            with SessionLocal() as session:
-                purged = articles.purge_expired(session, now)
-                versions = retention.cleanup_versions(session)
-                deleted = images.collect_garbage(session, now)
-        finally:
-            conn.scalar(select(func.pg_advisory_unlock(LOCK_KEY)))
+        with SessionLocal() as session:
+            purged = articles.purge_expired(session, now)
+            versions = retention.cleanup_versions(session)
+            deleted = images.collect_garbage(session, now)
     log.info("purged %d articles, %d versions, %d images", len(purged), len(versions), len(deleted))
     return True
 

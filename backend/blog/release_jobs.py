@@ -1,31 +1,18 @@
 import logging
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from ulid import ULID
 
 from blog import exporter, release
-from blog.db import SessionLocal, engine
+from blog.db import SessionLocal, advisory_lock
 from blog.models import Release, ReleaseJob
 
 log = logging.getLogger(__name__)
 LOCK_KEY = 0x6A6F_6273
 ACTIVE = ("queued", "running")
 FAILURES = (release.R.PUSH_FAILED, release.R.DISPATCH_FAILED, release.R.FAILED)
-
-
-@contextmanager
-def _exclusive() -> Iterator[bool]:
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        acquired = bool(conn.scalar(select(func.pg_try_advisory_lock(LOCK_KEY))))
-        try:
-            yield acquired
-        finally:
-            if acquired:
-                conn.scalar(select(func.pg_advisory_unlock(LOCK_KEY)))
 
 
 def recent(session: Session) -> list[ReleaseJob]:
@@ -36,7 +23,7 @@ def submit(session: Session, action: str, requested_release_id: str | None = Non
     if action not in ("create", "retry") or (action == "retry") != bool(requested_release_id):
         raise release.ReleaseError("retry requires a release id; create does not accept one")
     release.repo_from_env()
-    with _exclusive() as acquired:
+    with advisory_lock(LOCK_KEY) as acquired:
         if not acquired or session.scalar(select(ReleaseJob.id).where(ReleaseJob.status.in_(ACTIVE)).limit(1)):
             raise release.ReleaseBusy("a website update is already queued or running")
         if action == "retry":
@@ -77,7 +64,7 @@ def _execute(session: Session, job: ReleaseJob) -> None:
 
 
 def run_once() -> bool:
-    with _exclusive() as acquired:
+    with advisory_lock(LOCK_KEY) as acquired:
         if not acquired:
             return False
         with SessionLocal() as session:

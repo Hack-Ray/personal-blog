@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from blog import config, exporter, retention
 from blog.content_repository import GitHubRepository
-from blog.db import engine
+from blog.db import advisory_lock
 from blog.github import GitHubClient, GitHubError, client_from_settings
 from blog.models import Article, Release, ReleaseArticle, ReleaseStatus
 
@@ -198,15 +198,12 @@ def _redact(text: str) -> str:
 
 
 @contextmanager
-def _exclusive() -> Iterator[None]:
-    """Lets one release or retry run at a time, across requests and processes."""
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        if not conn.scalar(select(func.pg_try_advisory_lock(LOCK_KEY))):
+def exclusive() -> Iterator[None]:
+    """Lets one release or retry run at a time."""
+    with advisory_lock(LOCK_KEY) as acquired:
+        if not acquired:
             raise ReleaseBusy("another release is in progress; try again when it finishes")
-        try:
-            yield
-        finally:
-            conn.scalar(select(func.pg_advisory_unlock(LOCK_KEY)))
+        yield
 
 
 def _advance(session: Session, release: Release, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
@@ -254,7 +251,7 @@ def latest(session: Session) -> Release | None:
 def create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
     """Exports the published content and starts deploying it. Returns None
     when nothing changed since the last release."""
-    with _exclusive():
+    with exclusive():
         return _create(session, repo, deployer, on_prepared)
 
 
@@ -301,7 +298,7 @@ def record_export(session: Session, result: exporter.ExportResult, deployer: Dep
 
 
 def retry(session: Session, release_id: str, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
-    with _exclusive():
+    with exclusive():
         return _retry(session, release_id, repo, deployer)
 
 
