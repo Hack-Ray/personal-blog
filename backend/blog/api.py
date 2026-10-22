@@ -200,7 +200,7 @@ class ArticleOut(BaseModel):
 
 
 class SignInBody(BaseModel):
-    password: str
+    password: str = Field(max_length=auth.MAX_PASSWORD_LENGTH)
 
 
 class SessionOut(BaseModel):
@@ -213,10 +213,15 @@ def get_session_status(request: Request, session: SessionDep) -> SessionOut:
 
 
 @app.post("/api/session", status_code=status.HTTP_204_NO_CONTENT)
-def sign_in(body: SignInBody, response: Response, session: SessionDep) -> None:
-    if auth.throttle.locked():
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many failed attempts; try again in 15 minutes")
-    token = auth.sign_in(session, body.password)
+def sign_in(body: SignInBody, request: Request, response: Response, session: SessionDep) -> None:
+    # Behind a proxy listed in FORWARDED_ALLOW_IPS, uvicorn puts the original client here.
+    client = request.client.host if request.client else "unknown"
+    try:
+        token = auth.sign_in(session, body.password, client)
+    except auth.TooManyAttempts as e:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(e), headers={"Retry-After": str(e.retry_after)}) from e
+    except auth.Busy as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e), headers={"Retry-After": "5"}) from e
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "wrong password")
     response.set_cookie(
@@ -230,10 +235,21 @@ def sign_in(body: SignInBody, response: Response, session: SessionDep) -> None:
     )
 
 
+def _clear_cookie(response: Response) -> None:
+    response.delete_cookie(config.settings.session_cookie, path="/", secure=config.settings.cookie_secure, httponly=True, samesite="strict")
+
+
 @app.delete("/api/session", status_code=status.HTTP_204_NO_CONTENT)
 def sign_out(request: Request, response: Response, session: SessionDep) -> None:
     auth.sign_out(session, request.cookies.get(config.settings.session_cookie))
-    response.delete_cookie(config.settings.session_cookie, path="/", secure=config.settings.cookie_secure, httponly=True, samesite="strict")
+    _clear_cookie(response)
+
+
+@app.delete("/api/sessions", status_code=status.HTTP_204_NO_CONTENT)
+def sign_out_everywhere(response: Response, session: SessionDep) -> None:
+    """Signs out every browser, this one included."""
+    auth.sign_out_everywhere(session)
+    _clear_cookie(response)
 
 
 @app.exception_handler(articles.ArticleNotFound)

@@ -182,6 +182,18 @@ class AdminSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SignInAttempt(Base):
+    """Recent failed sign-ins from one client address."""
+
+    __tablename__ = "sign_in_attempts"
+
+    client: Mapped[str] = mapped_column(Text, primary_key=True)
+    failures: Mapped[int]
+    last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ReleaseStatus(StrEnum):

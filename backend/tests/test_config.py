@@ -39,6 +39,10 @@ def test_cloud_refuses_to_start_without_its_required_settings(missing):
         ({"COOKIE_SECURE": "yes please"}, "COOKIE_SECURE must be 1 or 0"),
         ({"CMS_ORIGIN": "cms.example.ts.net"}, "CMS_ORIGIN must be a scheme and host"),
         ({"CMS_ORIGIN": "https://cms.example.ts.net/admin"}, "CMS_ORIGIN must be a scheme and host"),
+        ({"CMS_ORIGIN": "https://cms.example.ts.net?x"}, "CMS_ORIGIN must be a scheme and host"),
+        ({"CMS_ORIGIN": "https://user@cms.example.ts.net"}, "CMS_ORIGIN must be a scheme and host"),
+        ({"CMS_ORIGIN": "https://cms.example.ts.net:99999"}, "CMS_ORIGIN must be a scheme and host"),
+        ({"CMS_ORIGIN": "https://"}, "CMS_ORIGIN must be a scheme and host"),
     ],
 )
 def test_malformed_settings_stop_the_start(env, message):
@@ -79,3 +83,16 @@ def test_a_secure_cookie_uses_the_host_prefix(admin, configure):
     cookie = r.headers["set-cookie"]
     assert cookie.startswith("__Host-cms_session=")
     assert "Secure" in cookie and "Path=/" in cookie and "Domain" not in cookie
+
+
+@pytest.mark.parametrize(
+    ("value", "origin"),
+    [
+        ("https://CMS.Example.ts.net:443/", "https://cms.example.ts.net"),
+        ("http://127.0.0.1:80", "http://127.0.0.1"),
+        ("https://cms.example.ts.net:8443", "https://cms.example.ts.net:8443"),
+        ("http://[::1]:8000", "http://[::1]:8000"),
+    ],
+)
+def test_cms_origin_takes_the_form_browsers_send(value, origin):
+    assert config.load({**CLOUD, "CMS_ORIGIN": value}).cms_origin == origin

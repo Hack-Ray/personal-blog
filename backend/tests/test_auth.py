@@ -1,11 +1,14 @@
-from datetime import UTC, datetime
+import threading
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import text
+from fastapi.testclient import TestClient
+from sqlalchemy import select, text
 
 from blog import auth, config
+from blog.api import app
 from blog.db import SessionLocal, engine
-from blog.models import AdminSession
+from blog.models import AdminSession, SignInAttempt
 from tests.conftest import ADMIN_PASSWORD, BASE_URL
 
 ARTICLE = {"title": "T", "topic": {"slug": "backend", "name": "Backend"}, "markdown": "m"}
@@ -56,15 +59,95 @@ def test_wrong_password_is_rejected(anon):
     assert config.settings.session_cookie not in anon.cookies
 
 
-def test_five_failures_lock_sign_in_even_for_the_right_password(anon):
+def from_address(host):
+    return TestClient(app, base_url=BASE_URL, client=(host, 50000))
+
+
+def test_five_failures_make_that_client_wait_even_for_the_right_password(anon):
     for _ in range(auth.MAX_FAILURES):
         assert anon.post("/api/session", json={"password": "wrong"}).status_code == 401
-    assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 429
+    r = anon.post("/api/session", json={"password": ADMIN_PASSWORD})
+    assert r.status_code == 429
+    assert int(r.headers["retry-after"]) == auth.BACKOFF.total_seconds()
+
+
+def test_failures_from_one_address_do_not_lock_out_another(anon):
+    attacker = from_address("203.0.113.9")
+    for _ in range(auth.MAX_FAILURES + 1):
+        attacker.post("/api/session", json={"password": "wrong"})
+    assert from_address("198.51.100.7").post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
+
+
+def test_each_further_failure_doubles_the_wait(anon):
+    def blocked_for():
+        with SessionLocal() as s:
+            a = s.get_one(SignInAttempt, "testclient")
+            return a.blocked_until - a.last_attempt_at
+
+    for _ in range(auth.MAX_FAILURES):
+        anon.post("/api/session", json={"password": "wrong"})
+    assert blocked_for() == auth.BACKOFF
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE sign_in_attempts SET blocked_until = now() - interval '1 second'"))
+    assert anon.post("/api/session", json={"password": "wrong"}).status_code == 401
+    assert blocked_for() == auth.BACKOFF * 2
+
+
+def test_concurrent_guesses_cannot_exceed_the_limit(anon):
+    codes = []
+    barrier = threading.Barrier(12)
+
+    def guess():
+        barrier.wait()
+        codes.append(from_address("203.0.113.9").post("/api/session", json={"password": "wrong"}).status_code)
+
+    threads = [threading.Thread(target=guess) for _ in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(codes) == [401] * auth.MAX_FAILURES + [429] * (12 - auth.MAX_FAILURES)
+
+
+def test_a_successful_sign_in_clears_the_failures(anon):
+    for _ in range(auth.MAX_FAILURES - 1):
+        anon.post("/api/session", json={"password": "wrong"})
+    assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
+    with SessionLocal() as s:
+        assert s.get(SignInAttempt, "testclient") is None
+
+
+def test_overlong_passwords_are_refused_before_hashing(anon):
+    r = anon.post("/api/session", json={"password": "x" * (auth.MAX_PASSWORD_LENGTH + 1)})
+    assert r.status_code == 422
 
 
 def test_sign_out_ends_the_session(client):
     assert client.delete("/api/session").status_code == 204
     assert client.get("/api/articles").status_code == 401
+
+
+def test_idle_session_is_refused(client):
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE admin_sessions SET last_seen_at = now() - :idle"), {"idle": auth.IDLE_TIMEOUT})
+    assert client.get("/api/articles").status_code == 401
+
+
+def test_use_keeps_a_session_alive(client):
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE admin_sessions SET last_seen_at = now() - :t"), {"t": auth.IDLE_TIMEOUT - timedelta(minutes=1)})
+    assert client.get("/api/articles").status_code == 200
+    with SessionLocal() as s:
+        seen = s.scalars(select(AdminSession.last_seen_at)).one()
+    assert seen > datetime.now(UTC) - timedelta(minutes=1)
+
+
+def test_signing_out_everywhere_ends_every_session(client, anon):
+    sign_in_again = from_address("198.51.100.7")
+    assert sign_in_again.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
+    assert client.delete("/api/sessions").status_code == 204
+    assert client.get("/api/articles").status_code == 401
+    assert sign_in_again.get("/api/articles").status_code == 401
 
 
 def test_expired_session_is_refused(client):
@@ -124,7 +207,8 @@ def test_other_hosts_are_refused_before_sign_in(anon):
     for _ in range(auth.MAX_FAILURES):
         r = anon.post("/api/session", json={"password": "guess"}, headers={"host": "rebind.example:8000"})
         assert r.status_code == 400
-    assert not auth.throttle.locked()
+    with SessionLocal() as s:
+        assert s.query(SignInAttempt).count() == 0
     assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
 
 

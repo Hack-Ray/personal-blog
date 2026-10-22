@@ -66,6 +66,15 @@ export function ArticleList() {
         >
           登出
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm("登出所有裝置與瀏覽器（包括這一個）？")) return;
+            api.signOutEverywhere().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`));
+          }}
+        >
+          登出所有裝置
+        </button>
       </div>
       <div role="tablist" className="tabs">
         <button type="button" role="tab" aria-selected={filter === "live"} onClick={() => setFilter("live")}>

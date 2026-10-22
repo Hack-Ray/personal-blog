@@ -1,5 +1,6 @@
 import dataclasses
 import os
+from datetime import timedelta
 
 import pytest
 
@@ -13,7 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import bindparam, text  # noqa: E402
 from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
 
-from blog import auth, config  # noqa: E402
+from blog import auth, config, release  # noqa: E402
 from blog.api import app  # noqa: E402
 from blog.db import engine  # noqa: E402
 
@@ -39,6 +40,11 @@ def profile_seed(schema):
 
 
 @pytest.fixture(autouse=True)
+def no_release_cooldown(monkeypatch):
+    monkeypatch.setattr(release, "COOLDOWN", timedelta(0))
+
+
+@pytest.fixture(autouse=True)
 def clean_tables(profile_seed):
     yield
     with engine.begin() as conn:
@@ -50,11 +56,11 @@ def clean_tables(profile_seed):
         )
         conn.execute(
             text(
-                "TRUNCATE articles, topics, tags, series, images, retired_doc_ids, admin_credentials, admin_sessions, releases"
+                "TRUNCATE articles, topics, tags, series, images, retired_doc_ids, admin_credentials, admin_sessions, releases,"
+                " sign_in_attempts"
                 " RESTART IDENTITY CASCADE"
             )
         )
-    auth.throttle = auth.Throttle()
 
 
 @pytest.fixture(scope="session")

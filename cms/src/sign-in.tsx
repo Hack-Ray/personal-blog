@@ -19,8 +19,10 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         err instanceof ApiError && err.status === 401
           ? "密碼錯誤。"
           : err instanceof ApiError && err.status === 429
-            ? "失敗次數過多，請 15 分鐘後再試。"
-            : String(err),
+            ? `失敗次數過多，請 ${err.message.match(/in (\d+) seconds/)?.[1] ?? "幾"} 秒後再試。`
+            : err instanceof ApiError && err.status === 503
+              ? "同時有太多登入嘗試，請稍後再試。"
+              : String(err),
       );
     } finally {
       setBusy(false);
@@ -33,7 +35,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         <h1 id="sign-in-title">登入 CMS</h1>
         <label className="field">
           <span>管理員密碼</span>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+          <input type="password" autoComplete="current-password" maxLength={1024} value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
         </label>
         {error && <p className="banner">{error}</p>}
         <button type="submit" disabled={busy || password === ""}>
