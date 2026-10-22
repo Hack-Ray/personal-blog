@@ -331,7 +331,9 @@ def test_listing_releases_does_not_call_github_and_refreshing_does(client, confi
     monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
     created = client.post("/api/releases").json()["release"]
     deployer.finish(created["content_commit"])
-    assert client.get("/api/releases").json()[0]["status"] == "dispatched"
+    listed = client.get("/api/releases").json()[0]
+    assert listed["status"] == "dispatched"
+    assert listed["dispatched_at"] is not None
     assert client.post("/api/releases/refresh").json()[0]["status"] == "deployed"
 
 

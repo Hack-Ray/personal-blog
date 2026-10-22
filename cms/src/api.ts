@@ -68,6 +68,7 @@ export interface Release {
   run_url: string | null;
   created_at: string;
   updated_at: string;
+  dispatched_at: string | null;
 }
 
 export interface Profile {

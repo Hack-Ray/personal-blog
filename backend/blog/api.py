@@ -364,6 +364,7 @@ class ReleaseOut(BaseModel):
     run_url: str | None
     created_at: datetime
     updated_at: datetime
+    dispatched_at: datetime | None
 
     @classmethod
     def of(cls, r: Release) -> "ReleaseOut":
