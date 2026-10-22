@@ -1,0 +1,43 @@
+name: CMS image
+
+# Builds the CMS container image and checks that it migrates a database and
+# answers /healthz. Separate from CI so site deploys do not wait for it.
+on:
+  pull_request:
+    paths: [Dockerfile, .dockerignore, backend/**, cms/**, .github/workflows/cms-image.yml]
+  push:
+    branches: [main]
+    paths: [Dockerfile, .dockerignore, backend/**, cms/**, .github/workflows/cms-image.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: blog
+          POSTGRES_PASSWORD: blog
+          POSTGRES_DB: blog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t blog-cms .
+      - run: docker run --rm --network host blog-cms alembic upgrade head
+      - name: Back up with the image's scripts
+        run: docker run --rm --network host blog-cms sh -c 'scripts/backup.sh --url postgresql://blog:blog@127.0.0.1:5432/blog --out /tmp/b'
+      - name: Serve /healthz
+        run: |
+          docker run -d --name cms --network host blog-cms
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && exit 0; sleep 1; done
+          docker logs cms
+          exit 1
