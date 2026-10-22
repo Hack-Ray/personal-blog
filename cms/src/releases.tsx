@@ -36,7 +36,7 @@ export function Releases() {
     return () => clearInterval(timer);
   }, [releases, load]);
 
-  // Asked once per load, i.e. every 15 s while a release is pending.
+  // Asked again on each 15 s poll while a deploy is slow, so a resolved incident drops off.
   const [incidents, setIncidents] = useState<{ name: string; url: string }[]>([]);
   useEffect(() => {
     if (!isSlow(releases, new Date())) return;
