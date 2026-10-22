@@ -123,4 +123,4 @@ jobs:
       - id: deployment
         name: Deploy to GitHub Pages
         if: steps.latest.outputs.current == 'true'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
