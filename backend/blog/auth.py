@@ -49,9 +49,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, stored: str) -> bool:
     _, n, r, p, salt, digest = stored.split("$")
-    candidate = hashlib.scrypt(
-        password.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p), dklen=32, maxmem=_SCRYPT["maxmem"]
-    )
+    candidate = hashlib.scrypt(password.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p), dklen=32, maxmem=_SCRYPT["maxmem"])
     return hmac.compare_digest(candidate, base64.b64decode(digest))
 
 

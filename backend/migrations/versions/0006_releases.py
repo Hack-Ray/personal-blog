@@ -24,8 +24,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.CheckConstraint(
-            "status IN ('exported', 'push_failed', 'pushed', 'dispatch_failed', 'dispatched', 'building',"
-            " 'deployed', 'superseded', 'failed')",
+            "status IN ('exported', 'push_failed', 'pushed', 'dispatch_failed', 'dispatched', 'building', 'deployed', 'superseded', 'failed')",
             name="releases_status_valid",
         ),
     )

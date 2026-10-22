@@ -524,9 +524,7 @@ def test_going_live_cleans_up_old_versions(repos):
         deployer.finish(r.content_commit)
         refresh(s, r, deployer)
         article = articles.get_article(s, doc_id)
-        remaining = s.scalars(
-            select(PublishedVersion.version).where(PublishedVersion.article_id == article.id).order_by(PublishedVersion.version)
-        ).all()
+        remaining = s.scalars(select(PublishedVersion.version).where(PublishedVersion.article_id == article.id).order_by(PublishedVersion.version)).all()
         assert remaining == [3, 4, 5]
 
 

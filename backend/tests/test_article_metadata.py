@@ -106,6 +106,7 @@ def test_export_writes_metadata_and_the_update_time_of_a_republished_article(cli
     client.put(f"/api/articles/{doc_id}/pinned", json={"pinned": True})
     export(repo)
     article = json.loads((repo / f"articles/{doc_id}.json").read_text())
+
     def z(iso):
         return iso.replace("+00:00", "Z")
 

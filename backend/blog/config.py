@@ -103,7 +103,10 @@ def _repository(value: str | None, name: str) -> str | None:
 
 def _branch(value: str, name: str) -> str:
     if (
-        not value or value in ("@", "HEAD") or value.startswith(("/", ".")) or value.endswith(("/", "."))
+        not value
+        or value in ("@", "HEAD")
+        or value.startswith(("/", "."))
+        or value.endswith(("/", "."))
         or any(c in value for c in ("..", "@{", "//", "\\", " ", "~", "^", ":", "?", "*", "["))
         or any(ord(c) < 32 or ord(c) == 127 for c in value)
         or any(p.startswith(".") or p.endswith(".lock") for p in value.split("/"))

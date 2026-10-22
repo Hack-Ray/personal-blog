@@ -86,8 +86,13 @@ def _to_webp(data: bytes) -> bytes:
                     frames.append(_fit(frame))
                     durations.append(frame.info.get("duration", 100))
                 frames[0].save(
-                    out, "WEBP", save_all=True, append_images=frames[1:], duration=durations,
-                    loop=im.info.get("loop", 0), quality=WEBP_QUALITY,
+                    out,
+                    "WEBP",
+                    save_all=True,
+                    append_images=frames[1:],
+                    duration=durations,
+                    loop=im.info.get("loop", 0),
+                    quality=WEBP_QUALITY,
                 )
             else:
                 _fit(ImageOps.exif_transpose(im)).save(out, "WEBP", quality=WEBP_QUALITY)
@@ -106,10 +111,7 @@ def store(session: Session, data: bytes) -> Image:
     data, content_type = _to_webp(data), "image/webp"
     image_id = f"{hashlib.sha256(data).hexdigest()}.webp"
     inserted = session.execute(
-        insert(Image)
-        .values(id=image_id, content_type=content_type, byte_size=len(data))
-        .on_conflict_do_nothing(index_elements=["id"])
-        .returning(Image.id)
+        insert(Image).values(id=image_id, content_type=content_type, byte_size=len(data)).on_conflict_do_nothing(index_elements=["id"]).returning(Image.id)
     ).scalar()
     if inserted:
         session.add(ImageData(image_id=image_id, data=data))
@@ -118,9 +120,7 @@ def store(session: Session, data: bytes) -> Image:
 
 
 def load(session: Session, image_id: str) -> tuple[Image, bytes] | None:
-    row = session.execute(
-        select(Image, ImageData.data).join(ImageData, ImageData.image_id == Image.id).where(Image.id == image_id)
-    ).one_or_none()
+    row = session.execute(select(Image, ImageData.data).join(ImageData, ImageData.image_id == Image.id).where(Image.id == image_id)).one_or_none()
     return (row[0], row[1]) if row else None
 
 
@@ -161,16 +161,8 @@ def collect_garbage(session: Session, now: datetime) -> list[str]:
         referenced |= refs(markdown)
 
     session.execute(update(Image).where(Image.id.in_(referenced)).values(unreferenced_since=None))
-    session.execute(
-        update(Image)
-        .where(Image.id.not_in(referenced), Image.unreferenced_since.is_(None))
-        .values(unreferenced_since=now)
-    )
-    expired = list(
-        session.scalars(
-            select(Image.id).where(Image.id.not_in(referenced), Image.unreferenced_since <= now - GRACE)
-        )
-    )
+    session.execute(update(Image).where(Image.id.not_in(referenced), Image.unreferenced_since.is_(None)).values(unreferenced_since=now))
+    expired = list(session.scalars(select(Image.id).where(Image.id.not_in(referenced), Image.unreferenced_since <= now - GRACE)))
     if expired:
         session.execute(Image.__table__.delete().where(Image.id.in_(expired)))
     session.commit()

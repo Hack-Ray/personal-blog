@@ -12,7 +12,11 @@ BACKEND = Path(__file__).resolve().parents[1]
 def bash(script, cwd=BACKEND, **env):
     return subprocess.run(
         ["bash", "-c", f". scripts/lib.sh && {script}"],
-        cwd=cwd, capture_output=True, text=True, check=True, env={**os.environ, **env},
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, **env},
     ).stdout.strip()
 
 

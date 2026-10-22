@@ -173,9 +173,7 @@ def _snapshot_before_overwrite(session: Session, draft: WorkingDraft, new_markdo
     old = draft.markdown
     if old == new_markdown or not old.strip():
         return
-    last = session.scalars(
-        select(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id).order_by(DraftSnapshot.id.desc()).limit(1)
-    ).first()
+    last = session.scalars(select(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id).order_by(DraftSnapshot.id.desc()).limit(1)).first()
     if last is not None and last.markdown == old:
         return
     due = last is None or datetime.now(UTC) - last.created_at >= SNAPSHOT_INTERVAL
@@ -184,15 +182,8 @@ def _snapshot_before_overwrite(session: Session, draft: WorkingDraft, new_markdo
         return
     session.add(DraftSnapshot(article_id=draft.article_id, revision=draft.revision, markdown=old))
     session.flush()
-    keep = (
-        select(DraftSnapshot.id)
-        .where(DraftSnapshot.article_id == draft.article_id)
-        .order_by(DraftSnapshot.id.desc())
-        .limit(SNAPSHOT_LIMIT)
-    )
-    session.execute(
-        sql_delete(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id, DraftSnapshot.id.not_in(keep))
-    )
+    keep = select(DraftSnapshot.id).where(DraftSnapshot.article_id == draft.article_id).order_by(DraftSnapshot.id.desc()).limit(SNAPSHOT_LIMIT)
+    session.execute(sql_delete(DraftSnapshot).where(DraftSnapshot.article_id == draft.article_id, DraftSnapshot.id.not_in(keep)))
 
 
 def save_draft(session: Session, doc_id: str, base_revision: int, content: DraftContent) -> WorkingDraft:
@@ -247,9 +238,7 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
 
 def list_snapshots(session: Session, doc_id: str) -> list[DraftSnapshot]:
     article = get_article(session, doc_id)
-    return list(
-        session.scalars(select(DraftSnapshot).where(DraftSnapshot.article_id == article.id).order_by(DraftSnapshot.id.desc()))
-    )
+    return list(session.scalars(select(DraftSnapshot).where(DraftSnapshot.article_id == article.id).order_by(DraftSnapshot.id.desc())))
 
 
 def restore_snapshot(session: Session, doc_id: str, snapshot_id: int, base_revision: int) -> WorkingDraft:
@@ -313,9 +302,7 @@ def purge_expired(session: Session, now: datetime) -> list[str]:
     """Permanently deletes articles pending deletion for 30 days or more.
     Safe to run any number of times; blog.maintenance runs it (PUB-005)."""
     expired = session.scalars(
-        select(Article)
-        .where(Article.state == S.PENDING_DELETION, Article.deleted_at <= now - PENDING_DELETION_RETENTION)
-        .with_for_update(skip_locked=True)
+        select(Article).where(Article.state == S.PENDING_DELETION, Article.deleted_at <= now - PENDING_DELETION_RETENTION).with_for_update(skip_locked=True)
     ).all()
     doc_ids = [a.doc_id for a in expired]
     for article in expired:

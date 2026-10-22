@@ -166,9 +166,7 @@ def test_frontend_parses_the_exported_profile_and_falls_back_to_the_seed(client,
     export(repo)
 
     def parsed():
-        r = subprocess.run(
-            ["node", "scripts/check-snapshot.ts", str(repo), "--profile"], cwd=FRONTEND, capture_output=True, text=True
-        )
+        r = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo), "--profile"], cwd=FRONTEND, capture_output=True, text=True)
         assert r.returncode == 0, r.stderr
         return json.loads(r.stdout.splitlines()[1])
 

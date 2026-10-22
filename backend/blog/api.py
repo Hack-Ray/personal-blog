@@ -62,17 +62,19 @@ async def require_admin(request: Request, call_next):
 # The CMS only loads its own scripts, so script injected through an article
 # preview cannot run even if the renderer misses it. Shiki colours code with
 # style attributes, and previews may show https: images.
-ADMIN_CSP = "; ".join([
-    "default-src 'self'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' https: data:",
-    "connect-src 'self'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-])
+ADMIN_CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' https: data:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
 SECURITY_HEADERS = {
     "Content-Security-Policy": ADMIN_CSP,
     "X-Content-Type-Options": "nosniff",
@@ -114,6 +116,7 @@ def healthz() -> dict[str, str]:
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))
     return {"status": "ok"}
+
 
 SessionDep = Annotated[Session, Depends(get_session)]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)]
@@ -354,10 +357,7 @@ class RestoreBody(BaseModel):
 
 @app.get("/api/articles/{doc_id}/snapshots")
 def list_snapshots(doc_id: str, session: SessionDep) -> list[SnapshotOut]:
-    return [
-        SnapshotOut(id=s.id, revision=s.revision, markdown=s.markdown, created_at=s.created_at)
-        for s in articles.list_snapshots(session, doc_id)
-    ]
+    return [SnapshotOut(id=s.id, revision=s.revision, markdown=s.markdown, created_at=s.created_at) for s in articles.list_snapshots(session, doc_id)]
 
 
 @app.post("/api/articles/{doc_id}/snapshots/{snapshot_id}/restore")

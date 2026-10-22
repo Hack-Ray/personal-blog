@@ -37,11 +37,14 @@ class GitHubClient:
             raise GitHubError("GitHub API path must be relative to the configured API host")
         token = self._token() if callable(self._token) else self._token
         request = urllib.request.Request(
-            f"{self.api_url}{path}", method=method,
+            f"{self.api_url}{path}",
+            method=method,
             data=json.dumps(body).encode() if body is not None else None,
             headers={
-                "authorization": f"Bearer {token}", "accept": "application/vnd.github+json",
-                "x-github-api-version": "2022-11-28", "content-type": "application/json",
+                "authorization": f"Bearer {token}",
+                "accept": "application/vnd.github+json",
+                "x-github-api-version": "2022-11-28",
+                "content-type": "application/json",
                 "user-agent": "personal-blog-cms",
             },
         )
@@ -83,7 +86,8 @@ class InstallationToken:
             try:
                 signed = jwt.encode(
                     {"iat": int(now) - 60, "exp": int(now) + 540, "iss": self.app_id},
-                    self.key_file.read_bytes(), algorithm="RS256",
+                    self.key_file.read_bytes(),
+                    algorithm="RS256",
                 )
             except (OSError, ValueError, jwt.PyJWTError):
                 raise GitHubError("GitHub App private key could not be read or used to sign a token") from None
@@ -105,8 +109,11 @@ class InstallationToken:
 def _client(settings: config.Settings) -> GitHubClient | None:
     if settings.github_auth == "app":
         token = InstallationToken(
-            settings.github_app_id, settings.github_installation_id, settings.github_private_key_file,
-            settings.github_api_url, settings.github_timeout,
+            settings.github_app_id,
+            settings.github_installation_id,
+            settings.github_private_key_file,
+            settings.github_api_url,
+            settings.github_timeout,
         )
     elif settings.github_token:
         token = settings.github_token

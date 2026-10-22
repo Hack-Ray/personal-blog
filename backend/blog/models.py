@@ -72,9 +72,7 @@ class Article(Base):
     # versioned, so pinning needs no new Published Version.
     pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    draft: Mapped["WorkingDraft"] = relationship(
-        back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True
-    )
+    draft: Mapped["WorkingDraft"] = relationship(back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True)
 
 
 class WorkingDraft(Base):
@@ -220,9 +218,7 @@ class Release(Base):
     content_parent: Mapped[str | None] = mapped_column(String(40))
     content_target: Mapped[str | None] = mapped_column(Text)
     deployment_target: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[ReleaseStatus] = mapped_column(
-        Enum(ReleaseStatus, native_enum=False, length=20, values_callable=lambda e: [m.value for m in e])
-    )
+    status: Mapped[ReleaseStatus] = mapped_column(Enum(ReleaseStatus, native_enum=False, length=20, values_callable=lambda e: [m.value for m in e]))
     detail: Mapped[str | None] = mapped_column(Text)
     run_url: Mapped[str | None] = mapped_column(Text)
     # The workflow run found for this release. While the release is

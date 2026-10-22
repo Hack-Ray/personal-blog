@@ -46,6 +46,8 @@ docker compose exec db createdb -U blog blog_test
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
+CI also runs `uv run ruff check` and `uv run ruff format --check`; `uv run ruff format` fixes the formatting.
+
 ## Sign-in
 
 - One administrator. The password is stored as a salted scrypt hash; `python -m blog.auth` sets or changes it and signs out every session.

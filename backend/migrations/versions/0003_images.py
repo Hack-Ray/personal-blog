@@ -29,9 +29,7 @@ def upgrade() -> None:
         sa.Column("data", sa.LargeBinary, nullable=False),
     )
     # Image bytes are addressed by their hash, so they must never change.
-    op.execute(
-        "CREATE TRIGGER image_data_immutable BEFORE UPDATE ON image_data FOR EACH ROW EXECUTE FUNCTION reject_update()"
-    )
+    op.execute("CREATE TRIGGER image_data_immutable BEFORE UPDATE ON image_data FOR EACH ROW EXECUTE FUNCTION reject_update()")
 
 
 def downgrade() -> None:

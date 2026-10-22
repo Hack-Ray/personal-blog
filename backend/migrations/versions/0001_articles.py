@@ -60,9 +60,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "published_version_tags",
-        sa.Column(
-            "published_version_id", sa.Integer, sa.ForeignKey("published_versions.id", ondelete="CASCADE"), primary_key=True
-        ),
+        sa.Column("published_version_id", sa.Integer, sa.ForeignKey("published_versions.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("tag_id", sa.Integer, sa.ForeignKey("tags.id"), primary_key=True),
     )
     # Published versions are append-only (ART-020). DELETE stays allowed for
