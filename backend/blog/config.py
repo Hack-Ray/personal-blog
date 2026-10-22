@@ -7,8 +7,9 @@ starting instead of falling back to something unsafe.
 
 import logging
 import os
+import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -24,7 +25,7 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Settings:
     env: str
-    database_url: str
+    database_url: str = field(repr=False)
     # Host headers the CMS answers; anything else is refused, which keeps a
     # DNS-rebinding page off a CMS bound to 127.0.0.1.
     allowed_hosts: tuple[str, ...]
@@ -35,12 +36,20 @@ class Settings:
     enable_docs: bool
     content_repo_dir: Path | None
     deploy_repo: str | None
-    github_token: str | None
+    github_token: str | None = field(repr=False)
     deploy_workflow: str
     deploy_ref: str
     github_api_url: str
     github_status_url: str
     cms_dist: Path
+    content_repo: str | None = None
+    content_branch: str = "main"
+    content_transport: str = "git"
+    github_auth: str = "token"
+    github_app_id: str | None = None
+    github_installation_id: str | None = None
+    github_private_key_file: Path | None = field(default=None, repr=False)
+    github_timeout: float = 30
 
     @property
     def session_cookie(self) -> str:
@@ -79,6 +88,42 @@ def _origin(value: str) -> str:
     return f"{u.scheme}://{host}:{port}"
 
 
+def _choice(env: Mapping[str, str], name: str, choices: tuple[str, ...], default: str) -> str:
+    value = _optional(env, name) or default
+    if value not in choices:
+        raise ConfigError(f"{name} must be one of {', '.join(choices)}")
+    return value
+
+
+def _repository(value: str | None, name: str) -> str | None:
+    if value is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+", value):
+        raise ConfigError(f"{name} must have the form owner/repository")
+    return value
+
+
+def _branch(value: str, name: str) -> str:
+    if (
+        not value or value in ("@", "HEAD") or value.startswith(("/", ".")) or value.endswith(("/", "."))
+        or any(c in value for c in ("..", "@{", "//", "\\", " ", "~", "^", ":", "?", "*", "["))
+        or any(ord(c) < 32 or ord(c) == 127 for c in value)
+        or any(p.startswith(".") or p.endswith(".lock") for p in value.split("/"))
+    ):
+        raise ConfigError(f"{name} must be a valid branch name")
+    return value
+
+
+def _api_url(value: str, cloud: bool) -> str:
+    try:
+        u = urlsplit(value)
+        _ = u.port
+    except ValueError as e:
+        raise ConfigError("GITHUB_API_URL must be an HTTPS API URL") from e
+    local_http = not cloud and u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1")
+    if (u.scheme != "https" and not local_http) or not u.hostname or u.username or u.password or u.query or u.fragment:
+        raise ConfigError("GITHUB_API_URL must be HTTPS; local HTTP is allowed only for loopback test servers")
+    return value.rstrip("/")
+
+
 def load(env: Mapping[str, str] = os.environ) -> Settings:
     cms_env = env.get("CMS_ENV", "local").strip() or "local"
     if cms_env not in ("local", "cloud"):
@@ -103,6 +148,31 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
     if token is None and (token := _optional(env, "GITHUB_TOKEN")):
         log.warning("GITHUB_TOKEN is deprecated for the CMS; rename it to CMS_GITHUB_TOKEN in backend/.env")
     repo_dir = _optional(env, "CONTENT_REPO_DIR")
+    content_repo = _repository(_optional(env, "CONTENT_REPO"), "CONTENT_REPO")
+    transport = _choice(env, "CONTENT_TRANSPORT", ("auto", "git", "api"), "auto")
+    if transport == "auto":
+        transport = "api" if content_repo else "git"
+    if transport == "api" and content_repo is None:
+        raise ConfigError("CONTENT_REPO must be set when CONTENT_TRANSPORT=api")
+    app_id = _optional(env, "GITHUB_APP_ID")
+    installation_id = _optional(env, "GITHUB_APP_INSTALLATION_ID")
+    key_file = _optional(env, "GITHUB_APP_PRIVATE_KEY_FILE")
+    auth = _choice(env, "GITHUB_AUTH", ("auto", "token", "app"), "auto")
+    if auth == "auto":
+        auth = "app" if any((app_id, installation_id, key_file)) else "token"
+    if auth == "app":
+        if not all((app_id, installation_id, key_file)):
+            raise ConfigError("GitHub App requires GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and GITHUB_APP_PRIVATE_KEY_FILE")
+        if any(not re.fullmatch(r"[1-9][0-9]*", v) for v in (app_id, installation_id)):
+            raise ConfigError("GITHUB_APP_ID and GITHUB_APP_INSTALLATION_ID must be positive integers")
+        if not Path(key_file).is_file():
+            raise ConfigError("GITHUB_APP_PRIVATE_KEY_FILE must point to a readable PEM file")
+    try:
+        timeout = float(_optional(env, "GITHUB_TIMEOUT") or "30")
+    except ValueError as e:
+        raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds") from e
+    if not 1 <= timeout <= 300:
+        raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds")
 
     return Settings(
         env=cms_env,
@@ -112,13 +182,21 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         cookie_secure=_flag(env, "COOKIE_SECURE", cloud),
         enable_docs=_flag(env, "ENABLE_DOCS", not cloud),
         content_repo_dir=Path(repo_dir) if repo_dir else None,
-        deploy_repo=_optional(env, "DEPLOY_REPO"),
+        deploy_repo=_repository(_optional(env, "DEPLOY_REPO"), "DEPLOY_REPO"),
         github_token=token,
         deploy_workflow=_optional(env, "DEPLOY_WORKFLOW") or "deploy.yml",
-        deploy_ref=_optional(env, "DEPLOY_REF") or "main",
-        github_api_url=_optional(env, "GITHUB_API_URL") or "https://api.github.com",
+        deploy_ref=_branch(_optional(env, "DEPLOY_REF") or "main", "DEPLOY_REF"),
+        github_api_url=_api_url(_optional(env, "GITHUB_API_URL") or "https://api.github.com", cloud),
         github_status_url=_optional(env, "GITHUB_STATUS_URL") or "https://www.githubstatus.com",
         cms_dist=Path(_optional(env, "CMS_DIST") or DEFAULT_CMS_DIST),
+        content_repo=content_repo,
+        content_branch=_branch(_optional(env, "CONTENT_BRANCH") or "main", "CONTENT_BRANCH"),
+        content_transport=transport,
+        github_auth=auth,
+        github_app_id=app_id,
+        github_installation_id=installation_id,
+        github_private_key_file=Path(key_file) if key_file else None,
+        github_timeout=timeout,
     )
 
 

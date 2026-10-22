@@ -8,7 +8,7 @@ import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -20,7 +20,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from blog import config, exporter, retention
+from blog.content_repository import GitHubRepository
 from blog.db import engine
+from blog.github import GitHubClient, GitHubError, client_from_settings
 from blog.models import Article, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
@@ -43,8 +45,7 @@ TOKEN_EXPIRY_HEADER = "github-authentication-token-expiration"
 DEPLOY_COMPONENTS = frozenset({"Actions", "Pages"})
 
 
-class ReleaseError(Exception):
-    pass
+ReleaseError = GitHubError
 
 
 class ReleaseBusy(ReleaseError):
@@ -69,32 +70,25 @@ class Deployer(Protocol):
 class GitHubActions:
     """Starts and reads the deploy workflow through the GitHub REST API."""
 
-    def __init__(self, token: str, repo: str, workflow: str, ref: str, api_url: str = "https://api.github.com"):
-        self.token, self.repo, self.workflow, self.ref, self.api_url = token, repo, workflow, ref, api_url.rstrip("/")
+    def __init__(self, token: str, repo: str, workflow: str, ref: str, api_url: str = "https://api.github.com", content_branch: str = ""):
+        self.repo, self.workflow, self.ref = repo, workflow, ref
+        self.client = GitHubClient(token, api_url)
+        self.content_branch = content_branch
+
+    @property
+    def api_url(self) -> str:
+        return self.client.api_url
+
+    @property
+    def target(self) -> str:
+        return json.dumps([self.client.api_url, self.repo, self.workflow, self.ref], separators=(",", ":"))
 
     def _call(self, method: str, path: str, body: dict | None = None) -> dict:
         raw, _ = self._request(method, path, body)
         return json.loads(raw) if raw else {}
 
     def _request(self, method: str, path: str, body: dict | None = None) -> tuple[bytes, Message]:
-        request = urllib.request.Request(
-            f"{self.api_url}{path}",
-            method=method,
-            data=json.dumps(body).encode() if body is not None else None,
-            headers={
-                "authorization": f"Bearer {self.token}",
-                "accept": "application/vnd.github+json",
-                "x-github-api-version": "2022-11-28",
-                "content-type": "application/json",
-            },
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                return response.read(), response.headers
-        except urllib.error.HTTPError as e:
-            raise ReleaseError(f"GitHub API {method} {path} returned {e.code}") from e
-        except urllib.error.URLError as e:
-            raise ReleaseError(f"GitHub API unreachable: {e.reason}") from e
+        return self.client.request(method, path, body)
 
     def token_expires_at(self) -> datetime | None:
         """When the token stops working; None for a token without an expiry date."""
@@ -103,10 +97,13 @@ class GitHubActions:
         return datetime.strptime(expiry, "%Y-%m-%d %H:%M:%S %Z").replace(tzinfo=UTC) if expiry else None
 
     def dispatch(self, content_commit: str) -> None:
+        inputs = {"content_sha": content_commit}
+        if self.content_branch:
+            inputs["content_branch"] = self.content_branch
         self._call(
             "POST",
             f"/repos/{self.repo}/actions/workflows/{self.workflow}/dispatches",
-            {"ref": self.ref, "inputs": {"content_sha": content_commit}},
+            {"ref": self.ref, "inputs": inputs},
         )
 
     def find_run(self, content_commit: str, since: datetime, after_id: int | None = None) -> Run | None:
@@ -170,9 +167,25 @@ def github_incidents(status_url: str | None = None) -> list[Incident]:
 
 def deployer_from_env() -> Deployer | None:
     s = config.settings
-    if not s.github_token or not s.deploy_repo:
+    client = client_from_settings()
+    if client is None or not s.deploy_repo:
         return None
-    return GitHubActions(token=s.github_token, repo=s.deploy_repo, workflow=s.deploy_workflow, ref=s.deploy_ref, api_url=s.github_api_url)
+    actions = GitHubActions("", s.deploy_repo, s.deploy_workflow, s.deploy_ref, s.github_api_url)
+    actions.client = client
+    actions.content_branch = s.content_branch if s.content_transport == "api" else ""
+    return actions
+
+
+def repo_from_env() -> Path | GitHubRepository:
+    s = config.settings
+    if s.content_transport == "api":
+        client = client_from_settings()
+        if client is None or not s.content_repo:
+            raise ReleaseError("CONTENT_REPO and GitHub credentials are required for API publication")
+        return GitHubRepository(client, s.content_repo, s.content_branch)
+    if s.content_repo_dir is None or not (s.content_repo_dir / ".git").exists():
+        raise ReleaseError("CONTENT_REPO_DIR must point at a content repository clone, or configure CONTENT_REPO for API publication")
+    return s.content_repo_dir
 
 
 def content_repo_from_env() -> Path | None:
@@ -193,7 +206,7 @@ def _redact(text: str) -> str:
 @contextmanager
 def _exclusive() -> Iterator[None]:
     """Lets one release or retry run at a time, across requests and processes."""
-    with engine.connect() as conn:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         if not conn.scalar(select(func.pg_try_advisory_lock(LOCK_KEY))):
             raise ReleaseBusy("another release is in progress; try again when it finishes")
         try:
@@ -202,12 +215,23 @@ def _exclusive() -> Iterator[None]:
             conn.scalar(select(func.pg_advisory_unlock(LOCK_KEY)))
 
 
-def _advance(session: Session, release: Release, repo: Path, deployer: Deployer | None) -> Release:
+def _advance(session: Session, release: Release, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
     """Pushes and dispatches as far as possible; failures leave a retryable status."""
+    if release.deployment_target is not None and getattr(deployer, "target", None) != release.deployment_target:
+        raise ReleaseError("deployment destination differs from current settings; restore the original settings before retrying")
+    if release.content_target is not None and (not isinstance(repo, GitHubRepository) or repo.target != release.content_target):
+        raise ReleaseError("release destination differs from current settings; restore the original settings before retrying")
     if release.status in (R.EXPORTED, R.PUSH_FAILED):
         try:
-            exporter.push(repo)
+            if isinstance(repo, GitHubRepository):
+                repo.publish(release)
+            else:
+                if release.content_target is not None:
+                    raise exporter.ExportError("this release requires its original API publication settings")
+                exporter.push(repo)
             _set(release, R.PUSHED)
+        except (GitHubError, exporter.ExportError) as e:
+            _set(release, R.PUSH_FAILED, str(e))
         except subprocess.CalledProcessError as e:
             _set(release, R.PUSH_FAILED, _redact(e.stderr or str(e)).strip()[-500:])
         except subprocess.TimeoutExpired:
@@ -216,7 +240,7 @@ def _advance(session: Session, release: Release, repo: Path, deployer: Deployer 
     if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED):
         # run_id stays: it is now the earlier attempt's run, for refresh to skip.
         if deployer is None:
-            _set(release, R.DISPATCH_FAILED, "CMS_GITHUB_TOKEN or DEPLOY_REPO is not set; start the deploy workflow on GitHub instead")
+            _set(release, R.DISPATCH_FAILED, "CMS_GITHUB_TOKEN/GitHub App credentials or DEPLOY_REPO are not set; start the deploy workflow on GitHub instead")
         else:
             try:
                 deployer.dispatch(release.content_commit)
@@ -233,15 +257,15 @@ def latest(session: Session) -> Release | None:
     return session.scalars(select(Release).order_by(Release.id.desc()).limit(1)).first()
 
 
-def create(session: Session, repo: Path, deployer: Deployer | None) -> Release | None:
+def create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
     """Exports the published content and starts deploying it. Returns None
     when nothing changed since the last release."""
     with _exclusive():
-        return _create(session, repo, deployer)
+        return _create(session, repo, deployer, on_prepared)
 
 
-def _create(session: Session, repo: Path, deployer: Deployer | None) -> Release | None:
-    if unknown := exporter.unknown_remote_commit(repo):
+def _create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
+    if not isinstance(repo, GitHubRepository) and (unknown := exporter.unknown_remote_commit(repo)):
         raise ReleaseError(
             f"the content repo has commit {unknown[:7]} that this CMS did not make; another CMS may be in use."
             " See docs/local-setup.md, section 12"
@@ -249,13 +273,17 @@ def _create(session: Session, repo: Path, deployer: Deployer | None) -> Release 
     last = session.scalar(select(func.max(Release.created_at)))
     if last is not None and (wait := last + COOLDOWN - datetime.now(UTC)) > timedelta(0):
         raise ReleaseBusy(f"a release was just started; try again in {int(wait.total_seconds()) + 1} seconds")
-    result = exporter.export(repo) or exporter.head_release(repo)
+    previous = latest(session) if isinstance(repo, GitHubRepository) else None
+    session.commit()
+    if isinstance(repo, GitHubRepository):
+        result = repo.prepare(previous)
+    else:
+        result = exporter.export(repo) or exporter.head_release(repo)
     if result is None or session.get(Release, result.release_id) is not None:
         return None
-    release = Release(id=result.release_id, content_commit=result.commit, status=R.EXPORTED)
-    session.add(release)
-    for doc_id, article_id in session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))):
-        session.add(ReleaseArticle(release_id=release.id, article_id=article_id, version=result.versions[doc_id]))
+    release = record_export(session, result, deployer)
+    if on_prepared is not None:
+        on_prepared(release)
 
     for older in session.scalars(select(Release).where(Release.id != release.id, Release.status.not_in(TERMINAL))):
         if older.status in RETRYABLE:
@@ -264,12 +292,21 @@ def _create(session: Session, repo: Path, deployer: Deployer | None) -> Release 
     return _advance(session, release, repo, deployer)
 
 
-def retry(session: Session, release_id: str, repo: Path, deployer: Deployer | None) -> Release:
+def record_export(session: Session, result: exporter.ExportResult, deployer: Deployer | None = None) -> Release:
+    release = Release(id=result.release_id, content_commit=result.commit, status=R.EXPORTED,
+                      content_parent=result.parent_commit, content_target=result.target, deployment_target=getattr(deployer, "target", None))
+    session.add(release)
+    for doc_id, article_id in session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))):
+        session.add(ReleaseArticle(release_id=release.id, article_id=article_id, version=result.versions[doc_id]))
+    return release
+
+
+def retry(session: Session, release_id: str, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
     with _exclusive():
         return _retry(session, release_id, repo, deployer)
 
 
-def _retry(session: Session, release_id: str, repo: Path, deployer: Deployer | None) -> Release:
+def _retry(session: Session, release_id: str, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
     release = session.get(Release, release_id)
     if release is None:
         raise ReleaseError(f"release {release_id} not found")

@@ -2,7 +2,7 @@
 
 [繁體中文](#繁體中文) · [English](#english)
 
-自架的部落格系統：在自己電腦上的 CMS 寫作，公開網站是部署在 GitHub Pages 的靜態網站。Fork 之後不需要改程式，照 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) 設定就能架出自己的部落格。
+自架的部落格系統：在自己電腦上的 CMS 寫作，公開網站是部署在 GitHub Pages 的靜態網站。CMS 也可透過設定改在雲端執行，見 [`docs/portable-cms.md`](docs/portable-cms.md)。Fork 之後不需要改程式，照 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) 設定就能架出自己的部落格。
 
 A self-hosted blog: you write in a CMS that runs on your own computer, and the public site is a static site on GitHub Pages. A fork needs no code changes; [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) (in Traditional Chinese) walks from the fork to the first published article.
 
@@ -99,7 +99,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 | repo 的 Actions variables `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（選用） | 從 <https://giscus.app> 取得；沒設定就不顯示留言 |
 | `backend/.env` 的 `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` |
 
-文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。要把 CMS 放到雲端，或把 `frontend/out/` 放在其他靜態主機，可以自行決定。
+文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。CMS 的本機與雲端設定、API 發布及 GitHub App 認證見 [`docs/portable-cms.md`](docs/portable-cms.md)。
 
 網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。
 
@@ -214,7 +214,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 | Actions variables `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` (optional) | From <https://giscus.app>; without them the site has no comments |
 | `DEPLOY_REPO` in `backend/.env` | Your fork, e.g. `you/personal-blog` |
 
-The docs describe the author's own setup: the CMS runs locally and the site deploys to GitHub Pages. Running the CMS in the cloud or serving `frontend/out/` from another static host is up to you.
+The default setup runs the CMS locally and deploys the public site to GitHub Pages. The same CMS can run in the cloud with environment settings. See [`docs/portable-cms.md`](docs/portable-cms.md) for API publishing and GitHub App authentication.
 
 The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release.
 

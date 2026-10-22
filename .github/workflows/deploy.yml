@@ -10,6 +10,9 @@ on:
       content_sha:
         description: Commit of the content repo to build (defaults to its HEAD)
         required: false
+      content_branch:
+        description: Content branch used for the latest-content guard
+        required: false
 
 permissions:
   contents: read
@@ -25,6 +28,7 @@ concurrency:
 env:
   # Defaults to <this repo>-content, e.g. you/personal-blog-content.
   CONTENT_REPO: ${{ vars.CONTENT_REPO || format('{0}-content', github.repository) }}
+  CONTENT_BRANCH: ${{ inputs.content_branch || vars.CONTENT_BRANCH }}
 
 jobs:
   # A content release (workflow_dispatch from the CMS) changes no code, and the
@@ -47,11 +51,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - id: content-repo
+        name: Validate content repository
+        env:
+          REPO: ${{ env.CONTENT_REPO }}
+        run: |
+          [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+          if [ -n "$CONTENT_BRANCH" ]; then git check-ref-format "refs/heads/$CONTENT_BRANCH"; fi
+          echo "owner=${REPO%%/*}" >> "$GITHUB_OUTPUT"
+          echo "name=${REPO#*/}" >> "$GITHUB_OUTPUT"
+      - id: content-token
+        if: vars.GITHUB_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ steps.content-repo.outputs.owner }}
+          repositories: ${{ steps.content-repo.outputs.name }}
+          permission-contents: read
       - uses: actions/checkout@v7
         with:
           repository: ${{ env.CONTENT_REPO }}
-          ref: ${{ inputs.content_sha }}
-          token: ${{ secrets.CONTENT_REPO_TOKEN }}
+          ref: ${{ inputs.content_sha || env.CONTENT_BRANCH }}
+          token: ${{ steps.content-token.outputs.token || secrets.CONTENT_REPO_TOKEN }}
           path: site-data
 
       - id: content
@@ -82,6 +104,7 @@ jobs:
           GISCUS_REPO_ID: ${{ vars.GISCUS_REPO_ID }}
           GISCUS_CATEGORY: ${{ vars.GISCUS_CATEGORY || 'Announcements' }}
           GISCUS_CATEGORY_ID: ${{ vars.GISCUS_CATEGORY_ID }}
+          LEGACY_SITE_URLS: ${{ vars.LEGACY_SITE_URLS }}
 
       # A link in an article to a page or image the build does not have fails
       # here, like a missing image does above.
@@ -107,12 +130,32 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - id: content-repo
+        name: Validate content repository
+        env:
+          REPO: ${{ env.CONTENT_REPO }}
+        run: |
+          [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+          if [ -n "$CONTENT_BRANCH" ]; then git check-ref-format "refs/heads/$CONTENT_BRANCH"; fi
+          echo "owner=${REPO%%/*}" >> "$GITHUB_OUTPUT"
+          echo "name=${REPO#*/}" >> "$GITHUB_OUTPUT"
+      - id: content-token
+        if: vars.GITHUB_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ steps.content-repo.outputs.owner }}
+          repositories: ${{ steps.content-repo.outputs.name }}
+          permission-contents: read
       - id: latest
         env:
-          TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          TOKEN: ${{ steps.content-token.outputs.token || secrets.CONTENT_REPO_TOKEN }}
           BUILT: ${{ needs.build.outputs.content_sha }}
         run: |
-          head=$(git ls-remote "https://x-access-token:${TOKEN}@github.com/${CONTENT_REPO}.git" HEAD | cut -f1)
+          ref=HEAD
+          if [ -n "$CONTENT_BRANCH" ]; then ref="refs/heads/$CONTENT_BRANCH"; fi
+          head=$(git ls-remote "https://x-access-token:${TOKEN}@github.com/${CONTENT_REPO}.git" "$ref" | cut -f1)
           if [ "$head" = "$BUILT" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else

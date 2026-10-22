@@ -4,6 +4,10 @@
 >
 > **權威紀錄在 `docs/design/`**。本文件只整理證據與可信度，不新增決策。兩者不一致時以 `docs/design/` 為準，並回報不一致處。
 
+## 後續實作決策
+
+Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持久背景工作。本機與雲端使用同一份程式。下面對 clone 與同步發布的理由描述原來的設計背景，不能解讀為 API 模式的現有限制。新的設定與取捨見 [portable-cms.md](../portable-cms.md)。
+
 ## 怎麼讀這份文件
 
 每個決策分四段：

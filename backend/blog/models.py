@@ -217,6 +217,9 @@ class Release(Base):
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True)
     content_commit: Mapped[str] = mapped_column(String(40))
+    content_parent: Mapped[str | None] = mapped_column(String(40))
+    content_target: Mapped[str | None] = mapped_column(Text)
+    deployment_target: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ReleaseStatus] = mapped_column(
         Enum(ReleaseStatus, native_enum=False, length=20, values_callable=lambda e: [m.value for m in e])
     )
@@ -250,4 +253,17 @@ class Profile(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     revision: Mapped[int] = mapped_column(Integer, default=1)
     content: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReleaseJob(Base):
+    __tablename__ = "release_jobs"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    action: Mapped[str] = mapped_column(String(10))
+    requested_release_id: Mapped[str | None] = mapped_column(ForeignKey("releases.id", ondelete="SET NULL"))
+    release_id: Mapped[str | None] = mapped_column(ForeignKey("releases.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(12), index=True)
+    detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

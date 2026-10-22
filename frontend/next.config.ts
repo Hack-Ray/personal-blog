@@ -17,7 +17,7 @@ const giscus = {
 const config: NextConfig = {
   output: "export",
   basePath,
-  env: { BASE_PATH: basePath, SITE_ORIGIN: siteOrigin, ...giscus },
+  env: { BASE_PATH: basePath, SITE_ORIGIN: siteOrigin, LEGACY_SITE_URLS: process.env.LEGACY_SITE_URLS ?? "", ...giscus },
   trailingSlash: true,
 };
 

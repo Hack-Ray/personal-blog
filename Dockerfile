@@ -15,9 +15,9 @@
 # proxy's address as the container sees it, so sign-in limits count real
 # client addresses.
 #
-# 更新網站 does not work from this image yet: it needs the content repo
-# clone, a git identity and push credentials, which wait on the publish
-# method and GitHub credential decisions in docs/backlog.md.
+# For API publication set CONTENT_REPO and GitHub credentials. Mount the App
+# private key read-only when using GITHUB_AUTH=app. Clone publication remains
+# available when a clone and its git credentials are mounted explicitly.
 #
 # Run one container at a time. Before starting a new image, back up and
 # migrate with one-off containers, stopping if either fails:

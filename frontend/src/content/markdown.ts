@@ -3,6 +3,9 @@ import { createHighlighter } from "shiki";
 import { SITE_ORIGIN } from "../site.ts";
 import { inlineText, slugger } from "./headings.ts";
 import { allowedImage, allowedLink } from "./url-policy.ts";
+import { legacySiteUrls, migrateSiteLink } from "./site-links.ts";
+
+const legacyRoots = legacySiteUrls(process.env.LEGACY_SITE_URLS ?? "");
 
 const LANGS = [
   "ts", "tsx", "js", "jsx", "json", "bash", "sh", "python", "go", "rust", "java",
@@ -47,6 +50,7 @@ export function renderMarkdown(markdown: string, basePath: string): string {
       link({ href, title, tokens }) {
         const inner = this.parser.parseInline(tokens);
         if (!allowedLink(href)) return inner;
+        href = migrateSiteLink(href, basePath, legacyRoots);
         const attrs = `href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""}`;
         if (!isExternal(href)) return `<a ${attrs}>${inner}</a>`;
         const onlyImage = tokens.every((t) => t.type === "image");

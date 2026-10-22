@@ -38,6 +38,8 @@ class ExportResult:
     release_id: str
     commit: str
     versions: dict[str, int]
+    parent_commit: str | None = None
+    target: str | None = None
 
 
 def _json(data: object) -> bytes:

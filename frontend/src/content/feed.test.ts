@@ -43,7 +43,7 @@ test("feed items carry absolute link, guid, RFC 822 date, summary and topic, new
   const xml = buildFeed(site(post(1), post(2)), url);
   assert.ok(xml.indexOf("Post 2") < xml.indexOf("Post 1"));
   assert.match(xml, /<link>https:\/\/example\.com\/blog\/posts\/01K7M4Y7P65BDCF8AHRTQY7Z02\/<\/link>/);
-  assert.match(xml, /<guid isPermaLink="true">https:\/\/example\.com\/blog\/posts\/01K7M4Y7P65BDCF8AHRTQY7Z02\/<\/guid>/);
+  assert.match(xml, /<guid isPermaLink="false">urn:ulid:01K7M4Y7P65BDCF8AHRTQY7Z02<\/guid>/);
   assert.match(xml, /<pubDate>Fri, 02 Jan 2026 00:00:00 GMT<\/pubDate>/);
   assert.match(xml, /<description>Body 2<\/description>/);
   assert.match(xml, /<category>Backend<\/category>/);
@@ -73,4 +73,11 @@ test("a site with nothing published yields a valid empty feed", () => {
   assert.equal(xml.match(/<item>/g), null);
   assert.ok(!xml.includes("lastBuildDate"));
   assert.match(xml, /<link>https:\/\/example\.com\/blog\/<\/link>/);
+});
+
+test("feed GUIDs survive a change of domain and basePath", () => {
+  const a = buildFeed(site(post(1)), url);
+  const b = buildFeed(site(post(1)), (path) => `https://new.example${path}`);
+  assert.equal(a.match(/<guid[^>]*>.*<\/guid>/)?.[0], b.match(/<guid[^>]*>.*<\/guid>/)?.[0]);
+  assert.ok(b.includes("https://new.example/posts/"));
 });

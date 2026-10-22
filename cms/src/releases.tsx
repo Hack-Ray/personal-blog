@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Release, type ReleaseStatus } from "./api.ts";
+import { api, type Release, type ReleaseJob, type ReleaseStatus } from "./api.ts";
+import { jobPending, jobMessage } from "./release-job.ts";
 import { isSlow, SLOW_AFTER_MINUTES } from "./deploy-delay.ts";
 import { tokenWarning } from "./token-warning.ts";
 
@@ -26,10 +27,19 @@ export function Releases() {
     api.githubToken().then((t) => setTokenNotice(tokenWarning(t.expires_at, new Date())), () => {});
   }, []);
   const [message, setMessage] = useState<{ text: string; ok: boolean }>();
-  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [jobs, setJobs] = useState<ReleaseJob[]>([]);
+  const latestJob = jobs[0];
+  const busy = submitting || jobs.some(jobPending);
+  const loadJobs = useCallback(() => api.releaseJobs().then(setJobs, (error) => setMessage({ text: String(error), ok: false })), []);
+  useEffect(() => {
+    void loadJobs();
+    const timer = setInterval(loadJobs, 2000);
+    return () => clearInterval(timer);
+  }, [loadJobs]);
 
   const load = useCallback(() => api.releases().then(setReleases, (e) => setMessage({ text: String(e), ok: false })), []);
-  useEffect(() => void load(), [load]);
+  useEffect(() => void load(), [load, latestJob?.id, latestJob?.status]);
   useEffect(() => {
     if (!releases.some((r) => PENDING.includes(r.status))) return;
     const timer = setInterval(load, 15000);
@@ -49,16 +59,17 @@ export function Releases() {
   }, [releases]);
   const slow = isSlow(releases, new Date());
 
-  const run = async (action: () => Promise<unknown>, done: (result: unknown) => string) => {
-    setBusy(true);
+  const submit = async (releaseId?: string) => {
+    setSubmitting(true);
     setMessage(undefined);
     try {
-      setMessage({ text: done(await action()), ok: true });
-      await load();
-    } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : String(e), ok: false });
+      const job = await api.submitRelease(releaseId);
+      setJobs((previous) => [job, ...previous.filter((item) => item.id !== job.id)]);
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : String(error), ok: false });
+      await loadJobs();
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   };
 
@@ -70,9 +81,7 @@ export function Releases() {
         <button
           type="button"
           disabled={busy}
-          onClick={() =>
-            run(api.createRelease, (r) => ((r as { release: Release | null }).release ? "已匯出並開始部署。" : "已發布的內容沒有變更，不需要更新網站。"))
-          }
+          onClick={() => void submit()}
         >
           更新網站
         </button>
@@ -104,6 +113,7 @@ export function Releases() {
         </p>
       )}
       <p className="hint">把所有已發布、已封存的文章與「網站與關於」頁的內容匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
+      {latestJob && <p className={latestJob.status === "failed" ? "banner" : "banner ok"} role="status">{jobMessage(latestJob)}</p>}
       {message && <p className={message.ok ? "banner ok" : "banner"}>{message.text}</p>}
       <table>
         <thead>
@@ -132,7 +142,7 @@ export function Releases() {
               </td>
               <td className="actions">
                 {i === 0 && RETRYABLE.includes(r.status) && (
-                  <button type="button" disabled={busy} onClick={() => run(() => api.retryRelease(r.id), () => "已重試。")}>
+                  <button type="button" disabled={busy} onClick={() => void submit(r.id)}>
                     重試
                   </button>
                 )}
