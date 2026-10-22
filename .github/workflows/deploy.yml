@@ -29,7 +29,11 @@ env:
   CONTENT_REPO: ${{ vars.CONTENT_REPO || format('{0}-content', github.repository) }}
 
 jobs:
+  # A content release (workflow_dispatch from the CMS) changes no code, and the
+  # push that put this code on main already ran ci; the build job still checks
+  # the content. Pushes to main run ci here too.
   ci:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
 
   # Runs alongside ci rather than after it; deploy waits for both. ci already
@@ -90,6 +94,8 @@ jobs:
 
   deploy:
     needs: [ci, build]
+    # A skipped ci would otherwise skip deploy too.
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
