@@ -3,6 +3,7 @@ import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
+import { useLeaveGuard } from "./leave-guard.ts";
 import { type Highlight, loadHighlighter, renderPreview } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
@@ -49,6 +50,19 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const badUrls = useMemo(() => urlProblems(content.markdown), [content.markdown]);
   const topicValid = unsavedReason(content) === undefined;
   const label = statusLabel(status, content, sync.current?.current ?? draft);
+  // Leaving the editor saves pending edits on the way out; edits that cannot
+  // be saved (invalid Topic, conflict, failed save) would be lost.
+  const stuck = label.kind === "unsaved" || label.kind === "conflict" || label.kind === "error";
+  useLeaveGuard(label.kind !== "saved", stuck ? "這篇文章有無法儲存的修改，離開會遺失它們。確定要離開嗎？" : undefined);
+  const [copied, setCopied] = useState("");
+  const copyMarkdown = () =>
+    navigator.clipboard.writeText(content.markdown).then(
+      () => setCopied("已複製 Markdown。"),
+      () => setCopied("無法複製，請手動選取 Markdown 複製。"),
+    );
+  const discardAndReload = () => {
+    if (window.confirm("重新載入會捨棄這裡未儲存的修改，改用伺服器上的版本。確定嗎？")) onReload();
+  };
 
   const update = (next: DraftContent) => {
     setContent(next);
@@ -135,10 +149,14 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
       </div>
       {status.kind === "conflict" && (
         <p className="banner">
-          伺服器上的草稿已是第 {status.currentRevision} 版，這裡的修改不會再自動儲存。
-          <button type="button" onClick={onReload}>
-            重新載入
+          伺服器上的草稿已是第 {status.currentRevision} 版（可能在其他分頁編輯過，或分類被改名、合併），這裡的修改不會再自動儲存。重新載入前，可以先複製這裡的 Markdown。
+          <button type="button" onClick={() => void copyMarkdown()}>
+            複製 Markdown
           </button>
+          <button type="button" onClick={discardAndReload}>
+            捨棄修改並重新載入
+          </button>
+          {copied && <span role="status"> {copied}</span>}
         </p>
       )}
       {notice && <p className="banner ok">{notice}</p>}

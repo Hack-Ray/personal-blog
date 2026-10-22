@@ -145,3 +145,40 @@ test("restoring a snapshot first saves pending edits, then uses the new revision
   assert.equal(sync.current.markdown, "snapshot 7");
   assert.equal(sync.status.kind, "saved");
 });
+
+test("a save that fails on the network is retried until it succeeds", async () => {
+  const server = fakeServer();
+  let failures = 2;
+  const flaky = {
+    ...server.api,
+    save: (...args: Parameters<typeof server.api.save>) =>
+      failures-- > 0 ? Promise.reject(new TypeError("Failed to fetch")) : server.api.save(...args),
+  };
+  const sync = new DraftSync(flaky, "D", { revision: 1, content: content("initial") }, () => {}, 0, 0);
+  sync.edit(content("typed offline"));
+  await sync.flush();
+  assert.equal(sync.status.kind, "error");
+  // The retries run on timers; wait for the one that reaches the server.
+  while (server.calls.length === 0) await new Promise((r) => setTimeout(r, 1));
+  await server.releaseAll();
+  assert.equal(server.stored(), "typed offline");
+  assert.equal(sync.status.kind, "saved");
+});
+
+test("a save the server rejects as invalid is not retried", async () => {
+  const server = fakeServer();
+  let calls = 0;
+  const strict = {
+    ...server.api,
+    save: () => {
+      calls += 1;
+      return Promise.reject(new ApiError(422, { detail: "invalid" }));
+    },
+  };
+  const sync = new DraftSync(strict, "D", { revision: 1, content: content("initial") }, () => {}, 0, 0);
+  sync.edit(content("x"));
+  await sync.flush();
+  await server.releaseAll();
+  assert.equal(calls, 1);
+  assert.equal(sync.status.kind, "error");
+});

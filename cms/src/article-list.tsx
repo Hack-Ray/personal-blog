@@ -60,7 +60,10 @@ export function ArticleList() {
         <a className="button" href="#/releases">
           網站發布
         </a>
-        <button type="button" onClick={() => api.signOut().then(() => location.reload())}>
+        <button
+          type="button"
+          onClick={() => api.signOut().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`))}
+        >
           登出
         </button>
       </div>
