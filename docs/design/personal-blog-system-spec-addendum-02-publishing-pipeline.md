@@ -118,6 +118,16 @@
   - Token 到期：`token-expiry.yml` 每週一以 `CONTENT_REPO_TOKEN` 呼叫 GitHub API，讀回應標頭 `github-authentication-token-expiration`；剩 30 天以內或已無法讀取內容 repo 時，在本 repo 開一個 issue（已有未關閉的同類 issue 時不重複開）。CMS 的 `GITHUB_TOKEN` 不在 Actions 中，改由 CMS 的「網站發布」頁透過 `GET /api/github-token` 以同樣方式讀到期日，30 天內顯示提醒。
 - **Consequences**：token 換新後兩邊都會自動讀到新的到期日，不需要改設定。
 
+### PUB-009：部署久候時提示 GitHub 事故
+
+- **Date**：2026-10-22
+- **Status**：Confirmed（使用者 2026-10-22 指定）
+- **Decision**：
+  - 「網站發布」頁上，有 release 處於「等待建置」或「建置中」，且距最近一次啟動部署（`dispatched_at`，重試會重設）已滿 10 分鐘時，顯示提示。平常的部署約 1.5～4 分鐘完成。
+  - 提示的內容來自 `GET /api/github-status`：CMS 後端讀 githubstatus.com 的 `/api/v2/incidents/unresolved.json`，只保留影響 Actions 或 Pages 的事故，回傳名稱與 `https://` 連結。管理頁的 CSP 是 `connect-src 'self'`，所以由後端代查，不放寬 CSP。
+  - 有事故時列出事故名稱與連結；沒有事故或查詢失敗時，提示可能是 GitHub Actions 延遲，並連到 GitHub Status。
+- **Consequences**：GitHub 端的延遲不必再靠作者自己去查；提示只是說明，不會自動重試或取消部署。
+
 ## Open Questions（尚未確認）
 
 - ~~本機 PostgreSQL 的備份方式、頻率與存放位置。~~ 已由 Addendum 03 BE-012 決定。

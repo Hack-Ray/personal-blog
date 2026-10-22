@@ -39,6 +39,7 @@ class Settings:
     deploy_workflow: str
     deploy_ref: str
     github_api_url: str
+    github_status_url: str
     cms_dist: Path
 
     @property
@@ -116,6 +117,7 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         deploy_workflow=_optional(env, "DEPLOY_WORKFLOW") or "deploy.yml",
         deploy_ref=_optional(env, "DEPLOY_REF") or "main",
         github_api_url=_optional(env, "GITHUB_API_URL") or "https://api.github.com",
+        github_status_url=_optional(env, "GITHUB_STATUS_URL") or "https://www.githubstatus.com",
         cms_dist=Path(_optional(env, "CMS_DIST") or DEFAULT_CMS_DIST),
     )
 

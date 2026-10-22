@@ -364,6 +364,7 @@ class ReleaseOut(BaseModel):
     run_url: str | None
     created_at: datetime
     updated_at: datetime
+    dispatched_at: datetime | None
 
     @classmethod
     def of(cls, r: Release) -> "ReleaseOut":
@@ -419,6 +420,25 @@ def github_token() -> TokenOut:
         return TokenOut(configured=True, expires_at=deployer.token_expires_at())
     except release.ReleaseError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+
+
+class IncidentOut(BaseModel):
+    name: str
+    url: str
+
+
+class GitHubStatusOut(BaseModel):
+    incidents: list[IncidentOut]
+
+
+@app.get("/api/github-status")
+def github_status() -> GitHubStatusOut:
+    """Open GitHub incidents that can hold up a deploy. The page's CSP keeps the browser off githubstatus.com, so the CMS asks."""
+    try:
+        incidents = release.github_incidents()
+    except release.ReleaseError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+    return GitHubStatusOut(incidents=[IncidentOut(name=i.name, url=i.url) for i in incidents])
 
 
 @app.post("/api/releases/{release_id}/retry")

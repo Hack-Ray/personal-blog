@@ -331,7 +331,9 @@ def test_listing_releases_does_not_call_github_and_refreshing_does(client, confi
     monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
     created = client.post("/api/releases").json()["release"]
     deployer.finish(created["content_commit"])
-    assert client.get("/api/releases").json()[0]["status"] == "dispatched"
+    listed = client.get("/api/releases").json()[0]
+    assert listed["status"] == "dispatched"
+    assert listed["dispatched_at"] is not None
     assert client.post("/api/releases/refresh").json()[0]["status"] == "deployed"
 
 
@@ -462,6 +464,53 @@ def test_a_token_without_a_deploy_repo_dispatches_nowhere(configure):
 def test_github_client_reports_http_errors(github):
     with pytest.raises(release.ReleaseError, match="returned 404"):
         github.dispatch("abc")
+
+
+INCIDENTS = "GET /api/v2/incidents/unresolved.json"
+
+
+def incident(name, *components):
+    return {"name": name, "shortlink": f"https://stspg.io/{name.replace(' ', '')}", "impact": "minor", "components": [{"name": c} for c in components]}
+
+
+def test_the_status_endpoint_lists_only_incidents_that_hold_up_a_deploy(client, configure, github):
+    configure(github_status_url=github.api_url)
+    FakeGitHub.responses = {
+        INCIDENTS: (
+            200,
+            {
+                "incidents": [
+                    incident("Actions slow", "Actions"),
+                    incident("Issues down", "Issues"),
+                    incident("Pages and API", "API Requests", "Pages"),
+                    incident("Odd link", "Actions") | {"shortlink": "javascript:alert(1)"},
+                ]
+            },
+        )
+    }
+    assert client.get("/api/github-status").json() == {
+        "incidents": [
+            {"name": "Actions slow", "url": "https://stspg.io/Actionsslow"},
+            {"name": "Pages and API", "url": "https://stspg.io/PagesandAPI"},
+        ]
+    }
+
+
+def test_the_status_endpoint_is_empty_when_nothing_is_open(client, configure, github):
+    configure(github_status_url=github.api_url)
+    FakeGitHub.responses = {INCIDENTS: (200, {"incidents": []})}
+    assert client.get("/api/github-status").json() == {"incidents": []}
+
+
+@pytest.mark.parametrize("response", [(500, {"message": "boom"}), (200, {"unexpected": True}), (200, {"incidents": [{"name": "x"}]})])
+def test_the_status_endpoint_answers_502_when_githubstatus_fails(client, configure, github, response):
+    configure(github_status_url=github.api_url)
+    FakeGitHub.responses = {INCIDENTS: response}
+    assert client.get("/api/github-status").status_code == 502
+
+
+def test_the_status_endpoint_needs_a_session(anon):
+    assert anon.get("/api/github-status").status_code == 401
 
 
 def test_going_live_cleans_up_old_versions(repos):
