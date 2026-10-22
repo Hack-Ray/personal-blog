@@ -17,12 +17,6 @@ on:
 permissions:
   contents: read
 
-# One run at a time. A newer queued run replaces older queued ones, and a
-# running build is allowed to finish (Baseline 9.2).
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 # Per-site settings are repository variables (Settings → Secrets and variables →
 # Actions → Variables), so a fork changes no code. See docs/fork-and-deploy.md.
 env:
@@ -38,10 +32,43 @@ jobs:
     if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
 
+  # A push that changes nothing the site is built from (docs, backend, cms)
+  # runs ci only. A content release always builds.
+  site-changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # Without the previous main commit (first push, force push) there is
+          # nothing to compare, so build.
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            if git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qE '^(frontend/|\.nvmrc$|\.github/workflows/deploy\.yml$)'; then changed=true; else changed=false; fi
+          else
+            changed=true
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
   # Runs alongside ci rather than after it; deploy waits for both. ci already
   # runs the unit tests and typecheck, so this job only builds.
   build:
+    needs: site-changes
+    # Builds unless site-changes found no change, so a failed check still builds.
+    if: ${{ !cancelled() && needs.site-changes.outputs.changed != 'false' }}
     runs-on: ubuntu-latest
+    # One build and one deploy at a time; a newer queued job replaces an older
+    # queued one and a running job finishes (Baseline 9.2). Set per job, not
+    # per run, so a run that skips them never cancels a queued release.
+    concurrency:
+      group: pages-build
+      cancel-in-progress: false
     # configure-pages reads the site's URL.
     permissions:
       contents: read
@@ -119,6 +146,9 @@ jobs:
 
   deploy:
     needs: [ci, build]
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     # Only this job publishes, so only it may write to Pages.
     permissions:
       pages: write

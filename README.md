@@ -120,7 +120,7 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 
 開發 CMS 介面時，可以在 `cms/` 執行 `npm run dev`，Vite 會把 `/api` 轉給 `127.0.0.1:8000` 的後端。
 
-合併到你的 fork 的 `main` 會觸發部署。各部分的細節：[`backend/README.md`](backend/README.md)、[`frontend/README.md`](frontend/README.md)、[`cms/README.md`](cms/README.md)。
+合併到你的 fork 的 `main` 時，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才會重新部署網站，其他修改只跑 CI。各部分的細節：[`backend/README.md`](backend/README.md)、[`frontend/README.md`](frontend/README.md)、[`cms/README.md`](cms/README.md)。
 
 ---
 
@@ -235,7 +235,7 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 
 While working on the CMS UI, run `npm run dev` in `cms/`. Vite forwards `/api` to the backend on `127.0.0.1:8000`.
 
-A merge into your fork's `main` deploys the site. Details for each part: [`backend/README.md`](backend/README.md), [`frontend/README.md`](frontend/README.md), [`cms/README.md`](cms/README.md).
+A merge into your fork's `main` redeploys the site when it changes `frontend/`, `.nvmrc` or `deploy.yml`; other merges run CI only. Details for each part: [`backend/README.md`](backend/README.md), [`frontend/README.md`](frontend/README.md), [`cms/README.md`](cms/README.md).
 
 ## License
 

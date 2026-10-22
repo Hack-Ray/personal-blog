@@ -75,6 +75,7 @@
     - 2026-10-22 更新（G19）：`ci.yml` 拿掉自己的 `push` 觸發，只保留 `pull_request` 與 `workflow_call`。push 到 `main` 時只由 `deploy.yml` 呼叫一次 CI，不再另外跑一次獨立的 `CI` workflow。
   - Build 前驗證 Snapshot：`schema_version` 可識別、manifest 列出的每篇文章檔案存在、文章引用的每張圖片存在。驗證失敗即不部署，舊網站維持上線。
   - 部署以 workflow `concurrency` 序列化。
+    - 2026-10-23 更新（使用者選擇）：程式碼 push 到 `main` 時，只有改到網站的建置來源（`frontend/`、`.nvmrc`、`deploy.yml`）才 build 與部署；只改文件、後端或 CMS 的 push 只跑 CI，避免浪費時間與 Actions 用量。`workflow_dispatch` 的內容發布與重試一律 build。concurrency 改設在 build 與 deploy 兩個 job（`pages-build`、`pages-deploy`），不再設在整個 run，否則不 build 的 push run 會取消排隊中的內容發布。
   - 部署前檢查：本次建置的內容 commit 若已不是內容 repo 的 HEAD，則略過部署（較新的建置會接手）。
 - **Supersedes**：Baseline 9.2 中尚待設計的「原子性／鎖／序列號協定」，以內容 repo 的 commit 順序與 HEAD 檢查取代。
 
