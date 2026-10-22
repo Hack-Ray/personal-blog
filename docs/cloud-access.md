@@ -24,7 +24,7 @@ CMS 放到雲端主機時，只讓作者自己的裝置連得到。做法是讓�
 }
 ```
 
-Tailscale SSH 同時需要 `grants` 允許 22 埠與 `ssh` 規則，少一個就連不上。tailnet 裡如果還有其他規則（例如預設的「全部允許」），刪掉之前先確認上面的規則已經儲存，否則上面的限制不會生效。
+Tailscale SSH 同時需要 `grants` 允許 22 埠與 `ssh` 規則，少一個就連不上。tailnet 裡如果還有其他規則（例如預設的「全部允許」），要一併刪掉，否則上面的限制不會生效。
 
 接著在 Settings → Device management 開啟 **Device approval**。新的裝置要經過作者在管理介面核准，才能加入 tailnet。
 
@@ -38,7 +38,7 @@ Tailscale SSH 同時需要 `grants` 允許 22 埠與 `ssh` 規則，少一個就
    sudo tailscale up --ssh --advertise-tags=tag:cms
    ```
 
-   加了 tag 的裝置，節點金鑰預設不會到期，主機不會因為金鑰到期而突然離線。
+   因為已經開啟裝置核准，這個指令會等待核准：到管理介面的 Machines 頁面核准主機後，它才會加入。加了 tag 的裝置，節點金鑰預設不會到期，主機不會因為金鑰到期而突然離線。
 
 2. 確認可以用 Tailscale SSH 登入主機後，**移除主機防火牆（例如 AWS Security Group）的所有進站規則，包括 SSH**。之後管理主機只用 Tailscale SSH，或雲端供應商自己的主控台（例如 AWS Systems Manager Session Manager）。
 3. CMS 只綁定 `127.0.0.1:8000`：
