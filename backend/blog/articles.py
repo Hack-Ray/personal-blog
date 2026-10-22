@@ -214,6 +214,8 @@ def publish(session: Session, doc_id: str, base_revision: int, content: DraftCon
         raise NotPublishable("title and markdown must not be empty")
     if content.cover is not None and content.cover not in images.refs(content.markdown):
         raise NotPublishable("the cover must be an image the article contains")
+    if gone := images.missing(session, content.markdown):
+        raise NotPublishable(f"images not found: {', '.join(sorted(gone))}")
     draft = _locked_draft(session, doc_id, Action.PUBLISH, base_revision)
     _apply(session, draft, content)
     draft.revision += 1

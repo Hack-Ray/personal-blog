@@ -107,3 +107,22 @@ def test_published_versions_still_reject_content_updates(client):
         conn.execute(text("UPDATE published_versions SET markdown = 'changed'"))
     with pytest.raises(DBAPIError, match="immutable"), engine.begin() as conn:
         conn.execute(text("UPDATE published_versions SET topic_id = topic_id, title = 'changed'"))
+
+
+def test_an_editor_holding_the_old_name_gets_a_conflict_after_a_rename(client):
+    doc_id = create(client, tags=[tag("go")])
+    other = create(client, topic={"slug": "ops", "name": "Ops"})
+    assert client.put("/api/taxa/topics/backend", json={"name": "後端"}).status_code == 204
+    stale = client.put(f"/api/articles/{doc_id}/draft", json={"base_revision": 1, **draft(tags=[tag("go")])})
+    assert stale.status_code == 409
+    assert client.get(f"/api/articles/{doc_id}/draft").json()["topic"]["name"] == "後端"
+    assert client.get(f"/api/articles/{other}/draft").json()["revision"] == 1
+
+
+def test_merging_tags_invalidates_the_drafts_that_used_the_source(client):
+    doc_id = create(client, tags=[tag("js")])
+    create(client, tags=[tag("javascript")])
+    assert client.post("/api/taxa/tags/js/merge", json={"into": "javascript"}).status_code == 204
+    stale = client.put(f"/api/articles/{doc_id}/draft", json={"base_revision": 1, **draft(tags=[tag("js")])})
+    assert stale.status_code == 409
+    assert usage(client, "tags") == {"javascript": ("Javascript", 2, True)}
