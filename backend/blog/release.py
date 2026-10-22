@@ -186,10 +186,6 @@ def repo_from_env() -> Path | GitHubRepository:
     return s.content_repo_dir
 
 
-def content_repo_from_env() -> Path | None:
-    return config.settings.content_repo_dir
-
-
 def _set(release: Release, status: ReleaseStatus, detail: str | None = None) -> None:
     release.status = status
     release.detail = detail
