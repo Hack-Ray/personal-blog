@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from blog import auth, config
+from blog.api import app
 from blog.db import SessionLocal, engine
 from blog.models import AdminSession, SignInAttempt
-from blog.api import app
 from tests.conftest import ADMIN_PASSWORD, BASE_URL
 
 ARTICLE = {"title": "T", "topic": {"slug": "backend", "name": "Backend"}, "markdown": "m"}

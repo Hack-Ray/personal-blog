@@ -25,6 +25,8 @@ def upgrade() -> None:
         "admin_sessions",
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
+    # Sessions now last 3 days from sign-in (auth.SESSION_TTL), not 7.
+    op.execute("UPDATE admin_sessions SET expires_at = least(expires_at, created_at + interval '3 days')")
 
 
 def downgrade() -> None:

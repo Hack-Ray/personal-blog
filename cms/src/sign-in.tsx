@@ -35,7 +35,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         <h1 id="sign-in-title">登入 CMS</h1>
         <label className="field">
           <span>管理員密碼</span>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+          <input type="password" autoComplete="current-password" maxLength={1024} value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
         </label>
         {error && <p className="banner">{error}</p>}
         <button type="submit" disabled={busy || password === ""}>

@@ -8,10 +8,10 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from blog import articles, auth, config, exporter, images, profile, release, retention, taxa
 from blog.db import SessionLocal, get_session
@@ -227,7 +227,7 @@ def get_session_status(request: Request, session: SessionDep) -> SessionOut:
 
 @app.post("/api/session", status_code=status.HTTP_204_NO_CONTENT)
 def sign_in(body: SignInBody, request: Request, response: Response, session: SessionDep) -> None:
-    # Behind a proxy, uvicorn --proxy-headers puts the original client here.
+    # Behind a proxy listed in FORWARDED_ALLOW_IPS, uvicorn puts the original client here.
     client = request.client.host if request.client else "unknown"
     try:
         token = auth.sign_in(session, body.password, client)

@@ -86,10 +86,15 @@ def _count_attempt(session: Session, client: str, now: datetime) -> None:
     """Counts the attempt before the password is checked, so concurrent
     guesses cannot slip past the limit. Raises while the client must wait."""
     session.execute(delete(SignInAttempt).where(SignInAttempt.last_attempt_at < now - ATTEMPTS_RESET))
-    session.execute(
-        insert(SignInAttempt).values(client=client, failures=0, last_attempt_at=now).on_conflict_do_nothing()
-    )
-    attempt = session.scalars(select(SignInAttempt).where(SignInAttempt.client == client).with_for_update()).one()
+    # One statement creates or locks the row, so a parallel successful
+    # sign-in deleting it cannot leave nothing to lock.
+    attempt = session.scalars(
+        insert(SignInAttempt)
+        .values(client=client, failures=0, last_attempt_at=now)
+        .on_conflict_do_update(index_elements=["client"], set_={"client": client})
+        .returning(SignInAttempt),
+        execution_options={"populate_existing": True},
+    ).one()
     if attempt.blocked_until and attempt.blocked_until > now:
         session.commit()
         raise TooManyAttempts(math.ceil((attempt.blocked_until - now).total_seconds()))
@@ -111,6 +116,8 @@ def sign_in(session: Session, password: str, client: str) -> str | None:
     now = datetime.now(UTC)
     _count_attempt(session, client, now)
     stored = session.scalar(select(AdminCredential.password_hash).where(AdminCredential.id == 1))
+    # Hand the connection back while waiting for a check slot.
+    session.rollback()
     if not _checks.acquire(timeout=CHECK_WAIT):
         raise Busy("too many sign-in attempts at once; try again shortly")
     try:
