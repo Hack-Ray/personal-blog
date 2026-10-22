@@ -18,6 +18,8 @@ uv run --env-file .env python -m blog.auth   # set the admin password (asked twi
 uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
 
+Started this way, the CMS does not run the due maintenance; `scripts/start.sh` does, or run `uv run --env-file .env python -m blog.maintenance`.
+
 `--env-file .env` loads the settings; the backend itself reads only environment variables.
 
 CMS: http://127.0.0.1:8000/admin/ · API docs: http://127.0.0.1:8000/docs

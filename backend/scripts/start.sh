@@ -9,7 +9,6 @@
 # or set BACKUP_TARGET in .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-. scripts/lib.sh
 
 [ -f .env ] || { echo "backend/.env is missing: run 'cp .env.example .env' and fill it in (docs/local-setup.md section 4)." >&2; exit 1; }
 [ -d ../cms/dist ] || echo "warning: ../cms/dist is missing, so /admin/ will 404; build it with: (cd ../cms && npm ci && npm run build)" >&2
@@ -18,8 +17,6 @@ echo "==> Starting the database"
 docker compose up -d --wait
 
 echo "==> Backing up"
-BACKUP_TARGET="$(env_value BACKUP_TARGET)"
-export BACKUP_TARGET
 if ! scripts/backup.sh; then
   if ! uv run --env-file .env alembic current 2>/dev/null | grep -q '(head)'; then
     echo "error: the backup FAILED and migrations are pending; fix the backup first so a bad migration can be undone" >&2

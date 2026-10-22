@@ -82,7 +82,7 @@ uv run --env-file .env python -m blog.auth           # 設定管理員密碼（�
 uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
 
-打開 <http://127.0.0.1:8000/admin/> 登入。請保持 `--host 127.0.0.1`，不要改成 `0.0.0.0`。
+打開 <http://127.0.0.1:8000/admin/> 登入。請保持 `--host 127.0.0.1`，不要改成 `0.0.0.0`。之後平常用 `scripts/start.sh` 啟動，它會先備份、執行 migration 與到期的清理（見 [`docs/local-setup.md`](docs/local-setup.md) 第 9 節）。
 
 要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`CMS_GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
 
@@ -197,7 +197,7 @@ uv run --env-file .env python -m blog.auth           # set the admin password (1
 uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000/admin/> and sign in. Keep `--host 127.0.0.1`; do not change it to `0.0.0.0`.
+Open <http://127.0.0.1:8000/admin/> and sign in. Keep `--host 127.0.0.1`; do not change it to `0.0.0.0`. After this, start it with `scripts/start.sh`, which backs up, migrates and runs due maintenance first (see [`docs/local-setup.md`](docs/local-setup.md) section 9).
 
 "更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`), your fork (`DEPLOY_REPO`) and a GitHub token (`CMS_GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
 

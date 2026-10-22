@@ -174,7 +174,7 @@ cd personal-blog/backend
 scripts/backup.sh
 ```
 
-每次備份會在 `backend/backups/` 產生兩個檔案。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
+每次備份會在 `backend/backups/` 產生兩個檔案。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
 
 - `blog-<UTC 時間>.dump`：整個資料庫（PostgreSQL custom format）
 - `blog-<UTC 時間>.dump.sha256`：檢查碼，還原時用來確認檔案沒有損壞
@@ -249,7 +249,7 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 
 ## 13. 之後搬到 AWS
 
-兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有和資料庫同一個大版本（目前是 16）的 PostgreSQL 用戶端工具（`pg_dump`、`pg_restore`、`psql`）。密碼會透過 `PGPASSWORD` 傳給這些工具，不會出現在程序列表裡。
+兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有和資料庫同一個大版本（目前是 16）的 PostgreSQL 用戶端工具（`pg_dump`、`pg_restore`、`psql`）。密碼會透過 `PGPASSWORD` 傳給這些工具，不會出現在它們的命令列。`--url` 的網址本身仍會出現在 `backup.sh`/`restore.sh` 的命令列；不想這樣時改用 `--env`，從環境變數或 `.env` 的 `DATABASE_URL` 讀取。
 
 ```sh
 # 從本機 Docker 備份
@@ -263,11 +263,12 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 雲端的 CMS 會一直開著，所以清理與備份要排程執行，例如在主機上用 cron：
 
 ```cron
+PATH=/home/<user>/.local/bin:/usr/local/bin:/usr/bin:/bin
 0 * * * * cd /srv/personal-blog/backend && uv run --env-file .env python -m blog.maintenance
-0 3 * * * cd /srv/personal-blog/backend && set -a && . ./.env && set +a && scripts/backup.sh --url "$DATABASE_URL"
+0 3 * * * cd /srv/personal-blog/backend && scripts/backup.sh --env
 ```
 
-第二行把 `.env` 載入成環境變數，`BACKUP_TARGET` 設成 `s3://...` 時就會備份到 S3。S3 bucket 請開啟版本控制與加密，並設定保存天數。
+cron 的 PATH 很短，第一行要包含 `uv` 和 `aws` 所在的目錄（`which uv aws` 可查）。`backup.sh --env` 從 `.env` 讀 `DATABASE_URL` 和 `BACKUP_TARGET`，後者設成 `s3://...` 時就會備份到 S3。S3 bucket 請開啟版本控制與加密，並設定保存天數。
 
 ## 14. 常見問題
 

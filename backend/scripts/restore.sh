@@ -4,6 +4,7 @@
 #
 #   scripts/restore.sh backups/blog-20261020T120000Z.dump
 #   scripts/restore.sh s3://bucket/prefix/blog-....dump  # needs the aws CLI
+#   scripts/restore.sh <file> --env         # into DATABASE_URL from the environment or .env
 #   scripts/restore.sh <file> --url <URL>   # into any PostgreSQL, e.g. on AWS
 #   scripts/restore.sh <file> --yes         # skip the confirmation prompt
 #
@@ -15,6 +16,7 @@ cd "$(dirname "$0")/.."
 file="" url="" yes=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --env) url="$(env_value DATABASE_URL)"; [ -n "$url" ] || { echo "DATABASE_URL is not set" >&2; exit 2; }; shift ;;
     --url) url="$2"; shift 2 ;;
     --yes) yes=1; shift ;;
     -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
@@ -22,13 +24,14 @@ while [ $# -gt 0 ]; do
     *) file="$1"; shift ;;
   esac
 done
-[ -n "$file" ] || { echo "usage: scripts/restore.sh <backup.dump> [--url URL] [--yes]" >&2; exit 2; }
+[ -n "$file" ] || { echo "usage: scripts/restore.sh <backup.dump> [--env | --url URL] [--yes]" >&2; exit 2; }
+source="$file"
 
 if [[ "$file" == s3://* ]]; then
   dir="$(mktemp -d)"
   trap 'rm -rf "$dir"' EXIT
   aws s3 cp --quiet "$file" "$dir/"
-  aws s3 cp --quiet "$file.sha256" "$dir/" || true
+  aws s3 cp --quiet "$file.sha256" "$dir/" || echo "warning: could not download $file.sha256" >&2
   file="$dir/$(basename "$file")"
 fi
 [ -f "$file" ] || { echo "no such file: $file" >&2; exit 2; }
@@ -61,4 +64,4 @@ if [ -f .env ]; then
 else
   uv run alembic upgrade head
 fi
-echo "Restored $file into $target."
+echo "Restored $source into $target."

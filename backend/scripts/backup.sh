@@ -3,22 +3,26 @@
 # images (stored in PostgreSQL), releases and the admin password hash.
 #
 #   scripts/backup.sh                  # from the Docker Compose database
+#   scripts/backup.sh --env            # from DATABASE_URL in the environment or .env
 #   scripts/backup.sh --url <URL>      # from any PostgreSQL, e.g. on AWS
 #   scripts/backup.sh --out <target>   # a folder or s3://bucket/prefix
 #
 # Writes blog-<timestamp>.dump (pg_dump custom format) and a .sha256 beside it.
-# The target defaults to $BACKUP_TARGET, then backups/. An s3:// target needs
-# the aws CLI.
+# The target defaults to BACKUP_TARGET (environment or .env), then backups/.
+# An s3:// target needs the aws CLI. --env keeps the password out of this
+# script's command line; --url puts it there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/lib.sh
 
-url="" out="${BACKUP_TARGET:-backups}"
+url="" out="$(env_value BACKUP_TARGET)"
+out="${out:-backups}"
 while [ $# -gt 0 ]; do
   case "$1" in
+    --env) url="$(env_value DATABASE_URL)"; [ -n "$url" ] || { echo "DATABASE_URL is not set" >&2; exit 2; }; shift ;;
     --url) url="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
