@@ -9,16 +9,16 @@
   },
   "dependencies": {
     "marked": "16.4.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "shiki": "4.5.0"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
-    "@vitejs/plugin-react": "6.1.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "typescript": "5.9.3",
-    "vite": "8.2.4"
+    "vite": "8.3.4"
   }
 }

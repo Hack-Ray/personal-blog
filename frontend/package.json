@@ -12,16 +12,16 @@
   },
   "dependencies": {
     "marked": "16.4.0",
-    "next": "16.4.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "shiki": "4.5.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.64.1",
     "@types/node": "22.18.0",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "sharp": "0.35.5",
     "typescript": "5.9.3"
   }
