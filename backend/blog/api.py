@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -39,6 +40,11 @@ PUBLIC_API = {"/api/session"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+def _signed_in(token: str | None) -> bool:
+    with SessionLocal() as session:
+        return auth.is_signed_in(session, token)
+
+
 @app.middleware("http")
 async def require_admin(request: Request, call_next):
     path = request.url.path
@@ -49,10 +55,8 @@ async def require_admin(request: Request, call_next):
         expected = config.settings.cms_origin or f"{request.url.scheme}://{request.url.netloc}"
         if request.method in UNSAFE_METHODS and origin and origin != expected:
             return JSONResponse({"detail": "cross-origin request refused"}, status_code=status.HTTP_403_FORBIDDEN)
-        if path not in PUBLIC_API:
-            with SessionLocal() as session:
-                if not auth.is_signed_in(session, request.cookies.get(config.settings.session_cookie)):
-                    return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
+        if path not in PUBLIC_API and not await run_in_threadpool(_signed_in, request.cookies.get(config.settings.session_cookie)):
+            return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
     return await call_next(request)
 
 
@@ -506,9 +510,11 @@ class ImageOut(BaseModel):
     markdown: str
 
 
+# A plain def runs in the threadpool, so decoding and encoding the image does
+# not block other requests.
 @app.post("/api/images", status_code=status.HTTP_201_CREATED)
-async def upload_image(file: UploadFile, session: SessionDep) -> ImageOut:
-    data = await file.read(images.MAX_BYTES + 1)
+def upload_image(file: UploadFile, session: SessionDep) -> ImageOut:
+    data = file.file.read(images.MAX_BYTES + 1)
     try:
         image = images.store(session, data)
     except images.ImageTooLarge as e:

@@ -17,6 +17,11 @@ MAX_BYTES = 10 * 1024 * 1024
 # Twice the 720px article column, so screenshots stay sharp on HiDPI screens (BE-014).
 MAX_WIDTH = 1440
 WEBP_QUALITY = 85
+# Decoding holds every pixel in memory: about 4 bytes each, so 40M pixels is
+# 160 MB. An animation's frames are all decoded, so they share one budget.
+MAX_PIXELS = 40_000_000
+MAX_FRAMES = 300
+Pillow.MAX_IMAGE_PIXELS = MAX_PIXELS
 GRACE = timedelta(days=7)
 
 # Detected from the bytes, never from the client's filename or header.
@@ -53,12 +58,21 @@ def _fit(frame: Pillow.Image) -> Pillow.Image:
     return frame
 
 
+def _too_many_pixels() -> ImageTooLarge:
+    return ImageTooLarge(f"images are limited to {MAX_PIXELS // 1_000_000} million pixels, counting every frame")
+
+
 def _to_webp(data: bytes) -> bytes:
     """Shrinks to MAX_WIDTH and re-encodes as WebP, keeping animation.
 
     Re-encoding also drops EXIF metadata such as a photo's GPS location."""
     try:
         with Pillow.open(io.BytesIO(data)) as im:
+            frames = getattr(im, "n_frames", 1)
+            if frames > MAX_FRAMES:
+                raise ImageTooLarge(f"animations are limited to {MAX_FRAMES} frames")
+            if im.width * im.height * frames > MAX_PIXELS:
+                raise _too_many_pixels()
             out = io.BytesIO()
             if getattr(im, "is_animated", False):
                 frames, durations = [], []
@@ -72,7 +86,9 @@ def _to_webp(data: bytes) -> bytes:
             else:
                 _fit(ImageOps.exif_transpose(im)).save(out, "WEBP", quality=WEBP_QUALITY)
             return out.getvalue()
-    except (OSError, SyntaxError, ValueError, Pillow.DecompressionBombError) as e:
+    except Pillow.DecompressionBombError as e:
+        raise _too_many_pixels() from e
+    except (OSError, SyntaxError, ValueError) as e:
         raise UnsupportedImage("the image could not be read") from e
 
 
