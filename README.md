@@ -2,9 +2,11 @@
 
 [繁體中文](#繁體中文) · [English](#english)
 
-個人部落格與作品集。寫作在本機的 CMS 進行，公開網站是部署在 GitHub Pages 的靜態網站：<https://hack-ray.github.io/personal-blog/>。
+自架的部落格系統：在自己電腦上的 CMS 寫作，公開網站是部署在 GitHub Pages 的靜態網站。Fork 之後不需要改程式，照 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) 設定就能架出自己的部落格。
 
-A personal blog and portfolio. Writing happens in a CMS that runs on your own computer, and the public site is a static site on GitHub Pages: <https://hack-ray.github.io/personal-blog/>.
+A self-hosted blog: you write in a CMS that runs on your own computer, and the public site is a static site on GitHub Pages. A fork needs no code changes; [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) (in Traditional Chinese) walks from the fork to the first published article.
+
+範例 / Example: <https://hack-ray.github.io/personal-blog/>
 
 ---
 
@@ -15,7 +17,7 @@ A personal blog and portfolio. Writing happens in a CMS that runs on your own co
 ```text
 你的電腦                                   GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
-│ CMS 介面 (cms/)              │          │ personal-blog-content（private） │
+│ CMS 介面 (cms/)              │          │ 內容 repo（private）             │
 │   ↓ /api                    │  push    │   manifest.json、profile.json、   │
 │ 後端 (backend/) ── PostgreSQL│ ───────→ │   articles/、images/              │
 │   「更新網站」匯出 Snapshot   │          └───────────────┬──────────────────┘
@@ -32,7 +34,7 @@ A personal blog and portfolio. Writing happens in a CMS that runs on your own co
 | `docs/` | Fork 與部署教學、本機安裝步驟、作者的部署紀錄；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
 | `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站。 | GitHub Actions |
 
-網站內容不在這個 repo，而在另一個 private 內容 repo（本站是 `Hack-Ray/personal-blog-content`）。發布流程：
+網站內容不在這個 repo，而在你自己建立的 private 內容 repo。發布流程：
 
 1. 在 CMS 按「發布」：在資料庫建立一個新的 Published Version。這一步不會改變網站。
 2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章、網站名稱與簡介、關於頁匯出成 Snapshot（`manifest.json`、`profile.json`、`articles/`、`images/`），commit 並 push 到內容 repo，再啟動 `Deploy site` workflow。
@@ -58,14 +60,14 @@ A personal blog and portfolio. Writing happens in a CMS that runs on your own co
 #### 1. 只看公開網站（不需要資料庫）
 
 ```sh
-git clone https://github.com/Hack-Ray/personal-blog.git
+git clone https://github.com/<你的帳號>/personal-blog.git   # 你的 fork
 cd personal-blog/frontend
 npm ci
 BASE_PATH= npm run build      # 用 sample-site-data/ 的範例內容建置到 out/，網址從根路徑開始
 python3 -m http.server --directory out 3000         # 打開 http://localhost:3000/
 ```
 
-不設 `BASE_PATH` 時，網站建置在 GitHub Pages 用的 `/personal-blog/` 底下。要用自己的內容建置，設定 `SITE_DATA_DIR=/path/to/content`。
+不設 `BASE_PATH` 時，網站建置在 `/personal-blog/` 底下（部署時改用你的 Pages 網址）。要用自己的內容建置，設定 `SITE_DATA_DIR=/path/to/content`。
 
 #### 2. 在本機跑 CMS 寫文章
 
@@ -97,7 +99,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 | repo 的 Actions variables `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（選用） | 從 <https://giscus.app> 取得；沒設定就不顯示留言 |
 | `backend/.env` 的 `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` |
 
-這是作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。要把 CMS 放到雲端或把網站放在其他靜態主機，可以自行決定，文件不涵蓋。
+文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。要把 CMS 放到雲端，或把 `frontend/out/` 放在其他靜態主機，可以自行決定。
 
 網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。
 
@@ -118,7 +120,7 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 
 開發 CMS 介面時，可以在 `cms/` 執行 `npm run dev`，Vite 會把 `/api` 轉給 `127.0.0.1:8000` 的後端。
 
-合併到 `main` 會觸發部署。各部分的細節：[`backend/README.md`](backend/README.md)、[`frontend/README.md`](frontend/README.md)、[`cms/README.md`](cms/README.md)。
+合併到你的 fork 的 `main` 會觸發部署。各部分的細節：[`backend/README.md`](backend/README.md)、[`frontend/README.md`](frontend/README.md)、[`cms/README.md`](cms/README.md)。
 
 ---
 
@@ -129,7 +131,7 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 ```text
 Your computer                              GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
-│ CMS UI (cms/)                │          │ personal-blog-content (private)  │
+│ CMS UI (cms/)                │          │ content repo (private)           │
 │   ↓ /api                    │  push    │   manifest.json, profile.json,   │
 │ Backend (backend/) ─ Postgres│ ───────→ │   articles/, images/             │
 │   "Update site" exports      │          └───────────────┬──────────────────┘
@@ -147,7 +149,7 @@ Your computer                              GitHub
 | `docs/` | Fork and deploy guide, local setup guide, the author's deployment notes; `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
 | `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site. | GitHub Actions |
 
-The site's content does not live in this repo. It lives in a separate private content repo (this site's is `Hack-Ray/personal-blog-content`). Publishing works like this:
+The site's content does not live in this repo. It lives in a private content repo you create. Publishing works like this:
 
 1. Press "發布" (Publish) in the CMS. This creates a new Published Version in the database and does not change the site.
 2. Press "更新網站" (Update site) on the "網站發布" (Releases) page. The backend exports every published article, the site name and description, and the About page as a Snapshot (`manifest.json`, `profile.json`, `articles/`, `images/`), commits and pushes it to the content repo, and starts the `Deploy site` workflow.
@@ -173,14 +175,14 @@ You need Docker, [uv](https://docs.astral.sh/uv/), Node.js 22 and Git. The full 
 #### 1. Just look at the public site (no database)
 
 ```sh
-git clone https://github.com/Hack-Ray/personal-blog.git
+git clone https://github.com/<you>/personal-blog.git   # your fork
 cd personal-blog/frontend
 npm ci
 BASE_PATH= npm run build      # builds out/ from the sample content in sample-site-data/, at the root path
 python3 -m http.server --directory out 3000         # open http://localhost:3000/
 ```
 
-Without `BASE_PATH`, the site is built under `/personal-blog/`, the path GitHub Pages serves it at. To build from your own content, set `SITE_DATA_DIR=/path/to/content`.
+Without `BASE_PATH`, the site is built under `/personal-blog/` (the deploy uses your Pages URL instead). To build from your own content, set `SITE_DATA_DIR=/path/to/content`.
 
 #### 2. Run the CMS locally and write
 
@@ -212,7 +214,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 | Actions variables `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` (optional) | From <https://giscus.app>; without them the site has no comments |
 | `DEPLOY_REPO` in `backend/.env` | Your fork, e.g. `you/personal-blog` |
 
-This is the author's own setup: the CMS runs locally and the site deploys to GitHub Pages. Running the CMS in the cloud or serving the site from another static host is up to you; the docs don't cover it.
+The docs describe the author's own setup: the CMS runs locally and the site deploys to GitHub Pages. Running the CMS in the cloud or serving `frontend/out/` from another static host is up to you.
 
 The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release.
 
@@ -233,7 +235,7 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build
 
 While working on the CMS UI, run `npm run dev` in `cms/`. Vite forwards `/api` to the backend on `127.0.0.1:8000`.
 
-A merge into `main` deploys the site. Details for each part: [`backend/README.md`](backend/README.md), [`frontend/README.md`](frontend/README.md), [`cms/README.md`](cms/README.md).
+A merge into your fork's `main` deploys the site. Details for each part: [`backend/README.md`](backend/README.md), [`frontend/README.md`](frontend/README.md), [`cms/README.md`](cms/README.md).
 
 ## License
 
