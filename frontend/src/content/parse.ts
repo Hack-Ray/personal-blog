@@ -1,4 +1,5 @@
 import { Marked } from "marked";
+import { blockedUrls } from "./url-policy.ts";
 import type { DocId, Profile, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
 
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
@@ -194,6 +195,11 @@ export interface Snapshot {
   hasImage(name: string): boolean;
 }
 
+function checkUrls(markdown: string, path: string) {
+  const blocked = blockedUrls(markdown);
+  if (blocked.length > 0) fail(path, `URLs not allowed in articles: ${blocked.join(", ")}`);
+}
+
 // Checks that every file the manifest names exists and belongs to the same
 // release, so a partial or mixed snapshot fails the build instead of deploying.
 export function parseSnapshot(snapshot: Snapshot): SiteContent {
@@ -213,6 +219,7 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
     for (const ref of imagePaths(article.markdown)) {
       if (!snapshot.hasImage(ref.slice("images/".length))) fail(path, `references missing image ${ref}`);
     }
+    checkUrls(article.markdown, path);
     return article;
   });
 
@@ -224,5 +231,6 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
   for (const ref of imagePaths(profile.intro)) {
     if (!snapshot.hasImage(ref.slice("images/".length))) fail("profile.json", `references missing image ${ref}`);
   }
+  checkUrls(profile.intro, "profile.json");
   return { articles, profile };
 }

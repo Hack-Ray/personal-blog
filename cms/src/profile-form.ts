@@ -1,4 +1,5 @@
 import type { Profile } from "./api.ts";
+import { URL_POLICY, urlProblems } from "./publish-checks.ts";
 
 // Same rule as the backend and the public site's snapshot parser.
 const URL_SCHEME = /^(https:\/\/|mailto:)\S+$/;
@@ -67,6 +68,8 @@ export function validate(f: ProfileForm): Record<string, string> {
   const URL_RULE = "網址必須以 https:// 或 mailto: 開頭";
   if (blank(f.site.title)) errors["site.title"] = "網站名稱不可空白";
   if (blank(f.name)) errors.name = "名字不可空白";
+  const introUrls = urlProblems(f.intro);
+  if (introUrls.length > 0) errors.intro = `${introUrls.join("、")}（${URL_POLICY}）`;
   f.links.forEach((l, i) => {
     if (blank(l.label)) errors[`links.${i}.label`] = `連結 ${i + 1}：名稱不可空白`;
     if (badUrl(l.url)) errors[`links.${i}.url`] = `連結 ${i + 1}：${URL_RULE}`;

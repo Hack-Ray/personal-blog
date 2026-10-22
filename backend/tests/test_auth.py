@@ -126,3 +126,12 @@ def test_other_hosts_are_refused_before_sign_in(anon):
         assert r.status_code == 400
     assert not auth.throttle.locked()
     assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
+
+
+@pytest.mark.parametrize("path", ["/api/session", "/api/articles"])
+def test_cms_responses_carry_security_headers(anon, path):
+    headers = anon.get(path).headers
+    assert "script-src 'self'" in headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in headers["content-security-policy"]
+    assert headers["x-content-type-options"] == "nosniff"
+    assert headers["referrer-policy"] == "same-origin"

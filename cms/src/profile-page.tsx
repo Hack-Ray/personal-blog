@@ -174,10 +174,12 @@ export function ProfilePage() {
           placeholder="自我介紹（Markdown）"
           value={form.intro}
           onChange={(e) => setForm({ ...form, intro: e.target.value })}
+          aria-invalid={"intro" in errors}
           spellCheck={false}
         />
         <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
+      {errors.intro && <p className="hint">{errors.intro}</p>}
       <Rows
         title="連結（也顯示在頁尾）"
         list="links"
