@@ -91,6 +91,13 @@ def test_urls_must_be_https_or_mailto(client, url):
     assert put(client, {**SEED, "projects": [project]}).status_code == 422
 
 
+@pytest.mark.parametrize("intro", ["[x](javascript:alert(1))", "![x](http://example.com/x.png)", "[x](&#106avascript:alert(1))"])
+def test_intro_urls_follow_the_article_policy(client, intro):
+    assert put(client, {**SEED, "intro": intro}).status_code == 422
+    assert client.get("/api/profile").json()["revision"] == 1
+    assert put(client, {**SEED, "intro": "[x](https://example.com) ![y](images/a.webp)"}).status_code == 200
+
+
 @pytest.mark.parametrize(
     "content",
     [

@@ -2,11 +2,11 @@
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from blog import images
+from blog import images, url_policy
 from blog.models import Profile
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -57,6 +57,13 @@ class ProfileContent(BaseModel):
     projects: list[Project] = Field(default=[], max_length=50)
     # Rows saved before the site fields existed have no "site" key and read as the default.
     site: Site = Field(default_factory=lambda: Site(title=DEFAULT_SITE_TITLE))
+
+    @field_validator("intro")
+    @classmethod
+    def _intro_urls_allowed(cls, intro: str) -> str:
+        if bad := url_policy.blocked(intro):
+            raise ValueError(f"links or images not allowed: {', '.join(bad)}")
+        return intro
 
     def public(self) -> dict:
         return self.model_dump(exclude_none=True)

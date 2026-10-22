@@ -1,8 +1,8 @@
 import { Marked } from "marked";
 
 // Copy of frontend/src/content/url-policy.ts, so the preview and the publish
-// check apply the site's rule. Both copies are tested against
-// frontend/test-fixtures/url-policy.json.
+// check apply the site's rule. backend/blog/url_policy.py is another copy; all
+// are tested against frontend/test-fixtures/url-policy.json.
 
 const lexer = new Marked();
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;

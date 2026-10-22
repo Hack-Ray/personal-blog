@@ -3,11 +3,12 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 
 from blog import articles
 from blog.db import SessionLocal, engine
+from blog.models import PublishedVersion
 
 BACKEND = {"slug": "backend", "name": "Backend"}
 
@@ -92,6 +93,18 @@ def test_publish_requires_title_and_markdown(client):
     r = client.post(f"/api/articles/{a['doc_id']}/publish", json=draft(title=" ", base_revision=1))
     assert r.status_code == 422
     assert client.get(f"/api/articles/{a['doc_id']}/draft").json()["revision"] == 1
+
+
+def test_publish_rejects_urls_the_site_would_not_output(client):
+    a = create(client)
+    r = client.post(f"/api/articles/{a['doc_id']}/publish", json=draft(markdown="[x](javascript:alert(1))", base_revision=1))
+    assert r.status_code == 422
+    assert "javascript:alert(1)" in r.text
+    assert client.get(f"/api/articles/{a['doc_id']}/draft").json()["revision"] == 1
+    with SessionLocal() as session:
+        assert session.scalar(select(func.count()).select_from(PublishedVersion)) == 0
+    ok = draft(markdown="[x](https://x.dev) [y](#top) ![z](https://x.dev/z.png)", base_revision=1)
+    assert client.post(f"/api/articles/{a['doc_id']}/publish", json=ok).status_code == 201
 
 
 def test_unknown_article_is_404(client):

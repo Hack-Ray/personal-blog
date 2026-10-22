@@ -2,8 +2,8 @@ import { Marked } from "marked";
 
 // Articles may not run code on the page: raw HTML is shown as text, and only
 // these URLs become links or images (docs/backlog.md, 文章不允許原始 HTML).
-// cms/src/url-policy.ts is a copy; both are tested against
-// test-fixtures/url-policy.json.
+// cms/src/url-policy.ts and backend/blog/url_policy.py are copies; all three
+// are tested against test-fixtures/url-policy.json.
 
 const lexer = new Marked();
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
