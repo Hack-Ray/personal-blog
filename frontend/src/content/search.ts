@@ -2,17 +2,27 @@ import type { SiteContent } from "./model.ts";
 import { published } from "./queries.ts";
 import { plainText } from "./summary.ts";
 
-export interface SearchDoc {
+export interface SearchMetadata {
   docId: string;
   title: string;
   topic: string;
   tags: string[];
   publishedAt: string;
+}
+
+export interface SearchDoc extends SearchMetadata {
   text: string;
 }
 
+export interface PreparedSearchDoc {
+  doc: SearchMetadata;
+  titleKey: string;
+  taxaKey: string;
+  textKey: string;
+}
+
 export interface SearchHit {
-  doc: SearchDoc;
+  doc: SearchMetadata;
   score: number;
 }
 
@@ -32,17 +42,22 @@ export function buildIndex(content: SiteContent): SearchDoc[] {
   }));
 }
 
+export function prepareDoc(doc: SearchMetadata, textKey: string): PreparedSearchDoc {
+  return { doc, titleKey: doc.title.toLowerCase(), taxaKey: [doc.topic, ...doc.tags].join(" ").toLowerCase(), textKey };
+}
+
+export function prepareIndex(index: readonly SearchDoc[]): PreparedSearchDoc[] {
+  return index.map(({ text, ...doc }) => prepareDoc(doc, text.toLowerCase()));
+}
+
 const terms = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean);
 
 /** Every term must match somewhere; results are best first, then newest. */
-export function search(index: SearchDoc[], query: string): SearchHit[] {
+export function search(index: readonly PreparedSearchDoc[], query: string): SearchHit[] {
   const wanted = terms(query);
   if (wanted.length === 0) return [];
   const hits: SearchHit[] = [];
-  for (const doc of index) {
-    const title = doc.title.toLowerCase();
-    const taxa = [doc.topic, ...doc.tags].join(" ").toLowerCase();
-    const text = doc.text.toLowerCase();
+  for (const { doc, titleKey: title, taxaKey: taxa, textKey: text } of index) {
     let score = 0;
     for (const term of wanted) {
       const s = (title.includes(term) ? WEIGHT.title : 0) + (taxa.includes(term) ? WEIGHT.taxon : 0) + (text.includes(term) ? WEIGHT.text : 0);

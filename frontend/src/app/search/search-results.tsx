@@ -1,35 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { type SearchDoc, search } from "../../content/search.ts";
-import { loadIndex } from "./load-index.ts";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { search } from "../../content/search.ts";
+import { subscribeSearch, getSearchSnapshot, getServerSearchSnapshot, startSearch } from "./load-index.ts";
+import { SearchStatus } from "./search-status.tsx";
 import { onQueryChange, readQuery } from "./query.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: "Asia/Taipei" });
 
 export function SearchResults() {
-  const [index, setIndex] = useState<SearchDoc[]>();
-  const [failed, setFailed] = useState(false);
+  const snapshot = useSyncExternalStore(subscribeSearch, getSearchSnapshot, getServerSearchSnapshot);
   const [loadedQuery, setLoadedQuery] = useState<string>();
 
   useEffect(() => {
     const sync = () => setLoadedQuery(readQuery());
     sync();
     const unsubscribe = onQueryChange(sync);
-    loadIndex().then(setIndex, () => setFailed(true));
+    void startSearch();
     return unsubscribe;
   }, []);
 
-  const hits = useMemo(() => (index && loadedQuery ? search(index, loadedQuery) : []), [index, loadedQuery]);
+  const hits = useMemo(() => search(snapshot.docs, loadedQuery ?? ""), [snapshot.docs, loadedQuery]);
 
   return (
     <>
-      {failed && <p className="meta">無法載入搜尋索引。</p>}
       {loadedQuery?.trim() === "" && <p className="meta">在上方搜尋列輸入關鍵字。</p>}
-      <p className="meta" role="status">
-        {index && loadedQuery?.trim() ? `${hits.length} 篇符合` : ""}
-      </p>
+      <SearchStatus snapshot={snapshot} count={loadedQuery?.trim() ? hits.length : undefined} />
       <ul className="article-list">
         {hits.map(({ doc }) => (
           <li key={doc.docId}>
