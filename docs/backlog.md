@@ -31,10 +31,6 @@
 - [ ] **G17（低）後端沒有統一的程式碼格式。**
   - 證據：CI 只執行 `ruff check`，沒有 `ruff format --check`。2026-10-22 在 `backend/` 執行 `uv run ruff format --check blog tests`，有 16 個檔案會被重新排版。
   - 處理：一次性執行 `ruff format`，再在 CI 加上 `ruff format --check`。排版的 commit 要和功能修改分開。
-- [ ] **G18（低）CMS 建置時有超過 500 kB 的 chunk 警告。**
-  - 證據：`npm run build` 回報 Shiki 的語言檔超過 500 kB，最大的是 `cpp-*.js`，約 797 kB（gzip 約 61 kB）。
-  - 影響（**推測**）：這些語言檔是開啟編輯器、遇到該語言時才非同步載入，只影響第一次預覽的速度；CMS 在本機或 Tailscale 內使用，影響很小。
-  - 處理：評估是否移除少用的語言，或在 `vite.config.ts` 調整 `chunkSizeWarningLimit`，讓真正的新問題不會被這個警告蓋過。
 
 ## 二、上 AWS 前必修
 
