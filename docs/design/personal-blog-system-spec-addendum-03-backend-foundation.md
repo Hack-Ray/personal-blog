@@ -1,8 +1,10 @@
 # Personal Blog — Addendum 03：Backend Foundation
 
+> **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
+
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
 > **日期**：2026-10-20
-> **Status 說明**：使用者授權「剩下的架構規劃按助理建議」，以下標為 Accepted (delegated)。使用者可隨時推翻。
+> **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
 
@@ -243,7 +245,7 @@
 
 ### BE-019：Topic、Tag 與系列的管理
 
-- **Status**：Confirmed（使用者 2026-10-21 指定「待開發清單全部都做」，合併的版本處理由 Claude 依 BE-013 的理由決定，使用者可推翻）
+- **Status**：Confirmed（使用者 2026-10-21 指定「待開發清單全部都做」，合併的版本處理依 BE-013 的理由決定，使用者可推翻）
 - **Context**：Baseline 4.2 與 12 把 Taxonomy 的改名、合併、刪除與版本引用列為待決。
 - **Decision**：
   - CMS 新增「分類管理」頁。`GET /api/taxa` 依種類（`topics`、`tags`、`series`）列出 slug、名稱、篇數（未在待刪除區、目前草稿使用它的文章數）與是否仍被任何草稿或保留中的 Published Version 引用。
@@ -257,4 +259,4 @@
 
 ## Known gaps
 
-- ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 已完成 `docs/setup-todo.md` A、B 區，並以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。
+- ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 作者以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。

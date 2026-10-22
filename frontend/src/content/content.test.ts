@@ -79,8 +79,8 @@ test("the committed sample snapshot has a profile with a Markdown intro", () => 
 
 test("a snapshot without profile.json falls back to the default profile", () => {
   assert.deepEqual(parseSnapshot(snapshot({})).profile, DEFAULT_PROFILE);
-  assert.equal(DEFAULT_PROFILE.name, "Hack-Ray");
-  assert.deepEqual(DEFAULT_PROFILE.links, [{ label: "GitHub", url: "https://github.com/Hack-Ray" }]);
+  assert.equal(DEFAULT_PROFILE.name, "Your Name");
+  assert.deepEqual(DEFAULT_PROFILE.links, []);
   assert.deepEqual(DEFAULT_PROFILE.site, { title: "Personal Blog", description: "", footer: "" });
 });
 

@@ -8,7 +8,7 @@
 |---|---|---|
 | PostgreSQL 16 | Docker 容器 | 存放文章、草稿、版本、快照、圖片、發布紀錄與管理員密碼 |
 | FastAPI 後端 + CMS 介面 | 你的電腦（透過 `uv`） | 在 http://127.0.0.1:8000/admin/ 編輯文章 |
-| 內容 repo `personal-blog-content` | 你的電腦上的一份 clone | 「更新網站」時匯出 Snapshot 並 push |
+| 你的 private 內容 repo（例如 `personal-blog-content`） | 你的電腦上的一份 clone | 「更新網站」時匯出 Snapshot 並 push |
 | 公開網站 | GitHub Actions + GitHub Pages | 讀者看到的網站，不依賴你的電腦 |
 
 只有資料庫用 Docker。後端直接在你的電腦上執行，這樣改程式後重新啟動最快。
@@ -56,7 +56,7 @@ node --version   # v22.x
 ## 2. 取得程式碼
 
 ```sh
-git clone https://github.com/Hack-Ray/personal-blog.git
+git clone https://github.com/<你的帳號>/personal-blog.git   # 你的 fork；只想試用可直接 clone 原 repo
 cd personal-blog
 ```
 
@@ -94,8 +94,9 @@ cp .env.example .env
 | 變數 | 填什麼 | 何時需要 |
 |---|---|---|
 | `DATABASE_URL` | 保持預設 | 一定要 |
-| `CONTENT_REPO_DIR` | `personal-blog-content` 在你電腦上的 clone 路徑（見第 8 節） | 使用「更新網站」時 |
-| `GITHUB_TOKEN` | `docs/setup-todo.md` B4 建立的 token | 使用「更新網站」時 |
+| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節） | 使用「更新網站」時 |
+| `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` | 使用「更新網站」時 |
+| `GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token | 使用「更新網站」時 |
 | `COOKIE_SECURE` | 留空 | 只有以 HTTPS 提供 CMS 時設為 `1` |
 
 `.env` 已被 `.gitignore` 排除，**不要 commit 它**。
@@ -107,7 +108,7 @@ uv sync
 uv run --env-file .env alembic upgrade head
 ```
 
-最後一行應依序看到 `Running upgrade -> 0001` 到 `0006`。之後每次拉新程式碼，都再跑一次 `alembic upgrade head`，已套用的 migration 會自動略過。
+最後應依序看到 `Running upgrade -> 0001` 到最新的 migration（`backend/migrations/versions/` 裡編號最大的檔案）。之後每次拉新程式碼，都再跑一次 `alembic upgrade head`，已套用的 migration 會自動略過。
 
 ## 6. 設定管理員密碼
 
@@ -130,20 +131,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 ## 8. 讓「更新網站」可以用
 
-需要先完成 `docs/setup-todo.md` 的 A 區（建立內容 repo、開啟 Pages、Actions token）與 B4（本機 token）。
-
-```sh
-# 在 personal-blog 以外的位置，例如家目錄（A2 已 clone 過就跳過）
-git clone https://github.com/Hack-Ray/personal-blog-content.git ~/personal-blog-content
-```
-
-把路徑填進 `backend/.env` 的 `CONTENT_REPO_DIR`，例如 `CONTENT_REPO_DIR=/Users/<你>/personal-blog-content`，然後重新啟動後端。確認這份 clone 能 push：
-
-```sh
-cd ~/personal-blog-content && git push --dry-run
-```
-
-之後在 CMS「網站發布 → 更新網站」就會匯出、push 並啟動部署，頁面會顯示部署狀態。
+「更新網站」需要你自己的內容 repo、GitHub Pages 與兩個 token。步驟見 [`fork-and-deploy.md`](./fork-and-deploy.md) 第 2 到 5 步，完成後在 `backend/.env` 填好 `CONTENT_REPO_DIR`、`DEPLOY_REPO`、`GITHUB_TOKEN` 並重新啟動後端。
 
 ## 9. 日常啟動與關閉
 
@@ -241,7 +229,7 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
    scripts/restore.sh backups/<檔名>.dump
    ```
 
-4. 第 7 節建置 CMS 並啟動，第 8 節重新 clone 內容 repo。
+4. 第 7 節建置 CMS 並啟動，重新 clone 內容 repo（`git clone https://github.com/<你的帳號>/personal-blog-content.git`）。
 
 不需要再跑第 5、6 節：還原會建立資料表並帶回管理員密碼。
 
@@ -267,7 +255,7 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 | `/admin/` 回 404 | 還沒執行第 7 節的 `npm run build` |
 | 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次會鎖 15 分鐘，重啟後端可解除 |
 | 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
-| 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `GITHUB_TOKEN`，或 token 權限不足（需要 `personal-blog` 的 Actions read/write）。修好後按「重試」 |
+| 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |
 
 ## 15. （選用）執行後端測試

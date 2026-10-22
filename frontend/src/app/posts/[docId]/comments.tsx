@@ -3,12 +3,12 @@
 import { useEffect, useRef } from "react";
 import { giscusTheme, readTheme } from "../../../theme.ts";
 
-// IDs come from https://giscus.app for Hack-Ray/personal-blog and its Announcements category.
+// next.config.ts inlines these at build time; deploy.yml takes them from repository variables.
 const GISCUS = {
-  repo: "Hack-Ray/personal-blog",
-  repoId: "R_kgDOVEhGNQ",
-  category: "Announcements",
-  categoryId: "DIC_kwDOVEhGNc4DJOCq",
+  repo: process.env.GISCUS_REPO ?? "",
+  repoId: process.env.GISCUS_REPO_ID ?? "",
+  category: process.env.GISCUS_CATEGORY ?? "",
+  categoryId: process.env.GISCUS_CATEGORY_ID ?? "",
 };
 
 /** giscus thread keyed by docId, so a new title, domain or basePath keeps the same discussion. */

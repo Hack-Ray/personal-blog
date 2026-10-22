@@ -1,10 +1,11 @@
 # Personal Blog — 系統需求與架構設計基線規格書
 
+> **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
+
 > **版本**：Baseline v1.0
 > **決策截止日**：2026-10-11
 > **專案**：`Hack-Ray/personal-blog`
 > **文件性質**：已確認需求／架構決策的累積基線（Decision Baseline），不是已完成實作的宣告
-> **討論狀態**：本階段暫停；下次從「Domain Modeling：Working Draft 與 Published Version 如何建模」接續
 
 ---
 
@@ -364,9 +365,9 @@ Article (stable doc_id)
 
 特別註明：先前討論過的 SQLAlchemy、Alembic、Pydantic、uv、pytest、HTTPX、Redis、AWS EC2、Docker、特定架構分層、Cloudflare Web Analytics 等，除非已在以上正文標記為確定內容，均不能自動視為已選定的 V1 設計。
 
-## 13. 下次討論起點（本文件不替使用者決定）
+## 13. 留待後續決定的主問題：Domain Model
 
-下一個問題：Working Draft 與 Published Version 的 Domain Model。
+Working Draft 與 Published Version 如何建模，由 [Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md) 回答（選擇方案 B）。以下是當時列出的選項與檢驗情境。
 
 **方案 A：統一 ArticleVersion**
 
@@ -395,21 +396,6 @@ Article
 14:00:03 Auto Save 完成
 ```
 
-待回答的唯一主問題：選擇 A 還是 B？理由是什麼？如何從領域責任、不可變性、交易一致性、Auto Save／Publish 競態，以及維護成本做取捨？
+取捨的面向：領域責任、不可變性、交易一致性、Auto Save／Publish 競態，以及維護成本。
 
-> **不可在下次直接視為已選 B；前次助理傾向 B 不代表使用者已接受。**
-
-## 14. 後續文件續寫規則
-
-- 本文件名稱固定視為 Baseline v1.0（截至 2026-10-11）。
-- 後續每次階段性整理請另建立，例如：
-  - `personal-blog-system-spec-addendum-01-domain-model.md`
-  - `personal-blog-system-spec-addendum-02-<topic>.md`
-- 續篇只寫本基線之後新確認的決策、必要的理由／後果、與基線項目有衝突時的明確修訂（Supersedes），不重複貼上基線全部章節。
-- 建議每項新增決策保留：Decision ID、Date、Status、Context、Decision、Consequences、Supersedes (if any)。
-- 未經使用者確認的設計選項列為 Open Questions，不可混入 Confirmed Decisions。
-- 需要完整規格單一檔案時，僅在使用者明確要求整合後，才將基線與續篇合併。
-
----
-
-本基線到此截止。下一次對話從第 13 節開始，不重複本文件已確認內容。
+之後新確認的決策寫在 Addendum 01–04，每份只記錄新的決策與它修訂（Supersedes）的基線項目。
