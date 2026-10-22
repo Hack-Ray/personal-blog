@@ -158,6 +158,8 @@ test("a save that fails on the network is retried until it succeeds", async () =
   sync.edit(content("typed offline"));
   await sync.flush();
   assert.equal(sync.status.kind, "error");
+  // The retries run on timers; wait for the one that reaches the server.
+  while (server.calls.length === 0) await new Promise((r) => setTimeout(r, 1));
   await server.releaseAll();
   assert.equal(server.stored(), "typed offline");
   assert.equal(sync.status.kind, "saved");
