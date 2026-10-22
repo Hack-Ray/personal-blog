@@ -5,6 +5,8 @@ Personal blog and software engineering portfolio.
 The project is in its initial development stage.
 Technology choices and architecture are not finalized.
 
+To learn the codebase quickly, read `docs/architecture/` first: `how-it-works.md` explains how the system works, `why.md` explains why it is built this way. Decision records are in `docs/design/`, open issues in `docs/backlog.md`.
+
 ## Development Principles
 
 - Prefer simple, maintainable solutions.
