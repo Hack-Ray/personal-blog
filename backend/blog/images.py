@@ -68,15 +68,21 @@ def _to_webp(data: bytes) -> bytes:
     Re-encoding also drops EXIF metadata such as a photo's GPS location."""
     try:
         with Pillow.open(io.BytesIO(data)) as im:
-            frames = getattr(im, "n_frames", 1)
+            # A multi-picture JPEG (MPO) is a photo plus extra pictures such as
+            # a preview or depth map; only the photo is kept.
+            animated = getattr(im, "is_animated", False) and im.format != "MPO"
+            frames = im.n_frames if animated else 1
             if frames > MAX_FRAMES:
                 raise ImageTooLarge(f"animations are limited to {MAX_FRAMES} frames")
             if im.width * im.height * frames > MAX_PIXELS:
                 raise _too_many_pixels()
             out = io.BytesIO()
-            if getattr(im, "is_animated", False):
-                frames, durations = [], []
+            if animated:
+                first, frames, durations = im.size, [], []
                 for frame in ImageSequence.Iterator(im):
+                    # A GIF frame can grow the canvas past the size checked above.
+                    if frame.size != first:
+                        raise UnsupportedImage("every frame of an animation must be the same size")
                     frames.append(_fit(frame))
                     durations.append(frame.info.get("duration", 100))
                 frames[0].save(

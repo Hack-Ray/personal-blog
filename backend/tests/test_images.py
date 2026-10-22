@@ -107,6 +107,32 @@ def test_animations_with_too_many_frames_are_refused(client, monkeypatch):
     assert (r.status_code, r.json()["detail"]) == (413, "animations are limited to 1 frames")
 
 
+def test_animations_whose_frames_grow_the_canvas_are_refused(client):
+    out = io.BytesIO()
+    frames = [Pillow.new("RGB", (10, 10), c) for c in ("red", "blue")]
+    frames[0].save(out, "GIF", save_all=True, append_images=frames[1:], disposal=1)
+    gif = bytearray(out.getvalue())
+    # Place the second frame at (500, 500), past the 10x10 screen.
+    second = [i for i in range(len(gif) - 2) if gif[i : i + 3] == b"\x21\xf9\x04"][1] + 8
+    gif[second + 1 : second + 5] = (500).to_bytes(2, "little") * 2
+    r = upload(client, bytes(gif))
+    assert (r.status_code, r.json()["detail"]) == (415, "every frame of an animation must be the same size")
+
+
+def test_decompression_bombs_are_refused_as_too_large(client, monkeypatch):
+    monkeypatch.setattr(Pillow, "MAX_IMAGE_PIXELS", 100)
+    assert upload(client, encode("PNG", size=(20, 20))).status_code == 413
+
+
+def test_multi_picture_jpegs_keep_only_the_photo(client):
+    out = io.BytesIO()
+    Pillow.new("RGB", (40, 30), "red").save(out, "MPO", save_all=True, append_images=[Pillow.new("RGB", (8, 6), "blue")])
+    r = upload(client, out.getvalue())
+    assert r.status_code == 201
+    im = opened(client, r.json()["id"])
+    assert (getattr(im, "is_animated", False), im.size) == (False, (40, 30))
+
+
 def test_transparency_is_kept(client):
     out = io.BytesIO()
     Pillow.new("RGBA", (4, 4), (0, 0, 0, 0)).save(out, "PNG")
