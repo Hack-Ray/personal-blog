@@ -14,15 +14,22 @@
 
 以下決定會影響第二節的優先順序與做法。
 
-- [ ] **CMS 上 AWS 後的存取控制。** 只有作者使用 CMS，建議不要直接開放到公開網路。
-  - 不開公網，用 VPN（Tailscale）或 SSM port forwarding 連線：最安全，使用方式最接近現在的本機。
-  - 身分驗證代理（Cloudflare Access、AWS Verified Access 或 ALB + Cognito）：瀏覽器可直接開，多一層 MFA。
-  - 只靠程式自己的登入：不建議。選這個時，A3、A4、A10、A11、A15 都要升為必修。
+- [x] **CMS 上 AWS 後的存取控制：用 Tailscale。**（2026-10-22 作者決定）
+  - 主機的 Security Group 不開任何進站 port。主機只主動連出到 Tailscale，CMS 只有登入作者的 Tailscale 帳號、經作者核准的裝置連得到。
+  - CMS 原本的密碼登入保留，作為第二層。
+  - 因為外人碰不到登入頁，以下項目已調降：A3、A4 由必修降為中，A10、A11 由高降為中，A15 由中降為低。A1、A2 和 A5–A8 與網路暴露無關，仍是必修。實作見 A0。
+  - 考慮過的其他做法：
+    - IP 白名單：家用與行動網路的 IP 會變，而且 IP 不代表身分。
+    - SSM port forwarding：每次都要先下指令，手機幾乎不能用。
+    - Cloudflare Access 或 AWS Verified Access：CMS 會有公開網址。
+    - 用 MAC 位址限制：做不到，MAC 位址不會跨路由器傳到 AWS。
 - [ ] **發布方式。** 二選一：
   - 在容器裡維護內容 repo 的 git clone。
   - 改用 GitHub Git Data API 直接建立 commit，不需要本機 clone，CMS 可以不保存狀態。建議用這個（見 A5）。
 - [ ] **GitHub 憑證。** 目前 CMS 用兩個 token：一個觸發 workflow，一個 push 內容 repo（後者現在借用作者電腦上的 git 帳號）。建議改成一個 GitHub App，token 會自動輪替（見 A12）。
 - [ ] **運算服務。** 候選：ECS Fargate、App Runner、EC2 或 Lightsail。
+  - 搭配 Tailscale，建議先用單台 Lightsail 或 EC2 執行 Tailscale、CMS 與 Postgres，資料庫備份到 S3。每月約 US$5–15（概估，以 AWS 定價為準）。
+  - Fargate + RDS + ALB 每月約 US$40 以上，而且要在容器裡跑 Tailscale，等熟悉後再考慮。
   - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
 - [ ] **文章是否允許原始 HTML。** 決定後才能定 G1、G8 的過濾規則。
 
@@ -135,9 +142,16 @@
 
 ## 二、上 AWS 前必修
 
-除非另外註明，這些項目在本機都不成立或影響很小。
+除非另外註明，這些項目在本機都不成立或影響很小。存取控制已決定用 Tailscale，以下的優先順序已依此調整。
 
 ### 必修
+
+- [ ] **A0 用 Tailscale 隔離 CMS。**
+  - 主機的 Security Group 進站規則全部移除，包括 SSH。管理主機改用 Tailscale SSH 或 SSM。
+  - 用 `tailscale serve` 提供 HTTPS。它會向 Tailscale 取得 `*.ts.net` 憑證，再轉給只綁定 `127.0.0.1:8000` 的 uvicorn，所以 uvicorn 不用改成 `0.0.0.0`。
+  - Tailscale ACL 只允許作者的裝置連到 CMS 主機，並開啟新裝置核准（device approval）。
+  - 主機的節點金鑰關閉到期，作者自己裝置的金鑰保留到期，並寫下裝置遺失時的撤銷步驟。
+  - 文件：更新 `docs/local-setup.md` 或新增雲端部署文件，以及 Addendum 03 的部署決策。
 
 - [ ] **A1 Host 白名單寫死成 localhost。**
   - 證據：`backend/blog/api.py:55`，`allowed_hosts=["127.0.0.1", "localhost"]`。
@@ -145,26 +159,12 @@
   - 處理：
     - 白名單改從環境變數 `ALLOWED_HOSTS` 讀取，預設維持現值，不允許 `*`，以保留對 DNS rebinding 的防護。
     - 健康檢查使用不經過這項檢查的路徑（見 A16）。
+    - 用 Tailscale 時，`ALLOWED_HOSTS` 要加上 CMS 主機的 MagicDNS 名稱（例如 `cms.<tailnet>.ts.net`）。
 - [ ] **A2 放在 HTTPS proxy 後面時，Origin 檢查會拒絕所有寫入，包括登入。**
   - 證據：`api.py:43` 用 `request.url.scheme` 和 `netloc` 組出預期的 Origin。uvicorn 預設只信任來自 127.0.0.1 的 `X-Forwarded-Proto`。
   - 影響：瀏覽器送出 `Origin: https://…`，伺服器卻組出 `http://…`，所有寫入都回 403。
   - 處理：改成和設定值 `CMS_ORIGIN` 比對。`FORWARDED_ALLOW_IPS` 只設定為 proxy 所在的網段。
-- [ ] **A3 任何人都能讓作者無法登入。**
-  - 證據：
-    - `backend/blog/auth.py:60-81` 的 `Throttle` 存在記憶體裡，全站共用一個計數。
-    - `api.py:168` 在鎖定期間連正確的密碼也拒絕。
-  - 影響：
-    - 每 15 分鐘送 5 次錯誤密碼，作者就永遠無法登入，只能重啟程式。
-    - 有多個 instance 時，可以嘗試的次數乘上 instance 數。
-    - 先檢查再計數的寫法，在併發請求下會讓實際嘗試次數超過 5 次。
-  - 處理：
-    - 失敗紀錄存進資料庫，依來源 IP 計算，改用退避而不是全站鎖定。
-    - 計數在檢查密碼之前原子地遞增。
-    - 有外層存取控制時，可以降為「高」。
-- [ ] **A4 只有一組密碼，沒有第二道驗證。**
-  - 證據：`auth.py:88-100`。
-  - 影響：密碼外洩後，攻擊者可以發布內容、永久刪除文章，並部署網站。
-  - 處理：見「需要先決定的事」的存取控制。也可以另外加 TOTP，但工作量較大。
+  - 用 Tailscale 時，`CMS_ORIGIN` 是 `https://cms.<tailnet>.ts.net`。`tailscale serve` 從 127.0.0.1 轉發請求，uvicorn 預設就信任它送來的 `X-Forwarded-Proto`，所以只改成比對 `CMS_ORIGIN` 可能就夠了（**推測**，要實測 `tailscale serve` 送出的標頭）。
 - [ ] **A5 發布依賴本機的內容 repo clone，而且沒有序列化。**
   - 證據：
     - `release.py:130-132` 讀取 `CONTENT_REPO_DIR`。
@@ -216,22 +216,6 @@
   - 處理：
     - 非本機環境預設開啟 Secure，cookie 改名為 `__Host-cms_session`，並加 HSTS。
     - 缺 `DATABASE_URL` 時直接啟動失敗。
-- [ ] **A10 `/admin/` 與 `/api/` 沒有安全標頭，OpenAPI 文件也公開。**
-  - 證據：
-    - 實測 `/admin/` 只回傳 content-type 等基本標頭。
-    - `api.py:30` 沒有關閉 `docs_url`、`redoc_url`、`openapi_url`，不登入就能存取 `/docs`、`/openapi.json`。
-  - 處理：
-    - 加一個 middleware，輸出 CSP（`script-src 'self'`、`frame-ancestors 'none'` 等）、`X-Content-Type-Options`、`Referrer-Policy` 和 HSTS。
-    - 文件頁預設關閉，只在本機開啟。
-- [ ] **A11 未登入的請求就能消耗大量 CPU 與記憶體。**
-  - 證據：
-    - 每次檢查密碼，scrypt 約用 32 MiB 記憶體（`auth.py:25`）。
-    - 密碼欄位沒有長度上限（`api.py:154`）。
-    - 請求內容沒有大小上限。
-  - 處理：
-    - 密碼加 `max_length`。
-    - 驗證密碼的併發數量設上限。
-    - 在 proxy 設定請求大小上限，並依 IP 限流。
 - [ ] **A12 三個憑證裡只有一個有到期提醒。**
   - 證據：
     - `.github/workflows/token-expiry.yml` 只檢查 `CONTENT_REPO_TOKEN`。
@@ -244,6 +228,37 @@
 
 ### 中
 
+- [ ] **A3 任何人都能讓作者無法登入。**（原為必修；有 Tailscale 後，只有作者的裝置碰得到登入頁）
+  - 證據：
+    - `backend/blog/auth.py:60-81` 的 `Throttle` 存在記憶體裡，全站共用一個計數。
+    - `api.py:168` 在鎖定期間連正確的密碼也拒絕。
+  - 影響：
+    - 每 15 分鐘送 5 次錯誤密碼，作者就永遠無法登入，只能重啟程式。
+    - 有多個 instance 時，可以嘗試的次數乘上 instance 數。
+    - 先檢查再計數的寫法，在併發請求下會讓實際嘗試次數超過 5 次。
+  - 處理：
+    - 失敗紀錄存進資料庫，依來源 IP 計算，改用退避而不是全站鎖定。
+    - 計數在檢查密碼之前原子地遞增。
+- [ ] **A4 只有一組密碼，沒有第二道驗證。**（原為必修）
+  - 證據：`auth.py:88-100`。
+  - 影響：密碼外洩後，攻擊者可以發布內容、永久刪除文章，並部署網站。
+  - 處理：Tailscale 已是第一道驗證（裝置金鑰）。之後若要再加強，可以加 TOTP。
+- [ ] **A10 `/admin/` 與 `/api/` 沒有安全標頭，OpenAPI 文件也公開。**（原為高；CSP 仍是 G1 的第二道防線，可以和 G1 一起做）
+  - 證據：
+    - 實測 `/admin/` 只回傳 content-type 等基本標頭。
+    - `api.py:30` 沒有關閉 `docs_url`、`redoc_url`、`openapi_url`，不登入就能存取 `/docs`、`/openapi.json`。
+  - 處理：
+    - 加一個 middleware，輸出 CSP（`script-src 'self'`、`frame-ancestors 'none'` 等）、`X-Content-Type-Options`、`Referrer-Policy` 和 HSTS。
+    - 文件頁預設關閉，只在本機開啟。
+- [ ] **A11 未登入的請求就能消耗大量 CPU 與記憶體。**（原為高）
+  - 證據：
+    - 每次檢查密碼，scrypt 約用 32 MiB 記憶體（`auth.py:25`）。
+    - 密碼欄位沒有長度上限（`api.py:154`）。
+    - 請求內容沒有大小上限。
+  - 處理：
+    - 密碼加 `max_length`。
+    - 驗證密碼的併發數量設上限。
+    - 在 proxy 設定請求大小上限，並依 IP 限流。
 - [ ] **A13 `GET /api/releases` 在讀取時呼叫 GitHub 並寫入資料庫。**
   - 證據：`release.py:194-225`：每次輪詢都會刷新最近 20 筆 release，在交易中呼叫 GitHub（每次最長 30 秒），並觸發版本清理。
   - 影響：
@@ -265,11 +280,6 @@
     - `upload_image` 改成一般的 `def`。
     - 限制影格數與總像素數，並調低 `MAX_IMAGE_PIXELS`。
     - 登入檢查改成 dependency，或放到 threadpool 執行。
-- [ ] **A15 session 固定 7 天有效，沒有閒置逾時，也無法從介面登出其他裝置。**
-  - 證據：`auth.py:20` 的 `SESSION_TTL`，`is_signed_in` 不會延長，也不檢查閒置時間。
-  - 處理：
-    - 加 `last_seen_at`，設定閒置逾時，並縮短絕對有效期限。
-    - 加「登出所有裝置」。
 - [ ] **A16 沒有健康檢查、應用程式 log 和稽核紀錄。**
   - 證據：`api.py` 沒有 `/healthz`；`backend/blog` 沒有用 `logging`。
   - 處理：
@@ -300,6 +310,11 @@
 
 ### 低
 
+- [ ] **A15 session 固定 7 天有效，沒有閒置逾時，也無法從介面登出其他裝置。**（原為中；裝置遺失時，先在 Tailscale 撤銷該裝置）
+  - 證據：`auth.py:20` 的 `SESSION_TTL`，`is_signed_in` 不會延長，也不檢查閒置時間。
+  - 處理：
+    - 加 `last_seen_at`，設定閒置逾時，並縮短絕對有效期限。
+    - 加「登出所有裝置」。
 - [ ] **A20 錯誤訊息可能帶出內部細節。** `release.py:148` 把 git stderr 原樣存進 `detail` 並回傳。remote URL 含 token 時可能外洩。處理：先去掉 URL 裡的帳號密碼再存。
 - [ ] **A21 CMS 的 API 路徑寫成絕對路徑。** `cms/src/api.ts:426` 的 `/api`，以及預覽和封面的圖片網址。CMS 必須放在網域根目錄。處理：從 `import.meta.env.BASE_URL` 推導路徑，或規定 CMS 使用獨立的網域。
 - [ ] **A22 沒有限流。** 除了登入以外，所有端點都沒有限流，包括「更新網站」。處理：在 proxy 或 WAF 依 IP 限流，「更新網站」加冷卻時間。
