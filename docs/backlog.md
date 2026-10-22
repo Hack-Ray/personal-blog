@@ -39,7 +39,14 @@
   - 搭配 Tailscale，建議先用單台 Lightsail 或 EC2 執行 Tailscale、CMS 與 Postgres，資料庫備份到 S3。每月約 US$5–15（概估，以 AWS 定價為準）。
   - Fargate + RDS + ALB 每月約 US$40 以上，而且要在容器裡跑 Tailscale，等熟悉後再考慮。
   - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
-- [ ] **文章是否允許原始 HTML。** 決定後才能定 G1、G8 的過濾規則。
+- [x] **文章不允許原始 HTML。**（2026-10-22 作者決定）
+  - 文章裡的 HTML 一律跳脫成純文字顯示。CMS 預覽、公開網站的 renderer 和 build 時的檢查都用這一條規則。
+  - 只跳脫 HTML 還不夠，`[x](javascript:...)` 是標準的 Markdown 語法。因此另外加網址白名單：
+    - 連結只允許 `https:`、`http:`、`mailto:`、`#` 錨點和相對路徑。
+    - 圖片只允許 `images/` 開頭的路徑和 `https:`。
+    - 其他網址不輸出成連結或圖片。build 時遇到就讓建置失敗，CMS 發布前檢查也要擋下來。
+  - 之後需要嵌入影片或摺疊區塊時，為那一種需求加專用的 Markdown 語法，由 renderer 產生固定的 HTML，不重新開放原始 HTML。
+  - 實作見 G1、G8、G15。
 
 ## 一、現在就該修
 
@@ -52,7 +59,7 @@
     - 實測 `[x](javascript:alert(1))` 與 `<img src=x onerror=...>` 都會原樣輸出。
   - 影響：貼上的內容一顯示預覽就會執行 script。script 和 CMS 同源，帶著 session 可以發布、刪除文章，或觸發「更新網站」。
   - 處理：
-    - 預覽輸出先過濾。可以用 DOMPurify，或讓 renderer 跳脫 `html` token，並只允許 `https:`、`mailto:`、`#` 和相對路徑。
+    - `cms/src/preview.ts` 的 renderer 跳脫所有 `html` token，並套用「文章不允許原始 HTML」的網址白名單，不需要另外加 DOMPurify。
     - `/admin/` 加 CSP（見 A10）。
 - [ ] **G2（高）文章編輯器沒有離開提示，存檔失敗也不會重試。**
   - 證據：
@@ -100,8 +107,9 @@
     - `frontend/src/app/article-body.tsx:116-117` 用 `dangerouslySetInnerHTML` 輸出。
   - 影響：能寫入內容 repo 或 CMS 的人，可以在每位讀者的頁面執行 script。公開網站沒有存放機密，所以影響限於頁面被竄改。
   - 處理：
-    - 依「文章是否允許原始 HTML」的決定，在 build 時過濾或跳脫。
-    - `frontend/src/content/parse.ts` 遇到 `javascript:` 或 `data:` 連結時讓 build 失敗。
+    - `frontend/src/content/markdown.ts` 的 renderer 跳脫所有 `html` token，並套用和 CMS 相同的網址白名單。
+    - `frontend/src/content/parse.ts` 遇到不在白名單上的網址時讓 build 失敗。
+    - 白名單的測試案例放在一份前後端共用的 fixture，做法比照 `frontend/test-fixtures/image-refs.json`，避免兩邊的規則分歧。
 - [ ] **G9（中）文章目錄的標題 id 可能重複，或和頁面上原有的 id 相同。**
   - 證據：
     - `frontend/src/content/headings.ts:39-41` 只收集最上層的標題，`markdown.ts:60-64` 卻會替引言區塊、清單裡的標題也分配 id。
@@ -147,6 +155,13 @@
   - RSS 缺 `atom:link rel="self"`；列表頁和首頁沒有預設的分享圖。
   - 搜尋索引每篇最多保留 5000 字，而且一次全部載入。文章多時會變大，404 頁只顯示 5 個標題也要載入整份（`frontend/src/content/search.ts`）。
   - 「關於」頁與頁尾用內容當 React key，內容重複時會出現警告。
+
+- [ ] **G15（高）切換前檢查現有文章是否用到原始 HTML。**
+  - 原因：G1、G8 上線後，舊文章裡的 HTML 會變成純文字顯示。這個 session 讀不到 `personal-blog-content`（setup-todo C1 尚未完成），所以還沒確認。
+  - 處理：
+    - CMS 的發布前檢查（`cms/src/publish-checks.ts`）加一條警告：「這篇文章含有原始 HTML，發布後會顯示成純文字」。
+    - 合併 G1、G8 之前，搜尋內容 repo 的 `articles/` 與 `profile.json` 是否含有 HTML 標籤或不在白名單上的網址，並改寫找到的內容。
+    - G1、G8、G15 放在同一個 PR，或先完成 G15 的檢查再合併。
 
 ## 二、上 AWS 前必修
 
