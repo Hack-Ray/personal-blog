@@ -382,7 +382,8 @@
   - 兩種做法都要在 GitHub 驗證網域，防止子網域被搶用（**推測**）。
 - [ ] **D3 CDN 快取規則與部署後清除快取。**
   - 有 hash 的檔案可以長期快取：`_next/static/*`、`images/*`、`thumbs/*`。
-  - HTML、`feed.xml`、`sitemap.xml`、`search-index.json` 要設短的 TTL，或在部署後清除快取。
+  - 有 hash 的搜尋內文 `search-data/*` 也可以長期快取。
+  - HTML、`feed.xml`、`sitemap.xml`、`search-metadata.json`、`latest-posts.json` 要設短的 TTL，或在部署後清除快取。
   - 目前 release 以 Pages 部署成功判定為 `deployed`，不代表 CDN 已經更新。
 - [ ] **D4 沒有 `robots.txt`。** 換成自訂網域後才有意義。處理：加 `frontend/src/app/robots.ts`，指向 sitemap。
 - [ ] **D5 RSS 的 GUID 是文章網址。**

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SiteContent } from "./model.ts";
+import { TIME_ZONE } from "../site.ts";
 import { buildIndex } from "./search.ts";
 
 export interface SearchAssets {
@@ -8,12 +9,13 @@ export interface SearchAssets {
 }
 
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+const yearFormat = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, year: "numeric" });
 
 export function buildSearchAssets(content: SiteContent): SearchAssets {
   const index = buildIndex(content);
   const groups = new Map<number, { docId: string; textKey: string }[]>();
   const docs = index.map(({ text, ...doc }) => {
-    const year = new Date(doc.publishedAt).getUTCFullYear();
+    const year = Number(yearFormat.format(new Date(doc.publishedAt)));
     const textKey = text.toLowerCase();
     const group = groups.get(year) ?? [];
     group.push({ docId: doc.docId, textKey });
@@ -25,8 +27,7 @@ export function buildSearchAssets(content: SiteContent): SearchAssets {
     const json = JSON.stringify({ version: 1, year, docs });
     const asset = `${String(year).padStart(4, "0")}-${hash(json)}`;
     chunks.set(asset, json);
-    return { year, asset, docIds: docs.map((doc) => doc.docId) };
+    return { year, asset };
   });
-  const revision = hash(JSON.stringify({ docs, years }));
-  return { metadataJson: JSON.stringify({ version: 1, revision, docs, years }), chunks };
+  return { metadataJson: JSON.stringify({ version: 1, docs, years }), chunks };
 }

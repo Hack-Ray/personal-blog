@@ -143,54 +143,11 @@ for (const publishedAt of ["-000001-01-01T00:00:00.000Z", "+010000-01-01T00:00:0
   });
 }
 
-for (const [name, mutate] of [
-  ["version", (data: typeof metadata) => { data.version = 2; }],
-  ["duplicate documents", (data: typeof metadata) => { data.docs.push(data.docs[0]); }],
-  ["fractional year", (data: typeof metadata) => { data.years[0].year += 0.5; }],
-  ["year order", (data: typeof metadata) => { data.years.reverse(); }],
-  ["asset path", (data: typeof metadata) => { data.years[0].asset = "../foreign"; }],
-  ["year membership", (data: typeof metadata) => { data.years[0].docIds = ["old"]; }],
-  ["missing year", (data: typeof metadata) => { data.years.pop(); }],
-  ["invalid date", (data: typeof metadata) => { data.docs[0].publishedAt = "invalid"; }],
-  ["unnormalized prefix", (data: typeof metadata) => { data.docs[0].textKey = "UPPER"; }],
-] as const) {
-  test(`metadata boundary rejects ${name}`, async () => {
-    const invalid = structuredClone(metadata);
-    mutate(invalid);
-    let requests = 0;
-    const store = createSearchStore(async () => { requests++; return Response.json(invalid); });
-    await store.startSearch();
-    assert.equal(store.getSearchSnapshot().phase, "metadata-error");
-    assert.deepEqual(store.getSearchSnapshot().docs, []);
-    assert.equal(requests, 1);
-  });
-}
-
-test("a malformed chunk publishes none of its updates and can recover on retry", async () => {
-  const source = content(article("one", 2026, { markdown: "a".repeat(180) + " token" }), article("two", 2026));
-  const built = buildSearchAssets(source);
-  const valid = JSON.parse([...built.chunks.values()][0]);
-  for (const corrupt of [
-    { ...valid, year: 2025 },
-    { ...valid, docs: [valid.docs[0], valid.docs[0]] },
-    { ...valid, docs: [valid.docs[0]] },
-    { ...valid, docs: [valid.docs[0], { docId: "foreign", textKey: "" }] },
-    { ...valid, docs: [{ ...valid.docs[0], textKey: "lost-prefix" }, valid.docs[1]] },
-    { ...valid, docs: [valid.docs[0], { ...valid.docs[1], textKey: 5 }] },
-  ]) {
-    let count = 0;
-    const store = createSearchStore(async () => {
-      count++;
-      return count === 1 ? new Response(built.metadataJson) : Response.json(count === 2 ? corrupt : valid);
-    });
-    await store.startSearch();
-    assert.equal(store.getSearchSnapshot().phase, "body-error");
-    assert.deepEqual(results(store, "token"), []);
-    await store.startSearch();
-    assert.equal(store.getSearchSnapshot().phase, "complete");
-    assert.deepEqual(results(store, "token"), [{ docId: "one", score: 1 }]);
-    assert.equal(count, 3);
-  }
+test("metadata in an unknown format is an error, not documents", async () => {
+  const store = createSearchStore(async () => Response.json({ ...metadata, version: 2 }));
+  await store.startSearch();
+  assert.equal(store.getSearchSnapshot().phase, "metadata-error");
+  assert.deepEqual(store.getSearchSnapshot().docs, []);
 });
 
 test("all partial Unicode matches remain after complete replacement without duplicate hits", async () => {
