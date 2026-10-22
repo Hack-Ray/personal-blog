@@ -25,6 +25,7 @@ export class DraftSync {
   private readonly debounceMs: number;
   private readonly retryMs: number;
   private failures = 0;
+  private closed = false;
   status: SyncStatus = { kind: "saved" };
 
   constructor(
@@ -84,10 +85,19 @@ export class DraftSync {
    * waiting twice as long each time up to a minute. A 401 waits for sign-in
    * (SIGNED_IN), and other 4xx answers will not change on their own. */
   private retryLater(e: unknown): void {
-    if (e instanceof ApiError && e.status < 500) return;
+    if (this.closed || (e instanceof ApiError && e.status < 500)) return;
     const delay = Math.min(this.retryMs * 2 ** this.failures, 60_000);
     this.failures += 1;
     this.timer = setTimeout(() => void this.flush(), delay);
+  }
+
+  /** Saves pending edits one last time and stops retrying, for an editor
+   * being closed: a retry left running could raise the revision under the
+   * next editor opened on the same article and give it a false conflict. */
+  close(): Promise<void> {
+    this.closed = true;
+    clearTimeout(this.timer);
+    return this.flush();
   }
 
   /** Saves pending edits now. Resolves once they are stored or have failed. */

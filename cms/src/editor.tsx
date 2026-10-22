@@ -34,12 +34,13 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    sync.current = new DraftSync(api, draft.doc_id, { revision: draft.revision, content: draft }, setStatus);
-    const retry = () => void sync.current?.flush();
+    const current = new DraftSync(api, draft.doc_id, { revision: draft.revision, content: draft }, setStatus);
+    sync.current = current;
+    const retry = () => void current.flush();
     addEventListener(SIGNED_IN, retry);
     return () => {
       removeEventListener(SIGNED_IN, retry);
-      void sync.current?.flush();
+      void current.close();
     };
   }, [draft]);
 

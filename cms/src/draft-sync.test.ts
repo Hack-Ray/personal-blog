@@ -165,6 +165,23 @@ test("a save that fails on the network is retried until it succeeds", async () =
   assert.equal(sync.status.kind, "saved");
 });
 
+test("closing the editor saves once and does not retry afterwards", async () => {
+  const server = fakeServer();
+  let attempts = 0;
+  const offline = {
+    ...server.api,
+    save: () => {
+      attempts += 1;
+      return Promise.reject(new TypeError("Failed to fetch"));
+    },
+  };
+  const sync = new DraftSync(offline, "D", { revision: 1, content: content("initial") }, () => {}, 0, 0);
+  sync.edit(content("typed offline"));
+  await sync.close();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(attempts, 1);
+});
+
 test("a save the server rejects as invalid is not retried", async () => {
   const server = fakeServer();
   let calls = 0;
