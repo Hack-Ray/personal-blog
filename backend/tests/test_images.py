@@ -18,7 +18,6 @@ from blog.exporter import ExportError, export, render_snapshot, write_snapshot
 from tests.conftest import BASE_URL, sign_in
 
 
-
 def encode(fmt, size=(8, 4), color="red", **save):
     out = io.BytesIO()
     Pillow.new("RGB", size, color).save(out, fmt, **save)

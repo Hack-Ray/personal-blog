@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from blog import images
 from blog.models import Profile
 
-
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Line = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
 Paragraph = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
