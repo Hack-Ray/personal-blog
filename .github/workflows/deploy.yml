@@ -29,11 +29,16 @@ env:
   CONTENT_REPO: ${{ vars.CONTENT_REPO || format('{0}-content', github.repository) }}
 
 jobs:
+  # A content release (workflow_dispatch from the CMS) changes no code, and the
+  # push that put this code on main already ran ci; the build job still checks
+  # the content. Pushes to main run ci here too.
   ci:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
 
+  # Runs alongside ci rather than after it; deploy waits for both. ci already
+  # runs the unit tests and typecheck, so this job only builds.
   build:
-    needs: ci
     runs-on: ubuntu-latest
     outputs:
       content_sha: ${{ steps.content.outputs.sha }}
@@ -63,12 +68,6 @@ jobs:
       - run: npm ci
         working-directory: frontend
 
-      - run: npm test
-        working-directory: frontend
-
-      - run: npm run typecheck
-        working-directory: frontend
-
       # Building also validates the snapshot: a missing article file, a version
       # mismatch or a missing image fails here and nothing is deployed.
       - run: npm run build
@@ -94,7 +93,9 @@ jobs:
           path: frontend/out
 
   deploy:
-    needs: build
+    needs: [ci, build]
+    # A skipped ci would otherwise skip deploy too.
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

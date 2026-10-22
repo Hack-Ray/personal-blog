@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
@@ -454,4 +455,28 @@ test("links to other sites open in a new tab and only text links get the externa
   );
   assert.match(renderMarkdown("[![x](images/d.png)](https://e.com)", ""), /<a href="https:\/\/e\.com" target="_blank" rel="noopener noreferrer"><img/);
   assert.equal(renderMarkdown("[b](/posts/X/) [c](#top)", ""), '<p><a href="/posts/X/">b</a> <a href="#top">c</a></p>\n');
+});
+
+test("raw HTML in Markdown is shown as text", () => {
+  assert.equal(renderMarkdown("<script>alert(1)</script>", ""), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n");
+  assert.equal(renderMarkdown("a <img src=x onerror=alert(1)> b", ""), "<p>a &lt;img src=x onerror=alert(1)&gt; b</p>\n");
+});
+
+test("URLs outside the policy are not output as links or images", () => {
+  const cases: { markdown: string; blocked: string[] }[] = JSON.parse(
+    readFileSync(new URL("../../test-fixtures/url-policy.json", import.meta.url), "utf8"),
+  );
+  for (const { markdown, blocked } of cases) {
+    const html = renderMarkdown(markdown, "");
+    for (const url of blocked) assert.ok(!html.includes(`="${url}`), `${url} in ${html}`);
+  }
+  assert.equal(renderMarkdown("[x](javascript:alert(1))", ""), "<p>x</p>\n");
+  assert.equal(renderMarkdown("![alt](data:image/png;base64,AAAA)", ""), "<p>alt</p>\n");
+});
+
+test("a disallowed URL fails the build", () => {
+  const files = { [A]: articleFile(A, { markdown: "[x](javascript:alert(1))" }) };
+  assert.throws(() => parseSnapshot(snapshot({ files })), /articles\/.*\.json: URLs not allowed in articles: javascript:alert\(1\)/);
+  const profile = profileFile({ intro: "![x](http://x.dev/a.png)" });
+  assert.throws(() => parseSnapshot(snapshot({ profile })), /profile\.json: URLs not allowed in articles: http:\/\/x\.dev\/a\.png/);
 });

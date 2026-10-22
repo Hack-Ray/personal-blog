@@ -1,8 +1,9 @@
 import { Marked, type Tokens } from "marked";
+import { allowedImage, allowedLink } from "./url-policy.ts";
 
 // Mirrors frontend/src/content/markdown.ts so the preview looks like the
 // published article: Shiki highlighting with the same themes, figures with
-// captions, and the external-link marker.
+// captions, the external-link marker, and raw HTML and disallowed URLs shown as text.
 
 // Imported one by one so the build bundles only these, not every Shiki grammar.
 const LANGS = () => [
@@ -46,25 +47,31 @@ export function renderPreview(markdown: string, highlight?: Highlight): string {
         const name = lang?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
         return `${highlight?.(text, name) ?? `<pre><code>${escapeHtml(text)}</code></pre>`}\n`;
       },
+      html: ({ text, block }) => (block ? `<p>${escapeHtml(text.trim())}</p>\n` : escapeHtml(text)),
       link({ href, title, tokens }) {
         const inner = this.parser.parseInline(tokens);
+        if (!allowedLink(href)) return inner;
         const attrs = `href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""}`;
         if (!/^https?:\/\//i.test(href)) return `<a ${attrs}>${inner}</a>`;
         const onlyImage = tokens.every((t) => t.type === "image");
         return `<a ${attrs} target="_blank" rel="noopener noreferrer"${onlyImage ? "" : ' class="external"'}>${inner}</a>`;
       },
       image: ({ href, title, text }) =>
-        `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""}>`,
+        href === ""
+          ? escapeHtml(text)
+          : `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""}>`,
       paragraph({ tokens }) {
         const inner = this.parser.parseInline(tokens);
         const image = tokens.length === 1 && tokens[0]!.type === "image" ? (tokens[0] as Tokens.Image) : undefined;
-        if (!image?.text.trim()) return `<p>${inner}</p>\n`;
+        if (!image?.text.trim() || image.href === "") return `<p>${inner}</p>\n`;
         return `<figure>${inner}<figcaption>${escapeHtml(image.text)}</figcaption></figure>\n`;
       },
     },
     // Drafts reference images as images/<id>, the snapshot path; in the editor they are served by the API.
     walkTokens(token) {
-      if (token.type === "image" && token.href.startsWith("images/")) token.href = `/api/${token.href}`;
+      if (token.type !== "image") return;
+      if (!allowedImage(token.href)) token.href = "";
+      else if (token.href.startsWith("images/")) token.href = `/api/${token.href}`;
     },
   });
   return marked.parse(markdown, { async: false });

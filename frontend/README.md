@@ -38,6 +38,8 @@ images/{contentHash}.{ext}
 
 `articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
+Articles and the profile intro may not contain raw HTML or arbitrary URLs. Raw HTML is shown as text. Links may use `https:`, `http:`, `mailto:`, `#` anchors or relative paths, and images `images/…` or `https:`. Any other URL fails the build (`src/content/url-policy.ts`). The CMS preview and publish check use a copy of the same rule, and both are tested against `test-fixtures/url-policy.json`.
+
 `profile.json` is the About page: `name`, `headline`, `intro` (Markdown), `links` (`label`, `url`), `experience` (`role`, `organization`, `period`, `description`) and `projects` (`name`, optional `url`, `description`, `tags`). Links and project URLs must start with `https://` or `mailto:`. A snapshot without it gets the placeholder profile in `src/content/parse.ts`, which matches what the backend seeds.
 
 It also holds `site` (`title`, `description`): the title names the site in page titles, the header, `og:site_name` and the RSS feed; a non-empty description is the default meta description and the feed's channel description (the feed falls back to the title). `site` may be missing and then is `{"title": "Personal Blog", "description": ""}` (Addendum 04 FE-009).

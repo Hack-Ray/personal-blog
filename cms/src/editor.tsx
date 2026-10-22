@@ -7,7 +7,7 @@ import { useLeaveGuard } from "./leave-guard.ts";
 import { type Highlight, loadHighlighter, renderPreview } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
-import { prePublishWarnings } from "./publish-checks.ts";
+import { URL_POLICY, prePublishWarnings, urlProblems } from "./publish-checks.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
@@ -47,6 +47,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const seriesParsed = parseTags(seriesText);
   const seriesInvalid = seriesParsed.invalid.length > 0 || seriesParsed.tags.length > 1;
   const covers = useMemo(() => imageIds(content.markdown), [content.markdown]);
+  const badUrls = useMemo(() => urlProblems(content.markdown), [content.markdown]);
   const topicValid = unsavedReason(content) === undefined;
   const label = statusLabel(status, content, sync.current?.current ?? draft);
   // Leaving the editor saves pending edits on the way out; edits that cannot
@@ -142,7 +143,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
             e.target.value = "";
           }}
         />
-        <button type="button" onClick={publish} disabled={status.kind === "conflict" || !topicValid}>
+        <button type="button" onClick={publish} disabled={status.kind === "conflict" || !topicValid || badUrls.length > 0}>
           發布
         </button>
       </div>
@@ -218,6 +219,11 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           />
         </Field>
       </div>
+      {badUrls.length > 0 && (
+        <p className="hint">
+          修正後才能發布：{badUrls.join("、")}（{URL_POLICY}）
+        </p>
+      )}
       {invalid.length > 0 && <p className="hint">無效的 tag slug：{invalid.join("、")}</p>}
       {seriesInvalid && <p className="hint">系列只能填一個，slug 須為小寫英數與連字號。</p>}
       {content.cover && !covers.includes(content.cover) && <p className="hint">封面圖已不在文章中，發布前請重新選擇。</p>}
