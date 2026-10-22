@@ -5,7 +5,9 @@ workflow, and follow that run until the site is live."""
 import json
 import re
 import subprocess
+import urllib.error
 import urllib.parse
+import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -72,6 +74,10 @@ class GitHubActions:
         self.repo, self.workflow, self.ref = repo, workflow, ref
         self.client = GitHubClient(token, api_url)
         self.content_branch = content_branch
+
+    @property
+    def api_url(self) -> str:
+        return self.client.api_url
 
     @property
     def target(self) -> str:
@@ -234,7 +240,7 @@ def _advance(session: Session, release: Release, repo: Path | GitHubRepository, 
     if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED):
         # run_id stays: it is now the earlier attempt's run, for refresh to skip.
         if deployer is None:
-            _set(release, R.DISPATCH_FAILED, "GitHub credentials or DEPLOY_REPO are not set; start the deploy workflow on GitHub instead")
+            _set(release, R.DISPATCH_FAILED, "CMS_GITHUB_TOKEN/GitHub App credentials or DEPLOY_REPO are not set; start the deploy workflow on GitHub instead")
         else:
             try:
                 deployer.dispatch(release.content_commit)
