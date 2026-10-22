@@ -29,6 +29,6 @@
 
 `backend/backups` 是指向 Google Drive「我的雲端硬碟/personal-blog-backups」的 symlink，備份寫入即自動同步。`.gitignore` 的 `backend/backups/` 不會匹配 symlink，所以另在本機 `.git/info/exclude` 加上 `/backend/backups`。
 
-## 雲端 Claude session 與內容 repo（尚未設定）
+## 雲端 Claude session 與內容 repo
 
-若要讓雲端 session 以真實內容 build 網站，到 https://github.com/settings/installations → Claude → Configure → Repository access 加上 `personal-blog-content`，開新 session 時選入它。雲端 session 只用來開發與測試，不發文、不 push 內容 repo（規則在 `AGENTS.md`）。GitHub App 無法只給單一 repo 唯讀權限，所以由這條規則約束。
+2026-10-22 已在 https://github.com/settings/installations → Claude → Configure → Repository access 加上 `personal-blog-content`。雲端 session 可以讀取它，以真實內容 build 網站（`SITE_DATA_DIR=<clone 路徑> npm run build`）；只用來開發與測試，不發文、不 push 內容 repo（規則在 `AGENTS.md`）。GitHub App 無法只給單一 repo 唯讀權限，所以由這條規則約束。
