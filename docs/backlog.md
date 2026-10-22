@@ -146,7 +146,7 @@
   - 登入畫面沒有擋住後面的頁面：缺 `inert` 和 `aria-modal`（`main.tsx:594-601`）。
   - 登出失敗時沒有任何提示（`article-list.tsx:104`）。
   - 發布時沒有檢查文章引用的圖片是否存在。目前要到匯出時才失敗，而且整站都無法發布（`articles.py:364`）。
-- [ ] **G14（低）公開網站小問題。**（部分完成：#50 完成搜尋索引以外的部分；搜尋索引的大小等文章變多再處理）
+- [ ] **G14（低）公開網站小問題。**（部分完成：#50 完成；只剩搜尋索引的大小與一次全部載入，等文章變多再處理）
   - 深色模式沒有設定 `color-scheme`，原生輸入框和捲軸仍是淺色（`frontend/src/app/globals.css`）。
   - 圖片放大只能用滑鼠點；小圖放大後會模糊（`article-body.tsx:36`、`globals.css:591-595`）。
   - 複製按鈕和頁首搜尋的結果數量，沒有用 `aria-live` 通知螢幕閱讀器。
@@ -165,7 +165,7 @@
 
 ### 必修
 
-- [x] **A0 用 Tailscale 隔離 CMS。**（#51，見 `docs/cloud-access.md`）
+- [x] **A0 用 Tailscale 隔離 CMS。**（#51 寫好步驟，見 `docs/cloud-access.md`；主機與 Tailscale 的實際設定由作者上雲時進行）
   - 主機的 Security Group 進站規則全部移除，包括 SSH。管理主機改用 Tailscale SSH 或 SSM。
   - 用 `tailscale serve` 提供 HTTPS。它會向 Tailscale 取得 `*.ts.net` 憑證，再轉給只綁定 `127.0.0.1:8000` 的 uvicorn，所以 uvicorn 不用改成 `0.0.0.0`。
   - Tailscale ACL 只允許作者的裝置連到 CMS 主機，並開啟新裝置核准（device approval）。
