@@ -13,12 +13,14 @@ const DEFAULT_IMAGE = absoluteUrl("/og-default.png");
 
 export function generateMetadata(): Metadata {
   const { title, description } = loadSiteContent().profile.site;
+  const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
   return {
     title: { default: title, template: `%s | ${title}` },
     description: description || undefined,
     // Article pages set their own openGraph and twitter, so the default image only reaches the other pages.
     openGraph: { ...siteOg(title), images: [DEFAULT_IMAGE] },
     twitter: { card: "summary", images: [DEFAULT_IMAGE] },
+    verification: googleVerification ? { google: googleVerification } : undefined,
   };
 }
 

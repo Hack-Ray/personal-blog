@@ -131,6 +131,7 @@ jobs:
           GISCUS_REPO_ID: ${{ vars.GISCUS_REPO_ID }}
           GISCUS_CATEGORY: ${{ vars.GISCUS_CATEGORY || 'Announcements' }}
           GISCUS_CATEGORY_ID: ${{ vars.GISCUS_CATEGORY_ID }}
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           LEGACY_SITE_URLS: ${{ vars.LEGACY_SITE_URLS }}
 
       # A link in an article to a page or image the build does not have fails

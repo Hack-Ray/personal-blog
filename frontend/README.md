@@ -54,6 +54,7 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 | `SITE_ORIGIN` | `https://example.com` | the repo's Pages URL; used in canonical URLs, the sitemap, RSS and `og:image` |
 | `GISCUS_REPO`, `GISCUS_CATEGORY` | `""`, `Announcements` | repository variables, defaulting to this repo and `Announcements` |
 | `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` | `""` (no comments) | repository variables, from <https://giscus.app> |
+| `GOOGLE_SITE_VERIFICATION` | `""` (no tag) | repository variable; the `content` of Search Console's `google-site-verification` meta tag |
 
 ## Checking the built site
 
