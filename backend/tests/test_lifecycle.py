@@ -3,16 +3,13 @@ import subprocess
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
-from blog import articles
-from blog.api import app
+from blog import articles, maintenance
 from blog.db import SessionLocal, engine
 from blog.exporter import export
 from blog.models import RetiredDocId
-from tests.conftest import BASE_URL, sign_in
 
 BACKEND = {"slug": "backend", "name": "Backend"}
 
@@ -141,13 +138,26 @@ def test_purge_expired_removes_only_articles_past_30_days(client):
     assert state(client, recent) == "pending_deletion"
 
 
-def test_cms_startup_purges_expired_articles(client):
+def test_maintenance_purges_expired_articles(client):
     doc_id = published(client)
     client.delete(f"/api/articles/{doc_id}")
     backdate_deletion(doc_id, 30)
 
-    with sign_in(TestClient(app, base_url=BASE_URL)) as started:
-        assert started.get(f"/api/articles/{doc_id}/draft").status_code == 404
+    assert maintenance.run()
+    assert client.get(f"/api/articles/{doc_id}/draft").status_code == 404
+
+
+def test_maintenance_skips_while_another_run_holds_the_lock(client):
+    doc_id = published(client)
+    client.delete(f"/api/articles/{doc_id}")
+    backdate_deletion(doc_id, 30)
+
+    with engine.connect() as other:
+        other.scalar(select(func.pg_advisory_lock(maintenance.LOCK_KEY)))
+        assert not maintenance.run()
+        assert state(client, doc_id) == "pending_deletion"
+        other.scalar(select(func.pg_advisory_unlock(maintenance.LOCK_KEY)))
+    assert maintenance.run()
 
 
 def test_database_rejects_pending_deletion_without_deleted_at(client):
