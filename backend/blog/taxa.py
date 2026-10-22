@@ -63,13 +63,17 @@ def _draft_refs(kind: Kind):
     """(taxon id, article id) for every Working Draft reference."""
     if kind is Kind.TAGS:
         return select(working_draft_tags.c.tag_id.label("taxon_id"), working_draft_tags.c.article_id)
-    return select(getattr(WorkingDraft, COLUMN[kind]).label("taxon_id"), WorkingDraft.article_id)
+    column = getattr(WorkingDraft, COLUMN[kind])
+    # An article outside any series stores NULL, and a NULL in an IN list makes
+    # "not in it" unknown instead of false.
+    return select(column.label("taxon_id"), WorkingDraft.article_id).where(column.is_not(None))
 
 
 def _version_ids(kind: Kind):
     if kind is Kind.TAGS:
         return select(published_version_tags.c.tag_id)
-    return select(getattr(PublishedVersion, COLUMN[kind]))
+    column = getattr(PublishedVersion, COLUMN[kind])
+    return select(column).where(column.is_not(None))
 
 
 def _in_use(kind: Kind, taxon_id):
