@@ -1,8 +1,10 @@
 "use client";
 
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 
 const COPIED_MS = 2000;
+
+const zoomable = (el: EventTarget) => el instanceof HTMLImageElement && !el.closest("a");
 
 /** Rendered article HTML with copy buttons on code blocks and click-to-zoom images. */
 export function ArticleBody({ html }: { html: string }) {
@@ -13,6 +15,16 @@ export function ArticleBody({ html }: { html: string }) {
   useEffect(() => {
     if (!navigator.clipboard) return;
     body.current?.querySelectorAll<HTMLButtonElement>(".copy-code").forEach((b) => (b.hidden = false));
+  }, [html]);
+
+  // Images open from the keyboard as well as by clicking.
+  useEffect(() => {
+    body.current?.querySelectorAll("img").forEach((img) => {
+      if (!zoomable(img)) return;
+      img.tabIndex = 0;
+      img.setAttribute("role", "button");
+      img.setAttribute("aria-label", `放大圖片${img.alt ? `：${img.alt}` : ""}`);
+    });
   }, [html]);
 
   useEffect(() => {
@@ -33,15 +45,22 @@ export function ArticleBody({ html }: { html: string }) {
       setTimeout(() => (button.textContent = "複製"), COPIED_MS);
       return;
     }
-    if (target instanceof HTMLImageElement && !target.closest("a")) {
-      setZoomed({ src: target.currentSrc || target.src, alt: target.alt });
+    if (zoomable(target)) zoom(target as HTMLImageElement);
+  };
+
+  const zoom = (img: HTMLImageElement) => setZoomed({ src: img.currentSrc || img.src, alt: img.alt });
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if ((e.key === "Enter" || e.key === " ") && zoomable(e.target)) {
+      e.preventDefault();
+      zoom(e.target as HTMLImageElement);
     }
   };
 
   return (
     <>
       {/* Markdown comes only from the site author through the CMS. */}
-      <div ref={body} className="article-body" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={body} className="article-body" onClick={onClick} onKeyDown={onKeyDown} dangerouslySetInnerHTML={{ __html: html }} />
       {zoomed && (
         <dialog
           ref={dialog}

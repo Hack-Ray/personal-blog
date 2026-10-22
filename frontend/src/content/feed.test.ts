@@ -27,6 +27,12 @@ test("the channel title and description come from the profile's site", () => {
   assert.match(xml, /<description>Notes on &lt;backend&gt;<\/description>/);
 });
 
+test("the channel links to its own address, as feed validators expect", () => {
+  const xml = buildFeed(site(), url);
+  assert.match(xml, /<rss version="2.0" xmlns:atom="http:\/\/www\.w3\.org\/2005\/Atom">/);
+  assert.match(xml, /<atom:link href="https:\/\/example\.com\/blog\/feed\.xml" rel="self" type="application\/rss\+xml"\/>/);
+});
+
 test("an empty site description falls back to the title, since RSS requires one", () => {
   const xml = buildFeed(withSite("Ray's notes", ""), url);
   assert.match(xml, /<description>Ray&apos;s notes<\/description>/);

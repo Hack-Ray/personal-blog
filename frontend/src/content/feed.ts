@@ -28,12 +28,13 @@ export function buildFeed(content: SiteContent, url: (path: string) => string): 
   const built = posts[0] ? [`    <lastBuildDate>${posts[0].publishedAt.toUTCString()}</lastBuildDate>`] : [];
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<rss version="2.0">',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
     "  <channel>",
     `    <title>${escapeXml(site.title)}</title>`,
     `    <link>${escapeXml(url("/"))}</link>`,
     // RSS requires a channel description, so an empty one falls back to the title.
     `    <description>${escapeXml(site.description || site.title)}</description>`,
+    `    <atom:link href="${escapeXml(url("/feed.xml"))}" rel="self" type="application/rss+xml"/>`,
     ...built,
     ...items,
     "  </channel>",

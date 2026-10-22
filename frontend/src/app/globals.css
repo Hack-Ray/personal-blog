@@ -1,4 +1,6 @@
 :root {
+  /* Native controls and scrollbars follow the theme too. */
+  color-scheme: light dark;
   --fg: #1f2328;
   --muted: #59636e;
   --bg: #ffffff;
@@ -19,7 +21,12 @@
   }
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --fg: #e6edf3;
   --muted: #9198a1;
   --bg: #0d1117;
@@ -588,11 +595,11 @@ input[type="search"] {
   background: rgb(0 0 0 / 0.8);
 }
 
+/* Never larger than the image itself, so small images stay sharp. */
 .image-zoom img {
   display: block;
-  width: 95vw;
-  height: 95vh;
-  object-fit: contain;
+  max-width: 95vw;
+  max-height: 95vh;
 }
 
 .taxon-tabs {

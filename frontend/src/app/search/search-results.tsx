@@ -27,7 +27,9 @@ export function SearchResults() {
     <>
       {failed && <p className="meta">無法載入搜尋索引。</p>}
       {loadedQuery?.trim() === "" && <p className="meta">在上方搜尋列輸入關鍵字。</p>}
-      {index && loadedQuery?.trim() && <p className="meta">{hits.length} 篇符合</p>}
+      <p className="meta" role="status">
+        {index && loadedQuery?.trim() ? `${hits.length} 篇符合` : ""}
+      </p>
       <ul className="article-list">
         {hits.map(({ doc }) => (
           <li key={doc.docId}>

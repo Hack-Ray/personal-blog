@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { SearchDoc } from "../content/search.ts";
-import { loadIndex } from "./search/load-index.ts";
+import { BASE_PATH } from "../site.ts";
 
-const LATEST = 5;
-
-// Every page's payload carries the 404 page, so it reads the latest posts
-// from the search index at runtime instead of embedding them.
+// Every page's payload carries the 404 page, so it fetches the latest posts
+// at runtime instead of embedding them.
 export function LatestPosts() {
-  const [docs, setDocs] = useState<SearchDoc[]>([]);
+  const [docs, setDocs] = useState<{ docId: string; title: string }[]>([]);
   useEffect(() => {
-    loadIndex().then((index) => setDocs(index.slice(0, LATEST)), () => {});
+    fetch(`${BASE_PATH}/latest-posts.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setDocs, () => {});
   }, []);
   if (docs.length === 0) return null;
   return (
