@@ -1,5 +1,7 @@
-# Weekly update PRs. CI checks each one; marked and shiki must move together
-# in frontend/ and cms/ (cms/src/shared-deps.test.ts), so merge those as a pair.
+# Weekly update PRs. CI checks each one. marked and shiki must match in
+# frontend/ and cms/ (cms/src/shared-deps.test.ts). Minor and patch updates
+# come grouped, but a major one opens a PR per directory and each fails that
+# test alone: make both changes in one PR instead.
 version: 2
 updates:
   - package-ecosystem: npm

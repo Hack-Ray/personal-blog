@@ -258,6 +258,8 @@ scripts/backup.sh
 scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<password>@<host>:5432/<db>'
 ```
 
+雲端主機只讓作者的裝置透過 Tailscale 連線，設定步驟見 [`cloud-access.md`](cloud-access.md)。
+
 在雲端執行 CMS 時，設 `CMS_ENV=cloud`，並填 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉。CMS 必須放在網域的根目錄（例如 `https://cms.<tailnet>.ts.net/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
 
 雲端的 CMS 會一直開著，所以清理與備份要排程執行，例如在主機上用 cron：
@@ -279,7 +281,7 @@ repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映�
 | `docker compose up` 說 port 5432 已被使用 | 你的電腦已經有 PostgreSQL 在跑。把 `compose.yaml` 的 `127.0.0.1:5432:5432` 改成 `127.0.0.1:5433:5432`，並把 `.env` 的 `DATABASE_URL` 改成 `:5433` |
 | `Cannot connect to the Docker daemon` | Docker Desktop 沒開，或 Linux 上 docker 服務沒啟動 |
 | `/admin/` 回 404 | 還沒執行第 7 節的 `npm run build` |
-| 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次後要等 30 秒，之後每錯一次加倍（最長 15 分鐘）；一小時沒有嘗試就重新計算。想立刻解除，在資料庫執行 `DELETE FROM sign_in_attempts` |
+| 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次後要等 30 秒，之後每錯一次加倍（最長 15 分鐘）；最後一次計入的嘗試後滿一小時就重新計算。想立刻解除，在資料庫執行 `DELETE FROM sign_in_attempts` |
 | 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
 | 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |

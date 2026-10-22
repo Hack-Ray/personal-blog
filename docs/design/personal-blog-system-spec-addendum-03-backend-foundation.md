@@ -257,6 +257,18 @@
   - 仍開著、填著來源 slug 的編輯器下次自動儲存會重新建立它（BE-013 的 get-or-create），CMS 頁面上有說明。
   - Baseline 12 的 Taxonomy 待決事項由此決定，別名策略仍未提供。
 
+### BE-020：雲端 CMS 只透過 Tailscale 存取
+
+- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Context**：CMS 原本只綁定 `127.0.0.1`，存取控制靠「只在作者的電腦上」。放到雲端主機後，登入頁會對網際網路公開，而 CMS 只有一組密碼。
+- **Decision**：
+  - 主機不開任何進站連接埠，管理只用 Tailscale SSH。
+  - `tailscale serve` 以 `*.ts.net` 憑證提供 HTTPS，轉給只綁定 `127.0.0.1:8000` 的 CMS。
+  - Tailscale ACL 只允許作者的帳號連到主機，並開啟裝置核准。主機的金鑰不到期，作者裝置的金鑰保留到期。
+  - 不另外加 TOTP：通過核准的裝置是第一道驗證，密碼是第二道。
+- **Consequences**：雲端的 CMS 設 `CMS_ENV=cloud`，`ALLOWED_HOSTS` 與 `CMS_ORIGIN` 用主機的 MagicDNS 名稱。步驟與裝置遺失時的處理見 `docs/cloud-access.md`。CMS 要開放給 tailnet 以外的網路時，必須重新評估第二道驗證。
+- **Supersedes**：無。
+
 ## Known gaps
 
 - ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 作者以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。
