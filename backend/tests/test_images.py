@@ -264,11 +264,26 @@ def test_export_includes_images_of_the_profile_intro(client, tmp_path):
 
 
 def test_export_fails_without_writing_when_an_image_is_missing(client, tmp_path):
+    # Publishing checks the images exist, so remove one behind its back.
     repo = _repo(tmp_path)
-    missing = f"{'0' * 64}.png"
+    missing = upload(client, PNG).json()["id"]
     doc_id = client.post("/api/articles", json=draft("x")).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json=draft(f"![](images/{missing})", base_revision=1))
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM image_data WHERE image_id = :id"), {"id": missing})
+        conn.execute(text("DELETE FROM images WHERE id = :id"), {"id": missing})
 
     with pytest.raises(ExportError, match=missing):
         export(repo)
     assert not (repo / "manifest.json").exists()
+
+
+def test_publishing_an_article_whose_image_is_missing_is_rejected(client):
+    image_id = upload(client, PNG).json()["id"]
+    doc_id = client.post("/api/articles", json=draft("x")).json()["doc_id"]
+    body = f"![a](images/{image_id}) ![b](images/{'0' * 64}.webp)"
+    r = client.post(f"/api/articles/{doc_id}/publish", json={"base_revision": 1, **draft(body)})
+    assert r.status_code == 422
+    assert f"{'0' * 64}.webp" in r.text and image_id not in r.text
+    ok = client.post(f"/api/articles/{doc_id}/publish", json={"base_revision": 1, **draft(f"![a](images/{image_id})")})
+    assert ok.status_code == 201

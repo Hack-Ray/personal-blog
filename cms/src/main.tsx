@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
+import { confirmLeave } from "./leave-guard.ts";
 import { ProfilePage } from "./profile-page.tsx";
 import { Releases } from "./releases.tsx";
 import { SignIn } from "./sign-in.tsx";
@@ -30,7 +31,15 @@ function parseRoute(hash: string): Route {
 function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(location.hash));
   useEffect(() => {
-    const onChange = () => setRoute(parseRoute(location.hash));
+    let shown = location.hash;
+    const onChange = () => {
+      if (!confirmLeave()) {
+        history.replaceState(null, "", shown || "#/");
+        return;
+      }
+      shown = location.hash;
+      setRoute(parseRoute(location.hash));
+    };
     addEventListener("hashchange", onChange);
     return () => removeEventListener("hashchange", onChange);
   }, []);
@@ -119,7 +128,11 @@ function App() {
   if (signedIn === undefined) return <p>載入中…</p>;
   return (
     <>
-      {everSignedIn && <Page route={route} />}
+      {everSignedIn && (
+        <div inert={!signedIn}>
+          <Page route={route} />
+        </div>
+      )}
       {!signedIn && (
         <SignIn
           onSignedIn={() => {

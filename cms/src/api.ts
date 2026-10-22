@@ -141,7 +141,8 @@ export const api = {
   snapshots: (docId: string) => request<Snapshot[]>("GET", `/articles/${docId}/snapshots`),
   restoreSnapshot: (docId: string, baseRevision: number, snapshotId: number) =>
     request<Draft>("POST", `/articles/${docId}/snapshots/${snapshotId}/restore`, { base_revision: baseRevision }),
-  releases: () => request<Release[]>("GET", "/releases"),
+  /** Lists releases after asking GitHub how the dispatched ones are doing. */
+  releases: () => request<Release[]>("POST", "/releases/refresh"),
   githubToken: () => request<{ configured: boolean; expires_at: string | null }>("GET", "/github-token"),
   createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
   retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),

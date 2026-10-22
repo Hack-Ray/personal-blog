@@ -234,6 +234,16 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 
 不需要再跑第 5、6 節：還原會建立資料表並帶回管理員密碼。
 
+### 同一時間只用一個 CMS
+
+每個 CMS 有自己的資料庫，卻推送到同一個內容 repo。兩邊同時使用時，草稿與版本會分歧。換電腦或在本機與雲端之間切換時：
+
+1. 在原本的 CMS 備份（第 10 節）。
+2. 把備份還原到新的 CMS（上面的步驟，或第 13 節的 `--url`）。
+3. 停用原本的 CMS，之後只用新的。
+
+切回來時反向進行。「更新網站」會先檢查內容 repo：如果遠端有這個 CMS 沒有的 commit，就拒絕發布，並顯示「another CMS may be in use」。
+
 ## 13. 之後搬到 AWS
 
 兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有 PostgreSQL 16 的用戶端工具（`pg_dump`、`pg_restore`、`psql`）。
@@ -258,6 +268,8 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 | 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
 | 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |
+| 更新網站回「another CMS may be in use」 | 內容 repo 有不是這個 CMS 推送的 commit。若另一個 CMS 還在用，照第 12 節「同一時間只用一個 CMS」切換；若是你手動改了內容 repo，在 `CONTENT_REPO_DIR` 執行 `git pull` 後再按一次 |
+| 更新網站回「another release is in progress」 | 另一次「更新網站」或「重試」還在執行，等它結束再按 |
 
 ## 15. （選用）執行後端測試
 

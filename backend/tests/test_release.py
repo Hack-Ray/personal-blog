@@ -6,10 +6,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 
 from blog import articles, exporter, release
-from blog.db import SessionLocal
+from blog.db import SessionLocal, engine
 from blog.models import PublishedVersion, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
@@ -37,7 +37,7 @@ def repos(tmp_path):
 class FakeDeployer:
     def __init__(self):
         self.dispatched: list[str] = []
-        self.runs: dict[str, release.Run] = {}
+        self.runs: list[tuple[str, release.Run]] = []
         self.deploy_steps: dict[int, str | None] = {}
         self.fail_dispatch = False
 
@@ -46,15 +46,34 @@ class FakeDeployer:
             raise release.ReleaseError("GitHub API POST returned 500")
         self.dispatched.append(content_commit)
 
-    def find_run(self, content_commit, since):
-        return self.runs.get(content_commit)
+    def find_run(self, content_commit, since, after_id=None):
+        runs = [r for c, r in self.runs if c == content_commit and r.id > (after_id or 0)]
+        return max(runs, key=lambda r: r.id, default=None)
+
+    def get_run(self, run_id):
+        return next(r for _, r in self.runs if r.id == run_id)
 
     def deploy_step_conclusion(self, run_id):
         return self.deploy_steps.get(run_id)
 
-    def finish(self, commit, conclusion="success", deploy_step="success"):
-        self.runs[commit] = release.Run(id=len(self.runs) + 1, url=f"https://run/{commit}", status="completed", conclusion=conclusion)
-        self.deploy_steps[self.runs[commit].id] = deploy_step
+    def start(self, commit, status="in_progress"):
+        run = release.Run(id=len(self.runs) + 1, url=f"https://run/{len(self.runs) + 1}", status=status, conclusion=None)
+        self.runs.append((commit, run))
+        return run
+
+    def finish(self, commit, conclusion="success", deploy_step="success", run=None):
+        """Completes the commit's newest run, or a new one."""
+        run = run or self.find_run(commit, None) or self.start(commit)
+        done = release.Run(id=run.id, url=run.url, status="completed", conclusion=conclusion)
+        self.runs = [(c, done if r.id == run.id else r) for c, r in self.runs]
+        self.deploy_steps[run.id] = deploy_step
+        return done
+
+
+def refresh(session, r, deployer):
+    release.refresh_in_flight(session, deployer)
+    session.refresh(r)
+    return r
 
 
 def publish(session, markdown="body"):
@@ -131,13 +150,13 @@ def test_refresh_records_the_run_outcome(repos, conclusion, deploy_step, expecte
     with SessionLocal() as s:
         publish(s)
         r = release.create(s, clone, deployer)
-        assert release.refresh(s, r, deployer).status == R.DISPATCHED
-        deployer.runs[r.content_commit] = release.Run(id=9, url="https://run/9", status="in_progress", conclusion=None)
-        assert release.refresh(s, r, deployer).status == R.BUILDING
+        assert refresh(s, r, deployer).status == R.DISPATCHED
+        run = deployer.start(r.content_commit)
+        assert refresh(s, r, deployer).status == R.BUILDING
+        assert (r.run_id, r.run_url) == (run.id, run.url)
         deployer.finish(r.content_commit, conclusion, deploy_step)
-        r = release.refresh(s, r, deployer)
+        r = refresh(s, r, deployer)
         assert r.status == expected
-        assert r.run_url == f"https://run/{r.content_commit}"
 
 
 def test_failed_build_can_be_retried_only_while_latest(repos):
@@ -147,7 +166,7 @@ def test_failed_build_can_be_retried_only_while_latest(repos):
         doc_id = publish(s)
         first = release.create(s, clone, deployer)
         deployer.finish(first.content_commit, "failure")
-        release.refresh(s, first, deployer)
+        refresh(s, first, deployer)
         articles.publish(s, doc_id, 2, articles.DraftContent("T", BACKEND, "edit"))
         second = release.create(s, clone, deployer)
         with pytest.raises(release.ReleaseError, match="newer release"):
@@ -179,6 +198,141 @@ def test_release_api_needs_a_content_repo(client, configure, repos):
     created = client.post("/api/releases").json()["release"]
     assert created["status"] == "dispatch_failed"
     assert [r["id"] for r in client.get("/api/releases").json()] == [created["id"], empty_site["id"]]
+
+
+def test_a_retried_release_is_not_judged_by_the_failed_run(repos):
+    _, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, deployer)
+        old = deployer.finish(r.content_commit, "failure")
+        assert refresh(s, r, deployer).status == R.FAILED
+
+        assert release.retry(s, r.id, clone, deployer).status == R.DISPATCHED
+        # GitHub has not listed the new run yet; only the failed one is there.
+        assert refresh(s, r, deployer).status == R.DISPATCHED
+        new = deployer.start(r.content_commit)
+        assert refresh(s, r, deployer).status == R.BUILDING
+        assert r.run_id == new.id != old.id
+        deployer.finish(r.content_commit, run=new)
+        assert refresh(s, r, deployer).status == R.DEPLOYED
+
+
+def test_a_run_cancelled_in_the_queue_is_superseded(repos):
+    _, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, deployer)
+        deployer.finish(r.content_commit, "cancelled", None)
+        assert refresh(s, r, deployer).status == R.SUPERSEDED
+
+
+def test_a_run_never_listed_fails_after_the_search_limit(repos):
+    _, clone = repos
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, FakeDeployer())
+        s.execute(text("UPDATE releases SET dispatched_at = now() - interval '31 minutes'"))
+        s.commit()
+        s.expire_all()
+        r = refresh(s, r, FakeDeployer())
+        assert r.status == R.FAILED
+        assert "never listed" in r.detail
+
+
+def test_refresh_does_not_overwrite_a_state_recorded_meanwhile(repos, monkeypatch):
+    _, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, deployer)
+        deployer.finish(r.content_commit)
+        real_check = release._check
+
+        def retried_meanwhile(*args):
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE releases SET status = 'failed'"))
+            return real_check(*args)
+
+        monkeypatch.setattr(release, "_check", retried_meanwhile)
+        assert refresh(s, r, deployer).status == R.FAILED
+
+
+def set_status(session, status):
+    session.execute(text("UPDATE releases SET status = :s"), {"s": status.value})
+    session.commit()
+    session.expire_all()
+
+
+@pytest.mark.parametrize("stuck", [R.EXPORTED, R.PUSHED])
+def test_a_release_cut_off_mid_way_can_be_retried_or_replaced(repos, stuck):
+    remote, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        doc_id = publish(s)
+        r = release.create(s, clone, None)
+        set_status(s, stuck)
+        assert release.retry(s, r.id, clone, deployer).status == R.DISPATCHED
+        assert git(remote, "rev-parse", "HEAD") == r.content_commit
+
+        set_status(s, stuck)
+        articles.publish(s, doc_id, 2, articles.DraftContent("T", BACKEND, "edit"))
+        newer = release.create(s, clone, deployer)
+        assert newer is not None and newer.id != r.id, newer
+        s.refresh(r)
+        assert r.status == R.SUPERSEDED
+
+
+def test_only_one_release_runs_at_a_time(client, configure, repos):
+    _, clone = repos
+    configure(content_repo_dir=clone)
+    with engine.connect() as other:
+        other.scalar(select(func.pg_advisory_lock(release.LOCK_KEY)))
+        with SessionLocal() as s, pytest.raises(release.ReleaseBusy):
+            release.create(s, clone, None)
+        r = client.post("/api/releases")
+        assert (r.status_code, r.json()["detail"]) == (409, "another release is in progress; try again when it finishes")
+        other.scalar(select(func.pg_advisory_unlock(release.LOCK_KEY)))
+    assert client.post("/api/releases").status_code == 200
+
+
+def test_push_errors_do_not_show_credentials(repos):
+    _, clone = repos
+    git(clone, "remote", "set-url", "origin", "https://someone:secret-token@127.0.0.1:9/content.git")
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, None)
+        assert r.status == R.PUSH_FAILED
+        assert "secret-token" not in r.detail
+        assert "https://127.0.0.1:9/content.git" in r.detail
+
+
+def test_a_commit_pushed_by_someone_else_stops_the_release(repos, tmp_path):
+    remote, clone = repos
+    other = tmp_path / "other-cms"
+    subprocess.run(["git", "clone", "--quiet", str(remote), str(other)], check=True, capture_output=True)
+    git(other, "-c", "user.email=o@example.com", "-c", "user.name=O", "commit", "--quiet", "--allow-empty", "-m", "Release from elsewhere")
+    git(other, "push", "--quiet")
+    with SessionLocal() as s:
+        publish(s)
+        with pytest.raises(release.ReleaseError, match="another CMS may be in use"):
+            release.create(s, clone, None)
+        assert s.query(Release).count() == 0
+        git(clone, "pull", "--quiet")
+        assert release.create(s, clone, None).status == R.DISPATCH_FAILED
+
+
+def test_listing_releases_does_not_call_github_and_refreshing_does(client, configure, monkeypatch, repos):
+    _, clone = repos
+    configure(content_repo_dir=clone)
+    deployer = FakeDeployer()
+    monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
+    created = client.post("/api/releases").json()["release"]
+    deployer.finish(created["content_commit"])
+    assert client.get("/api/releases").json()[0]["status"] == "dispatched"
+    assert client.post("/api/releases/refresh").json()[0]["status"] == "deployed"
 
 
 def fake_run(run_id, title, created_at, status="completed", conclusion="success"):
@@ -253,8 +407,11 @@ def test_github_client_requests(github):
         fake_run(2, "Deploy content abc", now - timedelta(seconds=10), status="in_progress", conclusion=None),
         fake_run(3, "Deploy content abc", now - timedelta(seconds=20), conclusion="failure"),
     ]
+    FakeGitHub.responses["GET /repos/o/r/actions/runs/3"] = (200, FakeGitHub.runs[2])
     github.dispatch("abc")
     assert github.find_run("abc", now - timedelta(minutes=1)) == release.Run(id=2, url="u2", status="in_progress", conclusion=None)
+    assert github.find_run("abc", now - timedelta(minutes=1), after_id=3) is None
+    assert github.get_run(3) == release.Run(id=3, url="u3", status="completed", conclusion="failure")
     assert github.find_run("missing", now - timedelta(minutes=1)) is None
     assert github.deploy_step_conclusion(2) == "skipped"
     method, path, body, authorization = FakeGitHub.requests[0]
@@ -280,7 +437,7 @@ def test_a_release_is_found_behind_many_newer_runs(repos, github, clock_skew):
         started = r.created_at + clock_skew
         newer = [fake_run(100 + i, f"Deploy content other{i}", started + timedelta(minutes=i + 1)) for i in range(150)]
         FakeGitHub.runs = [*reversed(newer), fake_run(7, f"Deploy content {r.content_commit}", started)]
-        assert release.refresh(s, r, github).status == R.DEPLOYED
+        assert refresh(s, r, github).status == R.DEPLOYED
 
 
 def test_token_expiry_comes_from_the_response_header(github):
@@ -316,7 +473,7 @@ def test_going_live_cleans_up_old_versions(repos):
             articles.publish(s, doc_id, v, articles.DraftContent("T", BACKEND, f"v{v}"))
         r = release.create(s, clone, deployer)
         deployer.finish(r.content_commit)
-        release.refresh(s, r, deployer)
+        refresh(s, r, deployer)
         article = articles.get_article(s, doc_id)
         remaining = s.scalars(
             select(PublishedVersion.version).where(PublishedVersion.article_id == article.id).order_by(PublishedVersion.version)

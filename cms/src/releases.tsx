@@ -13,8 +13,9 @@ const LABEL: Record<ReleaseStatus, string> = {
   superseded: "已被較新的發布取代",
   failed: "建置或部署失敗",
 };
-const RETRYABLE: ReleaseStatus[] = ["push_failed", "dispatch_failed", "failed"];
-const PENDING: ReleaseStatus[] = ["exported", "pushed", "dispatched", "building"];
+// exported and pushed only last while 更新網站 runs; one left there was cut off.
+const RETRYABLE: ReleaseStatus[] = ["exported", "push_failed", "pushed", "dispatch_failed", "failed"];
+const PENDING: ReleaseStatus[] = ["dispatched", "building"];
 const time = new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short" });
 
 export function Releases() {
@@ -23,10 +24,10 @@ export function Releases() {
   useEffect(() => {
     api.githubToken().then((t) => setTokenNotice(tokenWarning(t.expires_at, new Date())), () => {});
   }, []);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ text: string; ok: boolean }>();
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(() => api.releases().then(setReleases, (e) => setMessage(String(e))), []);
+  const load = useCallback(() => api.releases().then(setReleases, (e) => setMessage({ text: String(e), ok: false })), []);
   useEffect(() => void load(), [load]);
   useEffect(() => {
     if (!releases.some((r) => PENDING.includes(r.status))) return;
@@ -36,12 +37,12 @@ export function Releases() {
 
   const run = async (action: () => Promise<unknown>, done: (result: unknown) => string) => {
     setBusy(true);
-    setMessage("");
+    setMessage(undefined);
     try {
-      setMessage(done(await action()));
+      setMessage({ text: done(await action()), ok: true });
       await load();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage({ text: e instanceof Error ? e.message : String(e), ok: false });
     } finally {
       setBusy(false);
     }
@@ -64,7 +65,7 @@ export function Releases() {
       </div>
       {tokenNotice && <p className="banner">{tokenNotice}</p>}
       <p className="hint">把所有已發布、已封存的文章與「網站與關於」頁的內容匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
-      {message && <p className="banner ok">{message}</p>}
+      {message && <p className={message.ok ? "banner ok" : "banner"}>{message.text}</p>}
       <table>
         <thead>
           <tr>

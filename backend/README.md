@@ -53,7 +53,9 @@ TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run
 
 ## Update the site
 
-In the CMS, 網站發布 → 更新網站 (`POST /api/releases`) exports the published content into `CONTENT_REPO_DIR`, pushes it, and starts the `deploy.yml` workflow with that commit. `GET /api/releases` reads each pending release's workflow run from GitHub and records whether it went live, was superseded by a newer commit, or failed. The latest release can be retried when its push, dispatch or build failed.
+In the CMS, 網站發布 → 更新網站 (`POST /api/releases`) exports the published content into `CONTENT_REPO_DIR`, pushes it, and starts the `deploy.yml` workflow with that commit. `GET /api/releases` lists releases without calling GitHub. `POST /api/releases/refresh` asks GitHub about each dispatched release's workflow run and records whether it went live, was superseded (a newer commit, or a queued run cancelled by a newer one), or failed; a run not listed within 30 minutes counts as failed. The CMS polls it while a release is in flight. The latest release can be retried when its push, dispatch or build failed, or when it stopped at exported or pushed. A retry follows only a run newer than the failed one.
+
+One release or retry runs at a time (a Postgres advisory lock; a second request gets 409), and git commands time out after 120 seconds. Before exporting, the CMS checks that the content repo's remote branch holds no commit its clone lacks; one that does means another CMS (or a manual push) wrote to it, and the release is refused. Use one CMS at a time ([`docs/local-setup.md`](../docs/local-setup.md), section 12).
 
 | Variable | Purpose |
 |---|---|

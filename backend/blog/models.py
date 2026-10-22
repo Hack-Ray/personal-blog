@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -210,6 +210,11 @@ class Release(Base):
     )
     detail: Mapped[str | None] = mapped_column(Text)
     run_url: Mapped[str | None] = mapped_column(Text)
+    # The workflow run found for this release. While the release is
+    # dispatched (not yet found), a value is an earlier attempt's run, which
+    # refresh skips so a retry is not judged by the old run (G3).
+    run_id: Mapped[int | None] = mapped_column(BigInteger)
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

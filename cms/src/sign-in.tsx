@@ -28,9 +28,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   };
 
   return (
-    <div className="overlay">
-      <form className="sign-in" onSubmit={submit} aria-label="登入">
-        <h1>登入 CMS</h1>
+    <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="sign-in-title">
+      <form className="sign-in" onSubmit={submit}>
+        <h1 id="sign-in-title">登入 CMS</h1>
         <label className="field">
           <span>管理員密碼</span>
           <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
