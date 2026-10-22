@@ -50,16 +50,17 @@ test("the searchable budget counts UTF-16 units before lowercase expansion", () 
   assert.equal(prepareIndex(expanded)[0].textKey.length, 10000);
 });
 
-test("assets use ordered UTC years, stable hashes and prefixes of already normalized bounded text", () => {
+test("assets use ordered Taipei years, stable hashes and prefixes of already normalized bounded text", () => {
   const fixture = content(
     article("old", 2024, { markdown: "body" }),
     article("sigma", 2026, { markdown: "x".repeat(158) + "ΟΣΑ" }),
-    article("utc", 2025, { publishedAt: new Date("2026-01-01T00:30:00+08:00"), markdown: "İ".repeat(100) }),
+    article("taipei", 2025, { publishedAt: new Date("2026-01-01T00:30:00+08:00"), markdown: "İ".repeat(100) }),
   );
   const assets = buildSearchAssets(fixture);
   assert.deepEqual(assets, buildSearchAssets(fixture));
   const metadata = JSON.parse(assets.metadataJson);
-  assert.deepEqual(metadata.years.map((y: { year: number }) => y.year), [2026, 2025, 2024]);
+  assert.deepEqual(metadata.years.map((y: { year: number }) => y.year), [2026, 2024]);
+  assert.ok(JSON.parse(assets.chunks.get(metadata.years[0].asset)!).docs.some((d: { docId: string }) => d.docId === "taipei"));
   assert.equal(metadata.docs[0].textKey, "x".repeat(158) + "οσ");
   assert.notEqual(metadata.docs[0].textKey, ("x".repeat(158) + "ΟΣ").toLowerCase());
   for (const [asset, json] of assets.chunks) {
@@ -78,4 +79,11 @@ test("empty content exports no advertised placeholder or body asset", () => {
   assert.deepEqual(JSON.parse(assets.metadataJson).years, []);
   assert.deepEqual(JSON.parse(assets.metadataJson).docs, []);
   assert.equal(assets.chunks.size, 0);
+});
+
+test("the body keeps each phrase once and still matches within each phrase", () => {
+  const [doc] = buildIndex(content(article("repeat", 2026, { markdown: "樂觀鎖處理併發。樂觀鎖處理併發，next.js 部署。\n\n樂觀鎖處理併發" })));
+  assert.equal(doc.text, "樂觀鎖處理併發 next.js 部署");
+  for (const query of ["處理併發", "next.js", "部署", "樂觀鎖 部署"]) assert.equal(search(prepareIndex([doc]), query).length, 1, query);
+  assert.deepEqual(search(prepareIndex([doc]), "併發，next"), []);
 });

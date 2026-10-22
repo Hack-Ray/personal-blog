@@ -30,6 +30,12 @@ const TEXT_LIMIT = 5000;
 // A term found in the title outranks one found in the topic or tags, which
 // outranks one found only in the body.
 const WEIGHT = { title: 10, taxon: 5, text: 1 };
+// Body text is kept as its distinct phrases. A query term has no whitespace, so
+// splitting there loses no match; splitting at CJK punctuation loses only terms
+// that contain it.
+const PHRASE_BREAK = /[\s，。、；：！？「」『』（）《》〈〉…—]+/u;
+
+const distinctPhrases = (text: string) => [...new Set(text.split(PHRASE_BREAK).filter(Boolean))].join(" ");
 
 export function buildIndex(content: SiteContent): SearchDoc[] {
   return published(content).map((a) => ({
@@ -38,7 +44,7 @@ export function buildIndex(content: SiteContent): SearchDoc[] {
     topic: a.topic.name,
     tags: a.tags.map((t) => t.name),
     publishedAt: a.publishedAt.toISOString(),
-    text: [a.excerpt, plainText(a.markdown)].filter(Boolean).join(" ").slice(0, TEXT_LIMIT),
+    text: distinctPhrases([a.excerpt, plainText(a.markdown)].filter(Boolean).join(" ").slice(0, TEXT_LIMIT)),
   }));
 }
 

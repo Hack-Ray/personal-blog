@@ -21,7 +21,7 @@ check "sitemap leaves out archived posts" '! body $B/sitemap.xml | grep -q 01K6Z
 check "post has a canonical URL" 'body $B/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/ | grep -q "rel=\"canonical\" href=\"https://example.com/personal-blog/posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/\""'
 check "about page links to GitHub" 'body $B/about/ | grep -q "href=\"https://github.com/Hack-Ray\""'
 check "about page shows the profile headline, Markdown intro and project" 'p=$(body $B/about/); echo "$p" | grep -q "後端工程師，偏好簡單、好維護的系統" && echo "$p" | grep -q "<strong>Python</strong>" && echo "$p" | grep -q "href=\"https://github.com/Hack-Ray/personal-blog\""'
-check "search index excludes archived posts" '! body $B/search-index.json | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
+check "search metadata lists published posts and excludes archived ones" 'm=$(body $B/search-metadata.json); echo "$m" | grep -q 01K7M4Y7P65BDCF8AHRTQY7ZQF && ! echo "$m" | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T'
 check "header search form submits q to the search page" 'f=$(body $B/ | grep -o "<form role=\"search\"[^>]*>.*</form>"); echo "$f" | grep -q "action=\"/personal-blog/search/\"" && echo "$f" | grep -q "name=\"q\""'
 check "header title links home and home has a single h1" 'body $B/ | grep -q "class=\"site-title\" href=\"/personal-blog/\"" && [ "$(body $B/ | grep -o "<h1" | wc -l)" = 1 ]'
 check "footer links to GitHub and the RSS feed" 'f=$(body $B/ | grep -o "<footer.*</footer>"); echo "$f" | grep -q "href=\"https://github.com/Hack-Ray\"" && echo "$f" | grep -q "href=\"/personal-blog/feed.xml\""'
