@@ -31,7 +31,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 | `backend/` | 本機 CMS API。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
 | `cms/` | CMS 介面，由後端在 `/admin/` 提供。 | Vite、React、TypeScript |
 | `frontend/` | 公開網站，從內容 Snapshot 產生靜態頁面。 | Next.js（`output: "export"`）、TypeScript、marked、shiki |
-| `docs/` | Fork 與部署教學、本機安裝步驟、作者的部署紀錄；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
+| `docs/` | Fork 與部署教學、本機安裝步驟、作者的部署紀錄；`docs/architecture/` 是架構導覽（系統怎麼運作、為什麼這樣設計）；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
 | `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站。 | GitHub Actions |
 
 網站內容不在這個 repo，而在你自己建立的 private 內容 repo。發布流程：
@@ -146,7 +146,7 @@ Your computer                              GitHub
 | `backend/` | The local CMS API. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
 | `cms/` | The CMS UI, served by the backend at `/admin/`. | Vite, React, TypeScript |
 | `frontend/` | The public site, generated as static pages from a content Snapshot. | Next.js (`output: "export"`), TypeScript, marked, shiki |
-| `docs/` | Fork and deploy guide, local setup guide, the author's deployment notes; `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
+| `docs/` | Fork and deploy guide, local setup guide, the author's deployment notes; `docs/architecture/` is the architecture guide (how the system works and why it is built this way); `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
 | `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site. | GitHub Actions |
 
 The site's content does not live in this repo. It lives in a private content repo you create. Publishing works like this:
