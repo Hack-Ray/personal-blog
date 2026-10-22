@@ -140,7 +140,6 @@
 - [ ] **G12（低）本機啟動與還原腳本。**
   - `backend/scripts/start.sh:18-23`：備份失敗時仍然執行 migration。應改成備份失敗且有待執行的 migration 時，停止啟動。
   - `backend/scripts/restore.sh:49-52`：沒有讀取 `.env`，資料庫埠改過時，migration 會連到錯誤的資料庫。
-  - `docs/local-setup.md:110` 寫 migration 到 `0006`，實際已有 10 個。
 - [ ] **G13（低）CMS 小問題。**
   - 發布頁的錯誤訊息用綠色的成功樣式顯示（`cms/src/releases.tsx:524,547`）。
   - 設定頁切換到其他頁面時，未儲存的修改沒有提示（`profile-page.tsx:79-84`）。
@@ -217,7 +216,7 @@
   - 證據：
     - `release.py:130-132` 讀取 `CONTENT_REPO_DIR`。
     - `backend/blog/exporter.py` 會 `git commit`、`git push`，但從不 fetch，也只和 working tree 比較。
-    - git 身分和 push 憑證都沿用作者電腦上的設定（`docs/setup-todo.md:55`）。
+    - git 身分和 push 憑證都沿用作者電腦上的設定（`docs/fork-and-deploy.md` 第 2 步）。
     - `api.py:324-332` 的「更新網站」在請求內同步執行，沒有任何鎖。
   - 影響：
     - 新容器沒有 clone，回 503；沒有 git 身分，`git commit` 失敗。
@@ -376,12 +375,6 @@
 
 公開網站留在 GitHub Pages，前面加自訂網域與 CDN 時需要處理。
 
-- [ ] **D1 部署流程沒有設定 `BASE_PATH` 與 `SITE_ORIGIN`，檢查腳本也寫死 `/personal-blog`。**
-  - 證據：
-    - `frontend/next.config.ts:57-58` 的預設值。
-    - `deploy.yml` 只設定 `SITE_DATA_DIR`。
-    - `ci.yml`、`verify-site.sh`、`check-links.ts`、`playwright.config.ts` 都寫死 `/personal-blog`。
-  - 處理：在 repo variables 或 job 層級設定這兩個變數，讓建置和所有檢查都讀同一個值。
 - [ ] **D2 GitHub Pages 前面加 CDN 時的憑證設計。**
   - DNS 指向 CDN 時，Pages 無法自行申請憑證。二選一：
     - 先讓 Pages 用自訂網域取得憑證，再把 CDN 放到前面。
@@ -406,3 +399,5 @@
 - [x] **`GET /api/releases` 只在最近 30 個 workflow run 中找對應的 run。** 改為只列出 release 建立前 5 分鐘之後的 run，並逐頁查找（BE-010）。重試的問題另見 G3。
 - [x] **部署前少了兩項檢查。** `deploy.yml` 在 build 前執行 typecheck，CI 執行 `verify-site.sh`。
 - [x] **永久刪除是否改寫內容 repo 歷史。** 不改寫，見 Addendum 02 PUB-007。
+- [x] **D1 部署流程沒有設定 `BASE_PATH` 與 `SITE_ORIGIN`，檢查腳本也寫死 `/personal-blog`。** `deploy.yml` 改由 `actions/configure-pages` 取得兩者，自訂網域也適用；CI 與檢查腳本固定用測試值建置，不受部署設定影響（#22）。
+- [x] **`docs/local-setup.md` 寫 migration 到 `0006`。** 改成「到最新的 migration」（#22）。
