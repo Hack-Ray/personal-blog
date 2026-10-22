@@ -94,8 +94,20 @@ def usage(session: Session, kind: Kind) -> list[TaxonUsage]:
     return [TaxonUsage(slug, name, n, in_use) for slug, name, n, in_use in rows]
 
 
+def _invalidate_drafts(session: Session, kind: Kind, taxon_id: int) -> None:
+    """Bumps the revision of every draft that uses the taxon, so an editor still
+    holding the old name gets a conflict instead of saving it back (BE-013)."""
+    refs = _draft_refs(kind).subquery()
+    users = select(refs.c.article_id).where(refs.c.taxon_id == taxon_id)
+    session.execute(
+        update(WorkingDraft).where(WorkingDraft.article_id.in_(users)).values(revision=WorkingDraft.revision + 1)
+    )
+
+
 def rename(session: Session, kind: Kind, slug: str, name: str) -> None:
-    _get(session, kind, slug).name = name
+    row = _get(session, kind, slug)
+    row.name = name
+    _invalidate_drafts(session, kind, row.id)
     session.commit()
 
 
@@ -104,6 +116,7 @@ def merge(session: Session, kind: Kind, source_slug: str, target_slug: str) -> N
     if source_slug == target_slug:
         raise InvalidMerge("cannot merge a taxon into itself")
     source, target = _get(session, kind, source_slug), _get(session, kind, target_slug)
+    _invalidate_drafts(session, kind, source.id)
     if kind is Kind.TAGS:
         for table, key in ((working_draft_tags, "article_id"), (published_version_tags, "published_version_id")):
             owner = table.c[key]

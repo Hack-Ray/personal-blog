@@ -49,6 +49,37 @@ async def require_admin(request: Request, call_next):
     return await call_next(request)
 
 
+# The CMS only loads its own scripts, so script injected through an article
+# preview cannot run even if the renderer misses it. Shiki colours code with
+# style attributes, and previews may show https: images.
+ADMIN_CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' https: data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+])
+SECURITY_HEADERS = {
+    "Content-Security-Policy": ADMIN_CSP,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+}
+
+
+# Added after require_admin so its refusals get the headers too. /docs is left
+# alone: its page loads Swagger UI from a CDN.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/admin", "/api/")) or request.url.path == "/":
+        response.headers.update(SECURITY_HEADERS)
+    return response
+
+
 # Added last so it runs first. A web page that rebinds its own domain to
 # 127.0.0.1 reaches the CMS with that domain as Host; refusing it keeps such a
 # page from trying passwords or locking sign-in.

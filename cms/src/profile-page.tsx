@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, type SavedProfile } from "./api.ts";
+import { useLeaveGuard } from "./leave-guard.ts";
 import { renderPreview } from "./preview.ts";
 import { EMPTY_ROW, describeError, fromForm, move, sameForm, toForm, validate, type ProfileForm } from "./profile-form.ts";
 
@@ -76,12 +77,7 @@ export function ProfilePage() {
   useEffect(load, [load]);
 
   const dirty = saved !== undefined && form !== undefined && !sameForm(form, toForm(saved.content));
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    addEventListener("beforeunload", warn);
-    return () => removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  useLeaveGuard(dirty, dirty ? "「網站與關於」還有未儲存的修改，離開會捨棄它們。確定要離開嗎？" : undefined);
 
   const preview = useMemo(() => renderPreview(form?.intro ?? ""), [form?.intro]);
 
@@ -174,10 +170,12 @@ export function ProfilePage() {
           placeholder="自我介紹（Markdown）"
           value={form.intro}
           onChange={(e) => setForm({ ...form, intro: e.target.value })}
+          aria-invalid={"intro" in errors}
           spellCheck={false}
         />
         <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
+      {errors.intro && <p className="hint">{errors.intro}</p>}
       <Rows
         title="連結（也顯示在頁尾）"
         list="links"

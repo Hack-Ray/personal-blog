@@ -108,6 +108,12 @@ def refs(markdown: str) -> set[str]:
     return {src.removeprefix("images/") for src in srcs if src.startswith("images/")}
 
 
+def missing(session: Session, markdown: str) -> set[str]:
+    """Image ids the Markdown references that are not stored."""
+    ids = refs(markdown)
+    return ids - set(session.scalars(select(Image.id).where(Image.id.in_(ids)))) if ids else set()
+
+
 def mark_referenced(session: Session, markdown: str) -> None:
     """Called whenever a draft is written, so an image's grace period starts
     no earlier than the last time something pointed at it."""

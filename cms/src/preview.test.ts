@@ -28,3 +28,10 @@ test("code is plain until the highlighter loads, then highlighted like the site"
   assert.match(html, /--shiki-dark:#/);
   assert.equal(renderPreview("```nope\n<b>\n```", await loadHighlighter()), "<pre><code>&lt;b&gt;</code></pre>\n");
 });
+
+test("raw HTML and disallowed URLs are shown as text, as on the site", () => {
+  assert.equal(renderPreview("<img src=x onerror=alert(1)>"), "<p>&lt;img src=x onerror=alert(1)&gt;</p>\n");
+  assert.equal(renderPreview("a <b>x</b>"), "<p>a &lt;b&gt;x&lt;/b&gt;</p>\n");
+  assert.equal(renderPreview("[x](javascript:alert(1)) [y](&#106;avascript:alert(1))"), "<p>x y</p>\n");
+  assert.equal(renderPreview("![alt](data:image/png;base64,AAAA)"), "<p>alt</p>\n");
+});

@@ -2,6 +2,7 @@ import { Marked, type Tokens } from "marked";
 import { createHighlighter } from "shiki";
 import { SITE_ORIGIN } from "../site.ts";
 import { inlineText, slugger } from "./headings.ts";
+import { allowedImage, allowedLink } from "./url-policy.ts";
 
 const LANGS = [
   "ts", "tsx", "js", "jsx", "json", "bash", "sh", "python", "go", "rust", "java",
@@ -39,9 +40,13 @@ export function renderMarkdown(markdown: string, basePath: string): string {
   const marked = new Marked({
     renderer: {
       code: ({ text, lang }) => codeBlock(highlight(text, lang)),
+      // Raw HTML is shown as text (articles may not run code on the page).
+      html: ({ text, block }) => (block ? `<p>${escapeHtml(text.trim())}</p>\n` : escapeHtml(text)),
       // Links to other sites open in a new tab; a link around an image gets no marker.
+      // A URL outside the policy keeps its text but is not a link; the build fails on it anyway.
       link({ href, title, tokens }) {
         const inner = this.parser.parseInline(tokens);
+        if (!allowedLink(href)) return inner;
         const attrs = `href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""}`;
         if (!isExternal(href)) return `<a ${attrs}>${inner}</a>`;
         const onlyImage = tokens.every((t) => t.type === "image");
@@ -49,12 +54,14 @@ export function renderMarkdown(markdown: string, basePath: string): string {
       },
       // marked leaves the alt text unescaped.
       image: ({ href, title, text }) =>
-        `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy">`,
+        href === ""
+          ? escapeHtml(text)
+          : `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy">`,
       // An image alone in its paragraph is a figure, captioned with its alt text.
       paragraph({ tokens }) {
         const inner = this.parser.parseInline(tokens);
         const image = tokens.length === 1 && tokens[0]!.type === "image" ? (tokens[0] as Tokens.Image) : undefined;
-        if (!image?.text.trim()) return `<p>${inner}</p>\n`;
+        if (!image?.text.trim() || image.href === "") return `<p>${inner}</p>\n`;
         return `<figure>${inner}<figcaption>${escapeHtml(image.text)}</figcaption></figure>\n`;
       },
       heading({ tokens, depth }) {
@@ -66,7 +73,9 @@ export function renderMarkdown(markdown: string, basePath: string): string {
       },
     },
     walkTokens(token) {
-      if (token.type === "image" && token.href.startsWith("images/")) token.href = `${basePath}/${token.href}`;
+      if (token.type !== "image") return;
+      if (!allowedImage(token.href)) token.href = "";
+      else if (token.href.startsWith("images/")) token.href = `${basePath}/${token.href}`;
     },
   });
   return marked.parse(markdown, { async: false });

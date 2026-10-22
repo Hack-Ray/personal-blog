@@ -23,6 +23,8 @@ export class DraftSync {
   private readonly docId: string;
   private readonly onStatus: (s: SyncStatus) => void;
   private readonly debounceMs: number;
+  private readonly retryMs: number;
+  private failures = 0;
   status: SyncStatus = { kind: "saved" };
 
   constructor(
@@ -31,6 +33,7 @@ export class DraftSync {
     initial: { revision: number; content: DraftContent },
     onStatus: (s: SyncStatus) => void = () => {},
     debounceMs = 1000,
+    retryMs = 2000,
   ) {
     this.api = api;
     this.docId = docId;
@@ -38,6 +41,7 @@ export class DraftSync {
     this.content = initial.content;
     this.onStatus = onStatus;
     this.debounceMs = debounceMs;
+    this.retryMs = retryMs;
   }
 
   get current(): DraftContent {
@@ -76,6 +80,16 @@ export class DraftSync {
     }
   }
 
+  /** A network error or a server error may pass, so the save is tried again,
+   * waiting twice as long each time up to a minute. A 401 waits for sign-in
+   * (SIGNED_IN), and other 4xx answers will not change on their own. */
+  private retryLater(e: unknown): void {
+    if (e instanceof ApiError && e.status < 500) return;
+    const delay = Math.min(this.retryMs * 2 ** this.failures, 60_000);
+    this.failures += 1;
+    this.timer = setTimeout(() => void this.flush(), delay);
+  }
+
   /** Saves pending edits now. Resolves once they are stored or have failed. */
   flush(): Promise<void> {
     clearTimeout(this.timer);
@@ -89,8 +103,10 @@ export class DraftSync {
       } catch (e) {
         this.dirty = true;
         this.fail(e);
+        this.retryLater(e);
         return;
       }
+      this.failures = 0;
       this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
       if (this.dirty) this.timer = setTimeout(() => void this.flush(), this.debounceMs);
     });

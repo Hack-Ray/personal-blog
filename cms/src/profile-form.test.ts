@@ -103,3 +103,8 @@ test("a 422 detail list names the fields", () => {
   assert.equal(describeError(422, detail, "HTTP 422"), "輸入不合法：links.0.url String should match pattern");
   assert.equal(describeError(500, "boom", "boom"), "boom");
 });
+
+test("the intro may not use URLs the site rejects", () => {
+  const form = { ...toForm(profile), intro: "[x](javascript:alert(1))" };
+  assert.match(validate(form).intro ?? "", /^不允許的網址：javascript:alert\(1\)（/);
+});
