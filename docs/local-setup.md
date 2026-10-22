@@ -257,7 +257,7 @@ scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<pas
 
 在雲端執行 CMS 時，設 `CMS_ENV=cloud`，並填 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉。CMS 必須放在網域的根目錄（例如 `https://cms.<tailnet>.ts.net/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
 
-repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔，用法寫在檔案開頭。同一時間只跑一個容器；換新版前，先用一次性的容器備份，再執行 migration，任何一步失敗就停止。
+repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔，用法寫在檔案開頭。容器裡的 `127.0.0.1` 是容器自己，所以 `DATABASE_URL` 要改成容器連得到的位址。同一時間只跑一個容器；換新版前，先用一次性的容器備份，再執行 migration，任何一步失敗就停止。目前還不能從容器裡「更新網站」，要等發布方式與 GitHub 憑證決定後再補。
 
 ## 14. 常見問題
 

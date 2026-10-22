@@ -4,15 +4,25 @@
 #   docker build -t blog-cms .
 #   docker run --env-file backend/.env -p 127.0.0.1:8000:8000 blog-cms
 #
+# DATABASE_URL must reach the database from inside the container, where
+# 127.0.0.1 is the container itself: use host.docker.internal, or
+# --network host on Linux. Behind a proxy, set FORWARDED_ALLOW_IPS to the
+# proxy's address as the container sees it, so sign-in limits count real
+# client addresses.
+#
+# 更新網站 does not work from this image yet: it needs the content repo
+# clone, a git identity and push credentials, which wait on the publish
+# method and GitHub credential decisions in docs/backlog.md.
+#
 # Run one container at a time. Before starting a new image, back up and
 # migrate with one-off containers, stopping if either fails:
 #
-#   docker run --rm --env-file backend/.env -v "$PWD/backups:/app/backend/backups" \
+#   mkdir -p backend/backups
+#   docker run --rm --env-file backend/.env -v "$PWD/backend/backups:/app/backend/backups" \
 #     blog-cms sh -c 'scripts/backup.sh --url "$DATABASE_URL"'
 #   docker run --rm --env-file backend/.env blog-cms alembic upgrade head
 #
-# The image has no aws CLI, so back up to a mounted folder as above. Mount
-# the content repo clone too and point CONTENT_REPO_DIR at it.
+# The image has no aws CLI, so back up to a mounted folder as above.
 
 FROM node:22-slim AS cms
 WORKDIR /src/cms

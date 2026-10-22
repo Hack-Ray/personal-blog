@@ -33,8 +33,11 @@ jobs:
       - uses: actions/checkout@v5
       - run: docker build -t blog-cms .
       - run: docker run --rm --network host blog-cms alembic upgrade head
-      - name: Back up with the image's scripts
-        run: docker run --rm --network host blog-cms sh -c 'scripts/backup.sh --url postgresql://blog:blog@127.0.0.1:5432/blog --out /tmp/b'
+      - name: Back up and restore with the image's scripts
+        run: |
+          docker run --rm --network host blog-cms sh -c '
+            url=postgresql://blog:blog@127.0.0.1:5432/blog
+            scripts/backup.sh --url "$url" --out /tmp/b && scripts/restore.sh /tmp/b/*.dump --url "$url" --yes'
       - name: Serve /healthz
         run: |
           docker run -d --name cms --network host blog-cms
