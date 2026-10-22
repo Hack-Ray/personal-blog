@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from blog.db import SessionLocal
 from blog.models import AdminCredential, AdminSession
 
-SESSION_COOKIE = "cms_session"
 SESSION_TTL = timedelta(days=7)
 MIN_PASSWORD_LENGTH = 12
 MAX_FAILURES = 5

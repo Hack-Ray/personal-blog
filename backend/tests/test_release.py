@@ -110,7 +110,7 @@ def test_without_a_token_the_release_waits_for_a_retry(repos):
         publish(s)
         r = release.create(s, clone, None)
         assert r.status == R.DISPATCH_FAILED
-        assert "GITHUB_TOKEN" in r.detail
+        assert "CMS_GITHUB_TOKEN" in r.detail
         deployer = FakeDeployer()
         assert release.retry(s, r.id, clone, deployer).status == R.DISPATCHED
         assert deployer.dispatched == [r.content_commit]
@@ -186,12 +186,11 @@ def test_a_new_release_supersedes_older_unfinished_failures(repos):
         assert stuck.status == R.SUPERSEDED
 
 
-def test_release_api_needs_a_content_repo(client, monkeypatch, repos):
+def test_release_api_needs_a_content_repo(client, configure, repos):
     _, clone = repos
-    monkeypatch.delenv("CONTENT_REPO_DIR", raising=False)
+    configure(content_repo_dir=None, github_token=None)
     assert client.post("/api/releases").status_code == 503
-    monkeypatch.setenv("CONTENT_REPO_DIR", str(clone))
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    configure(content_repo_dir=clone)
     empty_site = client.post("/api/releases").json()["release"]
     assert client.post("/api/releases").json() == {"release": None}
     doc_id = client.post("/api/articles", json={"title": "T", "topic": {"slug": "b", "name": "B"}, "markdown": "m"}).json()["doc_id"]
@@ -286,9 +285,9 @@ def test_a_release_cut_off_mid_way_can_be_retried_or_replaced(repos, stuck):
         assert r.status == R.SUPERSEDED
 
 
-def test_only_one_release_runs_at_a_time(client, monkeypatch, repos):
+def test_only_one_release_runs_at_a_time(client, configure, repos):
     _, clone = repos
-    monkeypatch.setenv("CONTENT_REPO_DIR", str(clone))
+    configure(content_repo_dir=clone)
     with engine.connect() as other:
         other.scalar(select(func.pg_advisory_lock(release.LOCK_KEY)))
         with SessionLocal() as s, pytest.raises(release.ReleaseBusy):
@@ -325,9 +324,9 @@ def test_a_commit_pushed_by_someone_else_stops_the_release(repos, tmp_path):
         assert release.create(s, clone, None).status == R.DISPATCH_FAILED
 
 
-def test_listing_releases_does_not_call_github_and_refreshing_does(client, monkeypatch, repos):
+def test_listing_releases_does_not_call_github_and_refreshing_does(client, configure, monkeypatch, repos):
     _, clone = repos
-    monkeypatch.setenv("CONTENT_REPO_DIR", str(clone))
+    configure(content_repo_dir=clone)
     deployer = FakeDeployer()
     monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
     created = client.post("/api/releases").json()["release"]
@@ -448,16 +447,15 @@ def test_token_expiry_comes_from_the_response_header(github):
     assert github.token_expires_at() == datetime(2027, 1, 18, 8, 30, tzinfo=UTC)
 
 
-def test_the_token_endpoint_reports_an_unconfigured_token(client, monkeypatch):
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+def test_the_token_endpoint_reports_an_unconfigured_token(client, configure):
+    configure(github_token=None)
     assert client.get("/api/github-token").json() == {"configured": False, "expires_at": None}
 
 
-def test_a_token_without_a_deploy_repo_dispatches_nowhere(monkeypatch):
-    monkeypatch.setenv("GITHUB_TOKEN", "t")
-    monkeypatch.delenv("DEPLOY_REPO", raising=False)
+def test_a_token_without_a_deploy_repo_dispatches_nowhere(configure):
+    configure(github_token="t", deploy_repo=None)
     assert release.deployer_from_env() is None
-    monkeypatch.setenv("DEPLOY_REPO", "someone/personal-blog")
+    configure(deploy_repo="someone/personal-blog")
     assert release.deployer_from_env().repo == "someone/personal-blog"
 
 

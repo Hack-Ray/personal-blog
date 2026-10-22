@@ -7,7 +7,7 @@
 - 程式 repo：`Hack-Ray/personal-blog`（公開），網站 <https://hack-ray.github.io/personal-blog/>。
 - 內容 repo：`Hack-Ray/personal-blog-content`（private）。名稱符合預設的 `<repo>-content`，所以不需要設定 `CONTENT_REPO`。
 - repo variables：`GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（Announcements 分類）。
-- 本機 `backend/.env`：`CONTENT_REPO_DIR`、`DEPLOY_REPO=Hack-Ray/personal-blog`、`GITHUB_TOKEN`。
+- 本機 `backend/.env`：`CONTENT_REPO_DIR`、`DEPLOY_REPO=Hack-Ray/personal-blog`、`CMS_GITHUB_TOKEN`（舊名 `GITHUB_TOKEN` 仍可用）。
 
 ## 2026-10-20：第一次端到端部署
 
@@ -21,7 +21,7 @@
 | Token | 用途 | 權限 | 到期 |
 |---|---|---|---|
 | `CONTENT_REPO_TOKEN`（repo secret） | deploy workflow 讀內容 repo | 內容 repo，Contents: Read-only | 90 天，約 2027-01-18 |
-| `personal-blog-cms-deploy`（本機 `.env` 的 `GITHUB_TOKEN`） | CMS 啟動部署、查詢結果 | `personal-blog`，Actions: Read and write | 90 天 |
+| `personal-blog-cms-deploy`（本機 `.env` 的 `CMS_GITHUB_TOKEN`） | CMS 啟動部署、查詢結果 | `personal-blog`，Actions: Read and write | 90 天 |
 
 部署在 checkout 內容 repo 時失敗，先檢查 `CONTENT_REPO_TOKEN`；「更新網站」在觸發部署時失敗，先檢查本機 token。`Token expiry reminder` workflow 與 CMS 的「網站發布」頁都會在到期前提醒。
 

@@ -1,3 +1,4 @@
+import dataclasses
 import os
 
 import pytest
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import bindparam, text  # noqa: E402
 from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
 
-from blog import auth  # noqa: E402
+from blog import auth, config  # noqa: E402
 from blog.api import app  # noqa: E402
 from blog.db import SessionLocal, engine  # noqa: E402
 
@@ -81,3 +82,13 @@ def anon(admin):
 @pytest.fixture
 def client(admin):
     return sign_in(TestClient(app, base_url=BASE_URL))
+
+
+@pytest.fixture
+def configure(monkeypatch):
+    """Overrides settings for one test, as if the environment had set them."""
+
+    def apply(**values):
+        monkeypatch.setattr(config, "settings", dataclasses.replace(config.settings, **values))
+
+    return apply

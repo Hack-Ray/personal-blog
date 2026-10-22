@@ -74,7 +74,7 @@ python3 -m http.server --directory out 3000         # 打開 http://localhost:30
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16，只開放 127.0.0.1:5432
-cp .env.example .env                                 # 之後填 CONTENT_REPO_DIR、DEPLOY_REPO 與 GITHUB_TOKEN
+cp .env.example .env                                 # 之後填 CONTENT_REPO_DIR、DEPLOY_REPO 與 CMS_GITHUB_TOKEN
 uv sync
 uv run --env-file .env alembic upgrade head          # 建立資料表
 uv run --env-file .env python -m blog.auth           # 設定管理員密碼（至少 12 字元）
@@ -84,7 +84,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 打開 <http://127.0.0.1:8000/admin/> 登入。請保持 `--host 127.0.0.1`，不要改成 `0.0.0.0`。
 
-要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
+要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`CMS_GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
 
 #### 3. 改成你自己的部落格
 
@@ -189,7 +189,7 @@ Without `BASE_PATH`, the site is built under `/personal-blog/` (the deploy uses 
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16, reachable only on 127.0.0.1:5432
-cp .env.example .env                                 # fill in CONTENT_REPO_DIR, DEPLOY_REPO and GITHUB_TOKEN later
+cp .env.example .env                                 # fill in CONTENT_REPO_DIR, DEPLOY_REPO and CMS_GITHUB_TOKEN later
 uv sync
 uv run --env-file .env alembic upgrade head          # create the tables
 uv run --env-file .env python -m blog.auth           # set the admin password (12+ characters)
@@ -199,7 +199,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 Open <http://127.0.0.1:8000/admin/> and sign in. Keep `--host 127.0.0.1`; do not change it to `0.0.0.0`.
 
-"更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`), your fork (`DEPLOY_REPO`) and a GitHub token (`GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
+"更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`), your fork (`DEPLOY_REPO`) and a GitHub token (`CMS_GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
 
 #### 3. Make it your own blog
 
