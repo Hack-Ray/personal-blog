@@ -16,7 +16,8 @@ depends_on = None
 def upgrade() -> None:
     op.add_column("releases", sa.Column("run_id", sa.BigInteger()))
     op.add_column("releases", sa.Column("dispatched_at", sa.DateTime(timezone=True)))
-    op.execute("UPDATE releases SET dispatched_at = updated_at WHERE status IN ('dispatched', 'building')")
+    # Releases already in flight keep dispatched_at NULL, so refresh searches
+    # from created_at as it did before.
 
 
 def downgrade() -> None:
