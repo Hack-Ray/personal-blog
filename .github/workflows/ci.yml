@@ -25,6 +25,10 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+        env:
+          GISCUS_REPO: example/personal-blog
+          GISCUS_REPO_ID: R_test
+          GISCUS_CATEGORY_ID: DIC_test
       - name: Check the built site (before the next build overwrites out/)
         run: |
           root=$(mktemp -d)

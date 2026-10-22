@@ -13,12 +13,12 @@ down_revision = "0007"
 branch_labels = None
 depends_on = None
 
-# What frontend/src/profile.ts held, so the site does not change until the author edits it.
+# A placeholder the author replaces in the CMS (網站與關於) before the first release.
 SEED = {
-    "name": "Hack-Ray",
+    "name": "Your Name",
     "headline": "",
     "intro": "",
-    "links": [{"label": "GitHub", "url": "https://github.com/Hack-Ray"}],
+    "links": [],
     "experience": [],
     "projects": [],
 }

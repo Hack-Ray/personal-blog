@@ -11,10 +11,10 @@ from blog.exporter import export
 from blog.models import Profile
 
 SEED = {
-    "name": "Hack-Ray",
+    "name": "Your Name",
     "headline": "",
     "intro": "",
-    "links": [{"label": "GitHub", "url": "https://github.com/Hack-Ray"}],
+    "links": [],
     "experience": [],
     "projects": [],
     "site": {"title": "Personal Blog", "description": "", "footer": ""},

@@ -20,9 +20,11 @@ jobs:
         env:
           TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
           GH_TOKEN: ${{ github.token }}
+          # Same repo as deploy.yml reads.
+          CONTENT_REPO: ${{ vars.CONTENT_REPO || format('{0}-content', github.repository) }}
           WARN_DAYS: 30
         run: |
-          headers=$(curl -sS -o /dev/null -D - -H "Authorization: Bearer $TOKEN" https://api.github.com/repos/Hack-Ray/personal-blog-content | tr -d '\r')
+          headers=$(curl -sS -o /dev/null -D - -H "Authorization: Bearer $TOKEN" "https://api.github.com/repos/$CONTENT_REPO" | tr -d '\r')
           status=$(echo "$headers" | head -1 | cut -d' ' -f2)
           expiry=$(echo "$headers" | sed -n 's/^github-authentication-token-expiration: //Ip')
           if [ "$status" != 200 ]; then
@@ -37,5 +39,5 @@ jobs:
           [ -z "$problem" ] && exit 0
           if [ "$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search 'CONTENT_REPO_TOKEN in:title' --json number --jq length)" = 0 ]; then
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$problem" \
-              --body "依 docs/setup-todo.md A 區重新產生 token，更新 repo secret CONTENT_REPO_TOKEN 後關閉此 issue。"
+              --body "依 docs/fork-and-deploy.md 第 3 步重新產生 token，更新 repo secret CONTENT_REPO_TOKEN 後關閉此 issue。"
           fi

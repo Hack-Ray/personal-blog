@@ -133,10 +133,10 @@ export const DEFAULT_SITE: Profile["site"] = { title: "Personal Blog", descripti
 
 // Snapshots exported before the CMS managed the profile have no profile.json.
 export const DEFAULT_PROFILE: Profile = {
-  name: "Hack-Ray",
+  name: "Your Name",
   headline: "",
   intro: "",
-  links: [{ label: "GitHub", url: "https://github.com/Hack-Ray" }],
+  links: [],
   experience: [],
   projects: [],
   site: DEFAULT_SITE,
