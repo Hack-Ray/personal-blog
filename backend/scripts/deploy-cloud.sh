@@ -32,7 +32,9 @@ done
 grep -Eq '^CMS_ENV=cloud\r?$' "$env_file" || { echo "CMS_ENV=cloud must be set in the environment file" >&2; exit 2; }
 if [ "$dry_run" = 1 ]; then
   printf 'Validated deploy of %s to container %s on 127.0.0.1:%s\n' "$image" "$name" "$port"
-  printf 'Memory limit: %s. Logs: %s\n' "${memory:-none}" "${log_group:+CloudWatch $log_group in $log_region}${log_group:-local json-file, 5 x 10 MB}"
+  logs="local json-file, 5 x 10 MB"
+  if [ -n "$log_group" ]; then logs="CloudWatch $log_group in $log_region"; fi
+  printf 'Memory limit: %s. Logs: %s\n' "${memory:-none}" "$logs"
   echo 'Plan: pull image; stop CMS; back up; migrate; replace CMS; check health.'
   exit 0
 fi
