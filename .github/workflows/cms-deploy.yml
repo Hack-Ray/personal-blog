@@ -33,6 +33,9 @@ jobs:
       CMS_CONTAINER: ${{ vars.CMS_CONTAINER || 'blog-cms' }}
       CMS_PORT: ${{ vars.CMS_PORT || '8000' }}
       CMS_IMAGE: ${{ vars.CMS_IMAGE }}
+      CMS_MEMORY: ${{ vars.CMS_MEMORY }}
+      CMS_LOG_GROUP: ${{ vars.CMS_LOG_GROUP }}
+      CMS_LOG_REGION: ${{ vars.CMS_LOG_REGION }}
     steps:
       - uses: actions/checkout@v7
       - name: Validate deployment settings
@@ -70,5 +73,7 @@ jobs:
           set -euo pipefail
           args=(bash -s -- --image "$DEPLOY_IMAGE" --env-file "$CMS_ENV_FILE" --backup-dir "$CMS_BACKUP_DIR" --name "$CMS_CONTAINER" --port "$CMS_PORT")
           if [ -n "$CMS_SECRETS_DIR" ]; then args+=(--secrets-dir "$CMS_SECRETS_DIR"); fi
+          if [ -n "$CMS_MEMORY" ]; then args+=(--memory "$CMS_MEMORY"); fi
+          if [ -n "$CMS_LOG_GROUP$CMS_LOG_REGION" ]; then args+=(--log-group "$CMS_LOG_GROUP" --log-region "$CMS_LOG_REGION"); fi
           printf -v remote '%q ' "${args[@]}"
           tailscale ssh "$CMS_SSH_USER@$CMS_HOST" "$remote" < backend/scripts/deploy-cloud.sh

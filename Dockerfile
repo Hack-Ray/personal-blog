@@ -57,7 +57,8 @@ COPY backend/ ./
 RUN mkdir backups && chown cms backups
 COPY --from=cms /src/cms/dist /app/cms/dist
 # UV_NO_SYNC stops the scripts' `uv run` from installing dev dependencies.
-ENV PATH=/app/backend/.venv/bin:$PATH CMS_DIST=/app/cms/dist UV_NO_SYNC=1
+# UV_CACHE_DIR points uv at /tmp so the container also runs with --read-only.
+ENV PATH=/app/backend/.venv/bin:$PATH CMS_DIST=/app/cms/dist UV_NO_SYNC=1 UV_CACHE_DIR=/tmp/uv-cache
 USER cms
 EXPOSE 8000
 CMD ["uvicorn", "blog.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

@@ -90,6 +90,25 @@ class DeploymentTest(unittest.TestCase):
         self.assertIn("127.0.0.1", calls[start])
         self.assertIn(f"type=bind,source={self.secrets},target=/run/secrets,readonly", calls[start])
         self.assertNotIn("never-print-this", result.stdout + result.stderr)
+        for call in (calls[backup], calls[migration], calls[start]):
+            for flag in ("--read-only", "--cap-drop", "no-new-privileges", "type=volume,target=/tmp"):
+                self.assertIn(flag, call)
+        self.assertIn("max-size=10m", calls[start])
+        self.assertNotIn("--memory", calls[start])
+
+    def test_memory_limit_and_cloudwatch_logs_apply_to_the_cms(self):
+        result = self.deploy("--memory", "768m", "--log-group", "/blog/cms", "--log-region", "ap-northeast-1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        start = next(call for call in self.calls() if "-d" in call)
+        self.assertEqual(start[start.index("--memory") + 1], "768m")
+        self.assertEqual(start[start.index("--log-driver") + 1], "awslogs")
+        self.assertIn("awslogs-group=/blog/cms", start)
+        self.assertIn("awslogs-region=ap-northeast-1", start)
+
+    def test_log_group_without_region_is_rejected_before_docker(self):
+        result = self.deploy("--log-group", "/blog/cms")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(self.calls(), [])
 
     def test_backup_failure_restarts_old_cms_without_migration(self):
         result = self.deploy(fail="backup")
@@ -139,6 +158,44 @@ class DeploymentTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 7)
         self.assertFalse((self.root / "uploaded").exists())
+
+
+class SsmEnvironmentTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "bin").mkdir()
+        aws = self.root / "bin" / "aws"
+        aws.write_text('#!/bin/sh\nprintf "%s\\n" "$*" > "$STUB_ROOT/aws-args"\ncat "$STUB_ROOT/parameters.json"\n')
+        aws.chmod(0o755)
+        self.env_file = self.root / "cms.env"
+        self.env_file.write_text("CMS_ENV=cloud\nOLD=1\n")
+
+    def render(self, parameters, *extra):
+        (self.root / "parameters.json").write_text(json.dumps({"Parameters": [{"Name": f"/blog/cms/{k}", "Value": v} for k, v in parameters.items()]}))
+        return subprocess.run(
+            ["bash", str(SCRIPT.with_name("ssm-env.sh")), "--path", "/blog/cms", "--env-file", str(self.env_file), *extra],
+            env={**os.environ, "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}", "STUB_ROOT": str(self.root)},
+            capture_output=True,
+            text=True,
+        )
+
+    def test_writes_private_env_file_from_parameters(self):
+        result = self.render({"CMS_GITHUB_TOKEN": "never-print-this", "CMS_ENV": "cloud"}, "--region", "ap-northeast-1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.env_file.read_text(), "CMS_ENV=cloud\nCMS_GITHUB_TOKEN=never-print-this\n")
+        self.assertEqual(self.env_file.stat().st_mode & 0o777, 0o600)
+        self.assertIn("--with-decryption", (self.root / "aws-args").read_text())
+        self.assertIn("--region ap-northeast-1", (self.root / "aws-args").read_text())
+        self.assertNotIn("never-print-this", result.stdout + result.stderr)
+
+    def test_invalid_parameters_keep_the_previous_file(self):
+        for parameters in ({"CMS_ENV": "cloud", "KEY": "a\nb"}, {"CMS_ENV": "local"}, {"CMS_ENV": "cloud", "bad-name": "x"}):
+            result = self.render(parameters)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.env_file.read_text(), "CMS_ENV=cloud\nOLD=1\n")
+        self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".cms.env")], [])
 
 
 if __name__ == "__main__":
