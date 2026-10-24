@@ -35,3 +35,6 @@ frontend/playwright-report/
 
 # Database backups
 backend/backups/
+
+# CMS server log (scripts/start.sh)
+backend/logs/

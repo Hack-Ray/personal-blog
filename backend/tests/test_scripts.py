@@ -1,7 +1,10 @@
 import os
 import shutil
+import signal
+import socket
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -77,6 +80,36 @@ def test_stop_cms_leaves_another_program_on_the_port_alone():
     finally:
         proc.kill()
         proc.wait()
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.mark.skipif(shutil.which("lsof") is None, reason="cleanup finds the server with lsof")
+def test_start_detached_returns_once_the_server_answers_and_leaves_it_running(tmp_path):
+    port, log = free_port(), tmp_path / "logs/cms.log"
+    log.parent.mkdir()
+    log.write_text("previous run\n")
+    server = f"{sys.executable} -m http.server {port} --bind 127.0.0.1 --directory {tmp_path}"
+    bash(f"start_detached {log} http://127.0.0.1:{port}/ {server}")
+    try:
+        assert urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5).status == 200
+        assert (tmp_path / "logs/cms.log.1").read_text() == "previous run\n"
+    finally:
+        pids = subprocess.run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True).stdout.split()
+        for pid in pids:
+            os.kill(int(pid), signal.SIGTERM)
+
+
+def test_start_detached_fails_with_the_end_of_the_log_when_the_server_exits(tmp_path):
+    log = tmp_path / "cms.log"
+    with pytest.raises(subprocess.CalledProcessError) as failed:
+        bash(f"start_detached {log} http://127.0.0.1:{free_port()}/ {sys.executable} -c 'raise SystemExit(\"address already in use\")'")
+    assert "did not start" in failed.value.stderr
+    assert "address already in use" in failed.value.stderr
 
 
 def release_api(tmp_path, tag):

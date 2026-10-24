@@ -151,9 +151,11 @@ scripts/start.sh
 4. `alembic upgrade head`：有新的 migration 才會執行。備份在 migration 之前，所以 migration 出問題時可以用備份還原。
 5. `python -m blog.maintenance`：執行到期的清理（見下方）。
 6. 原 repo 有比 `backend/pyproject.toml` 新的 release 時，顯示一行提醒。只提醒、不改程式碼；離線時略過，最多等 3 秒。設定與停用方式見 README 的「跟上原 repo 的更新」。
-7. 啟動 CMS：http://127.0.0.1:8000/admin/
+7. 在背景啟動 CMS，等它可以連線後就結束，終端機可以繼續用：http://127.0.0.1:8000/admin/ 。輸出寫到 `backend/logs/cms.log`，上一次啟動的保留為 `cms.log.1`。30 秒內沒有回應時，顯示 log 的最後 20 行並停止。
 
-關閉：按 `Ctrl+C`；要連資料庫一起停，再執行 `docker compose stop`。
+想直接在終端機看輸出時，改用 `scripts/start.sh --log`。CMS 會在前景執行，和以前一樣用 `Ctrl+C` 關閉。背景執行時要看輸出，執行 `tail -f logs/cms.log`。
+
+關閉：執行 `scripts/stop.sh`（前景執行時按 `Ctrl+C`）；要連資料庫一起停，再執行 `docker compose stop`。
 
 拉了新程式碼之後，先更新套件與 CMS，再用 `start.sh` 啟動：
 
