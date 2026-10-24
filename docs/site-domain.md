@@ -4,11 +4,28 @@
 
 ## 換成自訂網域
 
-1. 在 GitHub Pages 設定自訂網域，並依 GitHub 提供的資料設定 DNS。先讓 Pages 完成網域驗證與 HTTPS 憑證申請，再加入 CDN。
-2. 部署 workflow 會從 `actions/configure-pages` 讀取 `SITE_ORIGIN` 與 `BASE_PATH`。不要把自己的網域寫進程式碼。
-3. 如果文章包含舊站的絕對網址，在程式 repo 的 Actions variable 設定 `LEGACY_SITE_URLS`。值是以逗號分隔的舊站根網址，包含舊的 basePath，例如 `https://old.example/blog,https://older.example`。只列出自己管理的網站。
-4. 執行下一次正常部署。Markdown 連結中符合舊站根網址的部分會改為新站的相對網址，路徑、query 與錨點會保留。這個設定不改寫內容 repo 或程式碼範例中的字串，也不替舊網域提供 HTTP redirect。
-5. 檢查首頁、文章圖片、站內連結、`feed.xml`、`sitemap.xml` 與 `robots.txt`。
+目前網站使用 GitHub Pages 的預設網址，程式和 workflow 不需要事先修改。買好網域後，照下面的順序設定。
+
+### 設定 DNS 與 GitHub
+
+1. 先驗證網域，防止別人的 GitHub Pages 搶用你的子網域。到 GitHub 頭像 → Settings → Pages → Add a domain，依畫面在 DNS 加一筆 TXT 紀錄，名稱是 `_github-pages-challenge-<GitHub 帳號>`，等 GitHub 顯示 Verified。
+2. 在 DNS 加入指向 GitHub Pages 的紀錄。只用一種做法。
+   - 子網域，例如 `blog.example.com`：加一筆 CNAME，值是 `<GitHub 帳號>.github.io`。
+   - 根網域，例如 `example.com`：加四筆 A 紀錄 `185.199.108.153`、`185.199.109.153`、`185.199.110.153`、`185.199.111.153`，以及四筆 AAAA 紀錄 `2606:50c0:8000::153`、`2606:50c0:8001::153`、`2606:50c0:8002::153`、`2606:50c0:8003::153`。另外把 `www` 設成 CNAME `<GitHub 帳號>.github.io`。
+
+   這些 IP 位址以 [GitHub 文件](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site) 為準。不要用萬用字元紀錄（`*.example.com`）。
+3. 到程式 repo 的 Settings → Pages → Custom domain 填入網域，等 DNS 檢查通過，再勾選 **Enforce HTTPS**。憑證可能要幾分鐘到一天才會發出。先讓 Pages 完成網域驗證與 HTTPS 憑證申請，再加入 CDN。
+4. 立刻在 CMS 按「更新網站」，或合併一個會觸發部署的變更。網站重新建置之前，已上線的頁面仍使用舊的 basePath，連結和圖片可能失效。
+
+這個設定只改公開網站，不需要動 CMS。換網域之後，GitHub 會把舊的 `github.io` 網址轉到新網域（**推測**，依 GitHub 文件的說明，尚未實測）。
+
+### 建置設定
+
+1. 部署 workflow 會從 `actions/configure-pages` 讀取 `SITE_ORIGIN` 與 `BASE_PATH`。不要把自己的網域寫進程式碼。
+2. 如果文章包含舊站的絕對網址，在程式 repo 的 Actions variable 設定 `LEGACY_SITE_URLS`。值是以逗號分隔的舊站根網址，包含舊的 basePath，例如 `https://old.example/blog,https://older.example`。從 GitHub Pages 預設網址換過來時，填 `https://<GitHub 帳號>.github.io/<repo 名稱>`。只列出自己管理的網站。
+3. 執行下一次正常部署。Markdown 連結中符合舊站根網址的部分會改為新站的相對網址，路徑、query 與錨點會保留。這個設定不改寫內容 repo 或程式碼範例中的字串，也不替舊網域提供 HTTP redirect。
+4. 檢查首頁、文章圖片、站內連結、`feed.xml`、`sitemap.xml` 與 `robots.txt`。
+5. 使用 Google Search Console 時，為新網域新增資源，把驗證碼填入 Actions variable `GOOGLE_SITE_VERIFICATION`，再部署一次並提交新的 `sitemap.xml`。
 
 同一個主機上的其他網站不會一起改寫。例如設定 `https://old.example/blog`，不會改寫 `https://old.example/other`。`LEGACY_SITE_URLS` 不允許帳號密碼、query 或 fragment。
 

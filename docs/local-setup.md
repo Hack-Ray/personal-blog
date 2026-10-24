@@ -301,6 +301,65 @@ docker compose exec db createdb -U blog blog_test
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
+## 16. （選用）Mac 常開，從其他裝置寫作
+
+不搬到雲端，也可以讓 Mac 一直開著，再從手機或其他電腦透過 Tailscale 連到這台 Mac 上的 CMS。CMS 仍只監聽 `127.0.0.1:8000`，區域網路與網際網路都連不到。只有登入你 Tailscale 帳號、並經過核准的裝置連得到。
+
+這一節的做法還沒有在真的 Mac 上實測過。
+
+### 16.1 讓 Mac 不睡眠
+
+- 系統設定 → 電池（桌上型 Mac 是「能源」）→ 選項，開啟「使用電源轉接器時，螢幕關閉後防止自動進入睡眠」。或在終端機執行 `sudo pmset -c sleep 0`。
+- 筆電闔上蓋子仍會睡眠，除非接著外接螢幕與電源。要闔蓋使用時，先確認這個條件。
+- 在 Docker Desktop 的 Settings → General 開啟 **Start Docker Desktop when you sign in**。
+- 重新開機後，登入 Mac 再執行一次 `scripts/start.sh`。
+
+### 16.2 設定 Tailscale
+
+1. 在 Mac 和要用來寫作的裝置上安裝 Tailscale，登入同一個帳號。
+2. 在 Tailscale 管理介面的 Settings → Device management 開啟 **Device approval**，新裝置要你核准才能加入。
+3. 在 DNS 頁面開啟 MagicDNS 與 HTTPS Certificates。
+4. 在 Mac 執行以下命令，讓 Tailscale 以 HTTPS 轉送到 CMS。`tailscale` 指令不在 PATH 時，改用 `/Applications/Tailscale.app/Contents/MacOS/Tailscale`。
+
+   ```sh
+   tailscale serve --bg 8000
+   ```
+
+   不要用 `tailscale funnel`，它會把 CMS 公開到網際網路。
+
+`tailscale serve status` 會顯示網址，格式是 `https://<Mac 名稱>.<tailnet>.ts.net`。
+
+### 16.3 設定 `.env`
+
+在 `backend/.env` 加入以下設定，再執行 `scripts/start.sh` 重新啟動。`CMS_ENV` 保持 `local`。
+
+```dotenv
+ALLOWED_HOSTS=127.0.0.1,localhost,<Mac 名稱>.<tailnet>.ts.net
+CMS_ORIGIN=https://<Mac 名稱>.<tailnet>.ts.net
+COOKIE_SECURE=1
+```
+
+設定 `CMS_ORIGIN` 後，CMS 只接受來自這個網址的寫入。在 Mac 本機也改用 `https://<Mac 名稱>.<tailnet>.ts.net/admin/`，不要再用 `http://127.0.0.1:8000/admin/`，否則存檔會被拒絕。
+
+### 16.4 排程清理與備份
+
+CMS 一直開著時，`start.sh` 很久才執行一次，到期的清理與啟動時備份也跟著停下。用 `crontab -e` 加入以下兩行，路徑換成自己的。
+
+```cron
+0 * * * * cd /Users/<你>/personal-blog/backend && PATH=$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH uv run --env-file .env python -m blog.maintenance >> logs/maintenance.log 2>&1
+0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
+```
+
+備份資料夾同步到雲端硬碟時，就有一份不在這台 Mac 上的備份。
+
+### 16.5 裝置遺失
+
+照 [`cloud-access.md`](cloud-access.md) 第 5 節處理。先在 Tailscale 管理介面移除裝置，再從其他裝置按「登出所有裝置」。
+
+### 16.6 之後要搬到雲端時
+
+照第 12 節停用 Mac 上的 CMS、備份並還原到新主機，再依 [`cms-deployment.md`](cms-deployment.md) 部署。Tailscale 的 policy 與裝置核准可以沿用。
+
 ## 本機與雲端共用程式
 
 既有 clone 設定與 `start.sh` 繼續可用。API 發布、GitHub App 和背景發布工作見 [portable-cms.md](portable-cms.md)。容器設定 API 發布後也可更新網站，不再需要掛載內容 repo。雲端部署見 [cms-deployment.md](cms-deployment.md)。

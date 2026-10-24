@@ -455,14 +455,12 @@ Dockerfile          CMS image（尚不能「更新網站」）
 20. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
 21. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
 22. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
-23. **Docker image 還不能「更新網站」。** image 裡沒有內容 repo clone、git 身分與 push 認證。
+23. **Docker image 用 API 發布。** image 裡沒有內容 repo clone 與 git 身分，要設定 `CONTENT_TRANSPORT=api` 與 GitHub 認證（見 `portable-cms.md`）。
 24. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
 
 ## 6. 尚未確認
 
 - **內容 repo 的分支**：clone push 到其 upstream 分支，而 `deploy.yml` 的 `ls-remote ... HEAD` 與「沒給 `content_sha` 時 checkout 預設分支」都假設那就是內容 repo 的預設分支。程式沒有檢查兩者一致。
-- **雲端 CMS 如何 push 與發布**：`docs/backlog.md` 中「發布方式」與「GitHub 憑證」仍待決定。在那之前 Docker image 只能編輯，不能更新網站。
-- **雲端維護排程**：文件建議 cron，但 repo 裡沒有對應的 unit 或排程設定。
 - **`test_scripts.py` 的涵蓋範圍**：本次沒有細讀。
 
 已確認的事項（不再列為未確認）：
