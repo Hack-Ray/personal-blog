@@ -48,7 +48,7 @@ RUN apt-get update \
  && apt-get update \
  && apt-get install -y --no-install-recommends postgresql-client-$PG_MAJOR \
  && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir uv==0.11.32
+RUN pip install --no-cache-dir uv==0.13.5
 RUN useradd --create-home --uid 1000 cms
 WORKDIR /app/backend
 COPY backend/pyproject.toml backend/uv.lock ./
