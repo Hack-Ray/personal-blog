@@ -41,6 +41,18 @@ BASE_PATH= node scripts/check-links.ts
 
 RSS 的 GUID 使用 `urn:ulid:<docId>`，不再隨網域或 basePath 改變。從舊的網址 GUID 切換時，既有閱讀器仍可能將文章重新顯示一次。這是識別方式的一次性遷移，後續換網域不會再改變 GUID。舊 RSS 網址若停止服務，還需要在舊網域設定 redirect，或請訂閱者更換訂閱網址。
 
+## 用 Cloudflare 當 DNS 與 CDN
+
+網域在 Cloudflare 時，照「設定 DNS 與 GitHub」做，再加上以下設定。
+
+1. 前幾步的 DNS 紀錄先全部設成 **DNS only**（灰色雲朵）。Pages 要直接看到自己的 IP，才會通過 DNS 檢查並申請憑證。
+2. 等 Pages 顯示憑證已發出、勾好 **Enforce HTTPS**，並用 `https://<網域>/` 開得到網站，再把根網域與 `www` 的 A、AAAA、CNAME 改成 **Proxied**（橘色雲朵）。TXT 驗證紀錄不受影響。
+3. SSL/TLS → Overview 設成 **Full (strict)**。不要用 Flexible：Cloudflare 會用 HTTP 連 Pages，而 Pages 會轉回 HTTPS，造成無限重新導向。
+4. SSL/TLS → Edge Certificates 開啟 **Always Use HTTPS**。Caching → Configuration 的 **Browser Cache TTL** 設成 **Respect Existing Headers**，沿用 Pages 的 10 分鐘快取。
+5. 開啟 proxy 後，Pages 設定頁可能顯示 DNS 檢查未通過，網站仍正常。Pages 續約憑證時的 HTTP 驗證會經過 Cloudflare 轉送，應該能通過（**推測**，未實測）。若出現 Cloudflare 526 錯誤，代表 Pages 憑證失效：把紀錄暫時改回 DNS only，等 Pages 重新發出憑證再改回 Proxied。
+
+Cloudflare 預設只快取圖片、CSS、JS 等靜態副檔名，不快取 HTML 與 JSON，所以部署後不需要清除快取。`cdn-headers.json` 的標頭與 CSP 目前沒有套用到 Cloudflare，見 `docs/backlog.md` 的 D7。
+
 ## 在 CDN 套用快取與安全標頭
 
 `npm run build` 會根據最後產生的 HTML 與檔案清單，產生 `out/cdn-headers.json`。這是 CDN 設定的輸入資料，GitHub Pages 不會自動套用其中的標頭。未啟用 CDN 時，這個檔案不影響網站功能。
