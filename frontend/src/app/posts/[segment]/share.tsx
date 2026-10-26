@@ -22,7 +22,7 @@ const COPY_LABEL: Record<Copy, string> = { idle: "複製連結", copied: "已複
 type Extra = "sheet" | "copy" | "none";
 
 const pickExtra = (): Extra =>
-  "share" in navigator && matchMedia("(pointer: coarse)").matches ? "sheet" : navigator.clipboard ? "copy" : "none";
+  typeof navigator.share === "function" && matchMedia("(pointer: coarse)").matches ? "sheet" : navigator.clipboard ? "copy" : "none";
 
 export function Share({ url, title }: { url: string; title: string }) {
   const [extra, setExtra] = useState<Extra>("none");
@@ -72,7 +72,11 @@ export function Share({ url, title }: { url: string; title: string }) {
       {extra === "sheet" && (
         <button
           type="button"
-          onClick={() => navigator.share({ url, title }).catch(() => {})}
+          onClick={() =>
+            navigator.share({ url, title }).catch((err) => {
+              if (err.name !== "AbortError" && navigator.clipboard) onCopy();
+            })
+          }
           aria-label="更多分享方式"
           title="更多分享方式"
         >
