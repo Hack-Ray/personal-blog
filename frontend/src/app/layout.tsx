@@ -20,6 +20,14 @@ export function generateMetadata(): Metadata {
     // Article pages set their own openGraph and twitter, so the default image only reaches the other pages.
     openGraph: { ...siteOg(title), images: [DEFAULT_IMAGE] },
     twitter: { card: "summary", images: [DEFAULT_IMAGE] },
+    // Edit frontend/public/icon.svg and run `npm run icons` to change them.
+    icons: {
+      icon: [
+        { url: `${BASE_PATH}/favicon.ico`, sizes: "48x48" },
+        { url: `${BASE_PATH}/icon.svg`, type: "image/svg+xml" },
+      ],
+      apple: `${BASE_PATH}/apple-touch-icon.png`,
+    },
     verification: googleVerification ? { google: googleVerification } : undefined,
   };
 }
