@@ -171,3 +171,16 @@ test("the home page carries a WebSite JSON-LD and no Search Console tag by defau
   expect(JSON.parse((await scripts.textContent()) ?? "")["@type"]).toBe("WebSite");
   await expect(page.locator('meta[name="google-site-verification"]')).toHaveCount(0);
 });
+
+test("a post offers share links to its slug URL and copies it", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("posts/nextjs-static-export/");
+  const share = page.getByRole("region", { name: "分享這篇文章" });
+  const url = "https://example.com/personal-blog/posts/nextjs-static-export/";
+  const facebook = await share.getByRole("link", { name: "Facebook" }).getAttribute("href");
+  expect(new URL(facebook!).searchParams.get("u")).toBe(url);
+  await expect(share.getByRole("link", { name: "LINE" })).toHaveAttribute("target", "_blank");
+  await share.getByRole("button", { name: "複製連結" }).click();
+  await expect(share.getByRole("button", { name: "已複製" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
+});

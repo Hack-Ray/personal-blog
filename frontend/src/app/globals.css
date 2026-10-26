@@ -503,6 +503,33 @@ pre {
   margin-top: 2em;
 }
 
+.share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2em;
+}
+
+.share a,
+.share button {
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.share a:hover,
+.share button:hover {
+  color: var(--link);
+  border-color: var(--link);
+}
+
 .post-nav .next {
   margin-left: auto;
   text-align: right;

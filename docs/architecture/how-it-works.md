@@ -247,7 +247,7 @@ stateDiagram-v2
 
 ### 3.4 公開網站如何建置
 
-`frontend/` 是 Next.js 16，`output: "export"`、`trailingSlash: true`，所有路由 force-static，`dynamicParams = false`。建置時從 `SITE_DATA_DIR`（預設 `sample-site-data`）讀一份 Snapshot，輸出到 `frontend/out/`。執行期只有瀏覽器端程式：搜尋、主題、目錄、複製與放大、giscus、404 的最新文章清單。
+`frontend/` 是 Next.js 16，`output: "export"`、`trailingSlash: true`，所有路由 force-static，`dynamicParams = false`。建置時從 `SITE_DATA_DIR`（預設 `sample-site-data`）讀一份 Snapshot，輸出到 `frontend/out/`。執行期只有瀏覽器端程式：搜尋、主題、目錄、複製與放大、複製文章連結、giscus、404 的最新文章清單。
 
 **建置流程**：
 
@@ -273,7 +273,7 @@ stateDiagram-v2
 | `/search/` | 搜尋頁，`?q=` 同步 |
 | `/feed.xml`、`/sitemap.xml`、`/latest-posts.json` | RSS 2.0 最新 20 篇、sitemap、404 頁用的清單 |
 
-文章頁包含 metadata（canonical、OG、Twitter）、閱讀進度、系列導覽、目錄、內文、相關文章（同 Topic 權重 2，每個共同 Tag +1，取 3 篇）、上一篇／下一篇、giscus 留言。封存文章不出現在列表、sitemap、feed 與搜尋中；轉址頁也不進 sitemap。沒有任何文章時，`static-params.ts` 回傳 `"_"` 佔位，CI 也會用 `test-fixtures/empty-site-data` 建置一次確認空站可以建。
+文章頁包含 metadata（canonical、OG、Twitter）、閱讀進度、系列導覽、目錄、內文、相關文章（同 Topic 權重 2，每個共同 Tag +1，取 3 篇）、上一篇／下一篇、分享按鈕、giscus 留言。封存文章不出現在列表、sitemap、feed 與搜尋中；轉址頁也不進 sitemap。沒有任何文章時，`static-params.ts` 回傳 `"_"` 佔位，CI 也會用 `test-fixtures/empty-site-data` 建置一次確認空站可以建。
 
 **Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。
 
@@ -281,7 +281,7 @@ stateDiagram-v2
 
 瀏覽器端（`app/search/load-index.ts`）是一個 `useSyncExternalStore` store：先以 `no-store` 抓 metadata 並檢查 version，接著從最新年份開始逐年抓 chunk，每年抓完就更新結果。某年失敗時保留已載入的文章，`retry` 從失敗的年份繼續。header 的搜尋框 focus 時才開始載入。
 
-**其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
+**其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；瀏覽器有 clipboard 才顯示「複製連結」）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
 
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
