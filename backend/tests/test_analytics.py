@@ -1,4 +1,5 @@
 import json
+import re
 import threading
 from datetime import UTC, date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -109,6 +110,15 @@ def search_answer(totals=(), queries=(), pages=()):
     return answer
 
 
+def cf_vars(call) -> dict:
+    query = call["body"]["query"]
+    return {
+        "zone": re.search(r'zoneTag: "([^"]*)"', query)[1],
+        "start": re.search(r'date_geq: "([^"]*)"', query)[1],
+        "end": re.search(r'date_leq: "([^"]*)"', query)[1],
+    }
+
+
 def sync(now=NOW, force=False):
     with SessionLocal() as session:
         return {s.source: s for s in analytics.sync(session, now, force=force)}
@@ -143,7 +153,7 @@ def test_cloudflare_sync_stores_days_and_the_report_adds_them_up(client, cloudfl
     statuses = client.post("/api/analytics/sync").json()
     assert statuses[0]["source"] == "cloudflare" and statuses[0]["synced_at"] and statuses[0]["error"] is None and not statuses[0]["stale"]
     assert calls[0]["authorization"] == f"Bearer {CF_TOKEN}"
-    assert calls[0]["body"]["variables"] == {"zone": ZONE, "start": (today - timedelta(days=29)).isoformat(), "end": today.isoformat()}
+    assert cf_vars(calls[0]) == {"zone": ZONE, "start": (today - timedelta(days=29)).isoformat(), "end": today.isoformat()}
 
     body = client.get("/api/analytics?days=7").json()
     assert body["traffic_totals"] == {"requests": 1600, "page_views": 200, "visitors": 70, "bytes": 6_000_000, "cache_hit_ratio": 0.75}
@@ -194,7 +204,7 @@ def test_first_sync_backfills_and_later_syncs_refetch_a_short_window(cloudflare,
     routes[SEARCH_PATH] = search_answer()
 
     def windows():
-        cf = [(c["body"]["variables"]["start"], c["body"]["variables"]["end"]) for c in calls if c["path"] == "/graphql"]
+        cf = [(cf_vars(c)["start"], cf_vars(c)["end"]) for c in calls if c["path"] == "/graphql"]
         gsc = {(c["body"]["startDate"], c["body"]["endDate"]) for c in calls if c["path"] == SEARCH_PATH}
         calls.clear()
         return cf, gsc
@@ -220,7 +230,7 @@ def test_cloudflare_ranges_longer_than_30_days_are_split(cloudflare):
     from blog import config
 
     analytics.fetch_cloudflare(config.settings, date(2026, 1, 1), date(2026, 3, 1))
-    assert [(c["body"]["variables"]["start"], c["body"]["variables"]["end"]) for c in calls] == [
+    assert [(cf_vars(c)["start"], cf_vars(c)["end"]) for c in calls] == [
         ("2026-01-01", "2026-01-30"),
         ("2026-01-31", "2026-03-01"),
     ]
@@ -233,13 +243,15 @@ def test_one_failing_source_is_recorded_and_the_other_still_syncs(cloudflare, se
     statuses = sync()
     assert statuses["cloudflare"].synced_at is None
     assert "zone analytics are not available" in statuses["cloudflare"].error
-    assert statuses["cloudflare"].stale
+    assert not statuses["cloudflare"].stale
     assert statuses["search_console"].synced_at == NOW and statuses["search_console"].error is None
     assert report().search_totals.clicks == 5
 
     routes["/graphql"] = cloudflare_answer((day(0), 10, 5, 1, 1, 1))
-    recovered = sync(NOW + timedelta(minutes=1))["cloudflare"]
-    assert recovered.error is None and recovered.synced_at == NOW + timedelta(minutes=1)
+    # A failed source waits RETRY_AFTER before the next automatic attempt.
+    assert sync(NOW + timedelta(minutes=1))["cloudflare"].error is not None
+    recovered = sync(NOW + timedelta(minutes=11))["cloudflare"]
+    assert recovered.error is None and recovered.synced_at == NOW + timedelta(minutes=11)
 
 
 def test_unreachable_api_is_an_error_not_a_crash(cloudflare, configure):
@@ -340,6 +352,14 @@ def test_a_sync_already_running_is_not_repeated(cloudflare):
         assert held
         statuses = sync()
     assert calls == [] and statuses["cloudflare"].stale
+
+
+def test_search_rows_beyond_one_statement_are_stored_and_empty_keys_skipped(search_console):
+    _, routes = search_console
+    queries = [(day(1), f"q{i}", 1, 2, 3.0) for i in range(12_000)] + [(day(1), "", 5, 5, 1.0)]
+    routes[SEARCH_PATH] = search_answer(totals=[(day(1), 12_000, 24_000, 3.0)], queries=queries)
+    assert sync()["search_console"].error is None
+    assert report().top_queries[0].key.startswith("q")
 
 
 @pytest.mark.parametrize("days", [7, 28, 90])

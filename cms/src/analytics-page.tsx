@@ -97,9 +97,9 @@ export function AnalyticsPage() {
       </div>
       {anyConfigured && (
         <div className="analytics-controls">
-          <div role="tablist" className="tabs" aria-label="期間">
+          <div role="group" className="tabs" aria-label="期間">
             {RANGES.map((r) => (
-              <button key={r} type="button" role="tab" aria-selected={range === r} onClick={() => choose(r)}>
+              <button key={r} type="button" aria-pressed={range === r} onClick={() => choose(r)}>
                 {r} 天
               </button>
             ))}
@@ -194,7 +194,7 @@ function TrafficSection({ report, status }: { report: AnalyticsReport; status: S
         </ChartCard>
       )}
       <p className="hint note">
-        Cloudflare 的「不重複訪客」是每天依 IP 位址計算的近似值，同一人換網路會多算、多人共用 IP 會少算；期間總數是每日數字相加。頁面瀏覽也包含部分機器人。
+        Cloudflare 的「不重複訪客」是每天依 IP 位址計算的近似值，同一人換網路會多算、多人共用 IP 會少算；期間總數是每日數字相加。第一次設定時只回補最近 30 天，更早的資料要從那天起累積。頁面瀏覽也包含部分機器人。
       </p>
       {report.traffic.length > 0 && (
         <DataTable
@@ -239,18 +239,22 @@ function SearchSection({ report, status }: { report: AnalyticsReport; status: So
           </ChartCard>
         </div>
       )}
-      <p className="hint note">Google 的資料約晚 2–3 天才出現，所以最近幾天是空的。平均排名以曝光數加權。</p>
+      <p className="hint note">Google 的資料約晚 2–3 天才出現，所以最近幾天是空的；日期以美國太平洋時間計算。平均排名以曝光數加權。</p>
       <div className="top-lists">
         <TopTable title="熱門搜尋字詞" keyLabel="字詞" items={report.top_queries} render={(k) => k} />
         <TopTable
           title="熱門頁面"
           keyLabel="頁面"
           items={report.top_pages}
-          render={(k) => (
-            <a href={k} target="_blank" rel="noreferrer">
-              {pagePath(k)}
-            </a>
-          )}
+          render={(k) =>
+            /^https?:\/\//.test(k) ? (
+              <a href={k} target="_blank" rel="noreferrer">
+                {pagePath(k)}
+              </a>
+            ) : (
+              k
+            )
+          }
         />
       </div>
       {report.search.length > 0 && (

@@ -125,7 +125,8 @@ textarea {
   margin-bottom: 12px;
 }
 
-.tabs [aria-selected="true"] {
+.tabs [aria-selected="true"],
+.tabs [aria-pressed="true"] {
   border-color: var(--accent);
 }
 

@@ -18,6 +18,7 @@ from urllib.parse import quote, urlencode, urlsplit
 import jwt
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from blog import config
@@ -29,6 +30,10 @@ log = logging.getLogger(__name__)
 # Arbitrary key for pg_try_advisory_lock, distinct from the other LOCK_KEYs.
 LOCK_KEY = 0x7472_6166
 STALE = timedelta(hours=6)
+# A failing source is retried at most this often, so a wrong token does not
+# make every page open wait on the API again.
+RETRY_AFTER = timedelta(minutes=10)
+INSERT_BATCH = 5000
 RANGES = (7, 28, 90)
 TOP = 10
 TIMEOUT = 30
@@ -36,11 +41,14 @@ MAX_RESPONSE = 32 * 1024 * 1024
 GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 GSC_ROW_LIMIT = 25000
 CLOUDFLARE_MAX_DAYS = 30
+# Values are inlined rather than passed as variables because Cloudflare's
+# schema names its scalars in lower case (string, Date), which is easy to get
+# wrong; the zone id is checked to be hex and the dates are ISO dates.
 CLOUDFLARE_QUERY = """
-query($zone: String!, $start: Date!, $end: Date!) {
+{
   viewer {
-    zones(filter: {zoneTag: $zone}) {
-      httpRequests1dGroups(limit: 100, filter: {date_geq: $start, date_leq: $end}, orderBy: [date_ASC]) {
+    zones(filter: {zoneTag: "%(zone)s"}) {
+      httpRequests1dGroups(limit: 100, filter: {date_geq: "%(start)s", date_leq: "%(end)s"}, orderBy: [date_ASC]) {
         dimensions { date }
         sum { requests cachedRequests bytes cachedBytes pageViews }
         uniq { uniques }
@@ -183,9 +191,7 @@ def fetch_cloudflare(settings: config.Settings, start: date, end: date) -> list[
         body = _post(
             "Cloudflare API",
             f"{settings.cloudflare_api_url}/graphql",
-            json.dumps(
-                {"query": CLOUDFLARE_QUERY, "variables": {"zone": settings.cloudflare_zone_id, "start": first.isoformat(), "end": last.isoformat()}}
-            ).encode(),
+            json.dumps({"query": CLOUDFLARE_QUERY % {"zone": settings.cloudflare_zone_id, "start": first.isoformat(), "end": last.isoformat()}}).encode(),
             {"authorization": f"Bearer {token}", "content-type": "application/json"},
             secrets=[token],
         )
@@ -251,6 +257,7 @@ def _search_rows(body: dict, dimension: str) -> list[SearchRow]:
                 position=float(r["position"]),
             )
             for r in body.get("rows", [])
+            if dimension == "total" or r["keys"][1]
         ]
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         raise AnalyticsError("Search Console returned data in an unexpected shape") from None
@@ -296,8 +303,10 @@ def _store_search(session: Session, start: date, end: date, rows: list[SearchRow
     # does not linger from an earlier fetch.
     session.execute(delete(SearchDay).where(SearchDay.day.between(start, end)))
     unique = {(r.day, r.dimension, r.key): vars(r) for r in rows}
-    if unique:
-        session.execute(insert(SearchDay).values(list(unique.values())))
+    values = list(unique.values())
+    # PostgreSQL takes at most 65535 parameters per statement.
+    for i in range(0, len(values), INSERT_BATCH):
+        session.execute(insert(SearchDay).values(values[i : i + INSERT_BATCH]))
 
 
 # --- Sources ---
@@ -368,7 +377,9 @@ def status(session: Session, now: datetime) -> list[SourceStatus]:
                 synced_at=synced_at,
                 attempted_at=row.attempted_at if row else None,
                 error=row.error if row else None,
-                stale=configured and (synced_at is None or now - synced_at >= STALE),
+                stale=configured
+                and (synced_at is None or now - synced_at >= STALE)
+                and not (row and row.error and row.attempted_at and now - row.attempted_at < RETRY_AFTER),
             )
         )
     return result
@@ -401,9 +412,12 @@ def sync(session: Session, now: datetime, force: bool = False) -> list[SourceSta
                 _record(session, source.name, now, None)
                 session.commit()
                 log.info("synced %s: %d rows for %s..%s", source.name, len(rows), start, end)
-            except AnalyticsError as e:
+            except (AnalyticsError, SQLAlchemyError) as e:
                 session.rollback()
-                _record(session, source.name, now, str(e))
+                message = str(e) if isinstance(e, AnalyticsError) else "Storing the data failed; see the CMS log"
+                if not isinstance(e, AnalyticsError):
+                    log.exception("storing %s data failed", source.name)
+                _record(session, source.name, now, message)
                 session.commit()
                 log.warning("sync of %s failed: %s", source.name, e)
     return status(session, now)
