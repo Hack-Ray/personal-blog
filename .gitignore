@@ -36,5 +36,8 @@ frontend/playwright-report/
 # Database backups
 backend/backups/
 
+# Service account keys and other credential files (docs/analytics.md)
+backend/secrets/
+
 # CMS server log (scripts/start.sh)
 backend/logs/

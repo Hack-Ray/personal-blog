@@ -289,6 +289,32 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 
 ---
 
+## 10. 流量數據：伺服器端 API，開頁時才更新
+
+### 找到的證據
+
+- [Direct] 2026-10-26 作者在 Claude project thread 提出的需求（agent 摘要，原話不在 git）：CMS 顯示 Cloudflare 流量與 Google Search Console 數據；只用伺服器端 API，`frontend/` 完全不變、公開網站不加追蹤程式；預設關閉，沒有憑證時只顯示設定說明，不呼叫任何外部 API。
+- [Direct] `docs/analytics.md`「何時更新」：沒有排程器，開頁時若資料超過 6 小時才同步，「立即更新」強制同步。
+- [Direct] `how-it-works.md` §3.6：「沒有常駐的排程器」；§4「新的定期工作：加進 `maintenance.run()`，不要另外起排程」。
+- [Direct] AGENTS.md：「Do not introduce dependencies without a clear reason.」HTTP 沿用 `github.py` 的 urllib 寫法，JWT 沿用既有的 `pyjwt[crypto]`，圖表是手寫 SVG。
+
+### 合理推論
+
+- 不用追蹤程式：網站已經在 Cloudflare proxy 後面，Cloudflare 本來就在統計每個請求；Search Console 本來就有搜尋報表。改從伺服器端讀，公開網站不多載入任何東西、不需要 cookie 同意，也不影響 FE 的 CSP 與效能預算。代價是數字較粗：訪客是每日 IP 估計，包含部分機器人，看不到停留時間或來源頁。
+- 不用排程：CMS 只在作者電腦上、作者需要時才開著（§1），排程器在關機時本來就不會跑，還得處理錯過的執行。改成開頁時判斷「上次成功是否超過 6 小時」，作者看的時候資料就夠新，不看的時候不打 API。每次同步都重抓最近幾天並覆蓋，所以隔多久開一次、重複幾次都會收斂到同一份資料。
+- 沒有放進 `maintenance.run()`：那裡只在啟動時跑一次，而且會讓沒有開流量頁的啟動也去連外部 API；目前的需求是「看的時候才更新」。
+
+### 其他可能的解釋
+
+- 6 小時、Cloudflare 回補 30 天、Search Console 回補 90 天與重抓 10 天，是依 API 資料延遲選的值，沒有作者逐項確認。
+
+### 不知道的事
+
+- 沒有用真實的 Cloudflare 或 Google 帳號驗證過 API 回應；實作依官方文件，測試用本機假伺服器。
+- 若之後 CMS 上雲常駐，是否改成定期同步，沒有決定。
+
+---
+
 ## 決策來源與可信度
 
 這個專案的決策有兩種來源，可信度不同。改架構前先看要改的是哪一種。
