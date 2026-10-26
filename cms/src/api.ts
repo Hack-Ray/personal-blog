@@ -108,6 +108,41 @@ export interface SavedProfile {
   updated_at: string;
 }
 
+export type AnalyticsSourceName = "cloudflare" | "search_console";
+
+export interface SourceStatus {
+  source: AnalyticsSourceName;
+  configured: boolean;
+  /** The last successful sync. */
+  synced_at: string | null;
+  attempted_at: string | null;
+  /** Why the latest attempt failed; null once a sync succeeds. */
+  error: string | null;
+  /** Configured and older than the backend's refresh interval. */
+  stale: boolean;
+}
+
+export interface SearchItem {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number | null;
+  position: number | null;
+}
+
+/** Days are UTC dates (YYYY-MM-DD); a day without data has no row. */
+export interface AnalyticsReport {
+  start: string;
+  end: string;
+  sources: SourceStatus[];
+  traffic: { day: string; requests: number; page_views: number; visitors: number; bytes: number }[];
+  traffic_totals: { requests: number; page_views: number; visitors: number; bytes: number; cache_hit_ratio: number | null };
+  search: { day: string; clicks: number; impressions: number; ctr: number | null; position: number | null }[];
+  search_totals: { clicks: number; impressions: number; ctr: number | null; position: number | null };
+  top_queries: SearchItem[];
+  top_pages: SearchItem[];
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: { detail?: unknown; current_revision?: number };
@@ -168,6 +203,9 @@ export const api = {
   renameTaxon: (kind: TaxonKind, slug: string, name: string) => request<void>("PUT", `/taxa/${kind}/${slug}`, { name }),
   mergeTaxon: (kind: TaxonKind, slug: string, into: string) => request<void>("POST", `/taxa/${kind}/${slug}/merge`, { into }),
   deleteTaxon: (kind: TaxonKind, slug: string) => request<void>("DELETE", `/taxa/${kind}/${slug}`),
+  analytics: (days: number) => request<AnalyticsReport>("GET", `/analytics?days=${days}`),
+  /** Fetches the stale sources from Cloudflare and Google, or every configured one with `force`. */
+  syncAnalytics: (force: boolean) => request<SourceStatus[]>("POST", "/analytics/sync", { force }),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);
