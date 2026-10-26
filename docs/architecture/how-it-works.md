@@ -46,7 +46,8 @@ push 到內容 repo 不用任何 token，用的是本機 git 的認證（SSH key
 
 ## 2. 重要概念
 
-- **Article／`doc_id`**：一篇文章。`doc_id` 是大寫 ULID，建立時產生，終身不變，也是公開網址 `/posts/<doc_id>/` 的一部分。永久刪除後 `doc_id` 進入 `retired_doc_ids`，不會再發出。
+- **Article／`doc_id`**：一篇文章。`doc_id` 是大寫 ULID，建立時產生，終身不變。沒有設定 slug 時，公開網址是 `/posts/<doc_id>/`。永久刪除後 `doc_id` 進入 `retired_doc_ids`，不會再發出。
+- **Slug 與文章網址**：作者可以替文章設定英文 slug（`articles.slug`，小寫英數與 `-`，最多 80 字，`page` 保留），公開網址變成 `/posts/<slug>/`。slug 和置頂一樣不進版本，下一次「更新網站」才生效，不需要重新發布。`article_urls` 記錄文章實際匯出過的每個網址片段（`doc_id` 或 slug），換網址後舊片段成為轉址頁。另一篇文章目前使用、或曾以它匯出過的 slug 都不能再用；只在 CMS 打錯、還沒匯出過的 slug 會釋出。
 - **Working Draft 與 revision**：每篇文章恰好一份草稿（`working_drafts`，以 `article_id` 為 PK）。每次寫入 revision +1。所有寫入都帶 `base_revision`，不符就 409。這是整個 CMS 的樂觀鎖。
 - **Published Version**：按「發布」時把草稿完整複製一份，版本號 1、2、3 遞增。只能新增，trigger 拒絕 `UPDATE`（例外見 Gotchas）。
 - **Draft Snapshot**：自動儲存覆蓋前保留的舊 Markdown，每篇最多 50 份，發布時全部刪除。只是草稿的復原點，與 Content Snapshot 無關。
@@ -104,14 +105,14 @@ Starlette 依註冊順序的**反向**執行 middleware。`api.py` 依序註冊 
 
 | 動作 | 允許的起始狀態 | 結果狀態 | 函式 |
 |---|---|---|---|
-| EDIT（自動儲存、還原快照、置頂） | draft、published、archived | 不變 | `save_draft`、`restore_snapshot`、`set_pinned` |
+| EDIT（自動儲存、還原快照、置頂、slug） | draft、published、archived | 不變 | `save_draft`、`restore_snapshot`、`set_pinned`、`set_slug` |
 | PUBLISH | draft、published、archived | published | `publish` |
 | ARCHIVE | 只有 published | archived | `archive` |
 | DELETE（軟刪除） | draft、published、archived | pending_deletion，記下 `state_before_deletion`、`deleted_at` | `delete` |
 | RESTORE | pending_deletion | 回到 `state_before_deletion` | `restore` |
 | PURGE（手動，或滿 30 天由維護工作執行） | pending_deletion | 整列刪除，`doc_id` 進 `retired_doc_ids` | `purge`、`purge_expired` |
 
-PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照與 `release_articles`。
+PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照、`release_articles` 與 `article_urls`，所以該文章用過的 slug 會釋出。
 
 沒有「已發布但有未發布修改」這個狀態。編輯已發布文章時 state 仍是 published，草稿只是領先最新版本。匯出永遠用最新的 Published Version，不看草稿。
 
@@ -135,6 +136,8 @@ PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照與 `release_a
 連結與圖片網址政策（`url-policy`）有三處把關：後端發布與儲存 profile（`blog/url_policy.py`，違規回 422；profile 只檢查 `intro`）、CMS 的發布按鈕（`urlProblems` 會停用按鈕）、公開網站建置（`parseSnapshot` 的 `blockedUrls`，是最後一道防線）。
 
 **置頂**：`set_pinned` 不建立新版本，下一次「更新網站」才會反映。
+
+**Slug**（`set_slug`，`PUT /api/articles/{id}/slug`，body `{slug}`，`null` 回到 `doc_id` 網址）：格式不符或保留字回 422；被占用回 409 `{detail, suggestion}`，`suggestion` 是第一個可用的 `<slug>-2`、`-3`…。`GET /api/slugs/{slug}?doc_id=` 只檢查不寫入，回 `{available, suggestion?, reason?}`。
 
 **快照還原**：`restore_snapshot` 內部呼叫 `save_draft`，所以還原本身也會先留快照，可以再復原。
 
@@ -186,13 +189,13 @@ sequenceDiagram
 3. `exporter.unknown_remote_commit` 對 upstream `ls-remote`。遠端的 tip 不是本地 HEAD 的祖先，代表別的 CMS 推過內容，丟 `ReleaseError`。git 出錯時放行。
 4. 冷卻：距離上一個 Release 不到 30 秒時拒絕。
 5. `export`：
-   - 在 REPEATABLE READ 交易中 `render_snapshot`：每篇 published 文章取最新版本（`DISTINCT ON`），輸出 `articles/<doc_id>.json`；加上 `profile.json`；`manifest.json` 為 `{schema_version: 1, release_id, created_at, articles: [{doc_id, version}], archived_articles: [{doc_id}]}`。被引用的圖缺檔時丟 `ExportError`。
+   - 在 REPEATABLE READ 交易中 `render_snapshot`：每篇 published 文章取最新版本（`DISTINCT ON`），輸出 `articles/<doc_id>.json`；加上 `profile.json`；`manifest.json` 為 `{schema_version: 1, release_id, created_at, articles: [{doc_id, version, slug?, redirect_from?}], archived_articles: [{doc_id, slug?, redirect_from?}]}`。`slug` 是目前的 slug，`redirect_from` 是 `article_urls` 中目前網址以外的片段，沒有時兩個 key 都省略。被引用的圖缺檔時丟 `ExportError`。
    - `_discard_interrupted_export` 把四個 Snapshot 路徑還原到 HEAD，清掉上次中斷留下的半成品。
    - `write_snapshot`：若檔案集合與內容只差在 `release_id`／`created_at`，回傳 None（沒有變更）。否則刪掉多餘檔案、寫入新檔，圖片只寫新的（id 是內容雜湊，不必重讀舊檔）。
    - `git add --all` 只對 `SNAPSHOT_PATHS`，`git commit -m "Release <release_id>"`。這一步不 push。
    - export 回傳 None 時，`create` 再用 `head_release` 看 HEAD 是不是一個還沒有 Release 列的 release commit（上次 crash 留下的），有的話接手它。
 6. 兩者皆無，或該 Release 已存在：回傳 `{release: null}`，CMS 顯示「已發布的內容沒有變更」。
-7. 否則新增 `Release(EXPORTED)` 與 `release_articles`，把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
+7. 否則 `record_export` 新增 `Release(EXPORTED)` 與 `release_articles`，並依 manifest 把每篇已發布與封存文章這次的網址片段寫進 `article_urls`（已存在就略過；這次 release 後來失敗也只是多一個轉址頁），把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
 8. `_advance` 從目前狀態往下推：
    - EXPORTED、PUSH_FAILED：`git push --quiet`（`GIT_TERMINAL_PROMPT=0`）。成功 PUSHED；失敗或逾時 PUSH_FAILED，`detail` 存遮蔽過的 stderr 最後 500 字。
    - PUSHED、DISPATCH_FAILED、FAILED：沒有 deployer 直接 DISPATCH_FAILED。否則 `POST /repos/{DEPLOY_REPO}/actions/workflows/{DEPLOY_WORKFLOW}/dispatches`，`ref` 為 `DEPLOY_REF`，`inputs.content_sha` 為 commit。成功 DISPATCHED，重設 `dispatched_at`，清掉 `run_url`，**刻意保留** `run_id`。
@@ -250,11 +253,11 @@ stateDiagram-v2
 
 1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。
 2. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
-3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
+3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
 4. 產生 static params，server render 每一頁。
 5. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
 
-`content/model.ts` 定義網站看到的模型：`PublishedArticle`（`state: "published"`）與 `ArchivedArticle`（只有 `docId`）。草稿與待刪除文章不會出現在 Snapshot。
+`content/model.ts` 定義網站看到的模型：`PublishedArticle`（`state: "published"`）與 `ArchivedArticle`（只有 `docId`），兩者都可帶 `slug` 與 `redirectFrom`。文章連結一律用 `queries.ts` 的 `postPath`；client component 不能 import 它，所以 `search-metadata.json` 與 `latest-posts.json` 直接帶 `path`。RSS 的 `<guid>` 與 giscus 仍以 `docId` 為鍵，換網址不影響。草稿與待刪除文章不會出現在 Snapshot。
 
 **路由**（`src/app/`）：
 
@@ -262,14 +265,15 @@ stateDiagram-v2
 |---|---|
 | `/` | 置頂文章，然後 5 篇最新的非置頂文章 |
 | `/posts/`、`/posts/page/<n>/` | 文章列表，每頁 10 篇，第 1 頁是 `/posts/` |
-| `/posts/<docId>/` | 文章頁。封存文章也會產生，顯示「文章已封存」並 `noindex` |
+| `/posts/<slug 或 docId>/` | 文章頁（`app/posts/[segment]/`）。封存文章也會產生，顯示「文章已封存」並 `noindex` |
+| `/posts/<redirect_from 的片段>/` | 轉址頁：`<meta http-equiv="refresh">` 到新網址（含 basePath）、canonical 指向新網址、`noindex`，並有一個手動連結。GitHub Pages 不能回 301，所以用這種頁面 |
 | `/topics/`、`/topics/<slug>/`、`/tags/`、`/tags/<slug>/` | Taxon 索引與列表（只算已發布文章） |
 | `/archive/` | 依台北時間分年，兩種排序都在 server 端 render |
 | `/about/` | Profile |
 | `/search/` | 搜尋頁，`?q=` 同步 |
 | `/feed.xml`、`/sitemap.xml`、`/latest-posts.json` | RSS 2.0 最新 20 篇、sitemap、404 頁用的清單 |
 
-文章頁包含 metadata（canonical、OG、Twitter）、閱讀進度、系列導覽、目錄、內文、相關文章（同 Topic 權重 2，每個共同 Tag +1，取 3 篇）、上一篇／下一篇、giscus 留言。封存文章不出現在列表、sitemap、feed 與搜尋中。沒有任何文章時，`static-params.ts` 回傳 `"_"` 佔位，CI 也會用 `test-fixtures/empty-site-data` 建置一次確認空站可以建。
+文章頁包含 metadata（canonical、OG、Twitter）、閱讀進度、系列導覽、目錄、內文、相關文章（同 Topic 權重 2，每個共同 Tag +1，取 3 篇）、上一篇／下一篇、giscus 留言。封存文章不出現在列表、sitemap、feed 與搜尋中；轉址頁也不進 sitemap。沒有任何文章時，`static-params.ts` 回傳 `"_"` 佔位，CI 也會用 `test-fixtures/empty-site-data` 建置一次確認空站可以建。
 
 **Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。
 
@@ -293,7 +297,7 @@ stateDiagram-v2
 | 登入覆蓋層 | `POST /api/session` |
 | 文章列表 `#/` | `GET /api/articles`（「待刪除」分頁加 `?state=pending_deletion`）、`PUT .../pinned`、`POST .../archive`、`DELETE /api/articles/{id}`、`POST .../restore`、`POST .../purge`、`DELETE /api/session`、`DELETE /api/sessions` |
 | 新文章 `#/new` | `POST /api/articles`，成功後 `location.replace('#/edit/<doc_id>')` |
-| 編輯器 `#/edit/<doc_id>` | `GET .../draft`、`PUT .../draft`、`POST .../publish`、`POST /api/images`、`GET /api/images/{id}` |
+| 編輯器 `#/edit/<doc_id>` | `GET .../draft`、`PUT .../draft`、`POST .../publish`、`PUT .../slug`、`POST /api/images`、`GET /api/images/{id}` |
 | 快照面板 | `GET .../snapshots`、`POST .../snapshots/{id}/restore` |
 | 分類 `#/taxa` | `GET /api/taxa`、`PUT /api/taxa/{kind}/{slug}`、`POST .../merge`、`DELETE ...` |
 | 個人資料 `#/profile` | `GET /api/profile`、`PUT /api/profile` |
@@ -311,6 +315,8 @@ stateDiagram-v2
 - 401：等使用者重新登入（`SIGNED_IN` 事件）後 `flush()`。登入覆蓋層蓋在 `inert` 的頁面上，不會卸載編輯器，所以內容不會遺失。
 - 其他 4xx：停止。
 - `close()`：最後一次 flush 並停止重試。編輯器以 `key = doc_id@revision` 掛載，重新載入時舊的 DraftSync 不會繼續送出舊內容。
+
+**網址 slug 欄位**：不走 DraftSync。欄位失焦時，值有變才先用 `slug.ts` 檢查格式，再 `PUT .../slug`；留空表示清除。409 時顯示「這個 slug 已被其他文章使用」與「改用 <suggestion>」按鈕。成功後顯示公開網址，並提醒下次更新網站後生效、舊網址會自動轉址。
 
 **發布按鈕**：`publish-checks.ts` 的警告（沒有 tag、圖片缺 alt、標題超過 60 字、`http://` 連結、原始 HTML、TODO、cover 不在文中）只要求確認，不擋發布。`urlProblems` 有問題時停用按鈕。發布走同一個 DraftSync 佇列，成功顯示「已發布第 N 版」並提醒到「網站發布」頁更新網站。
 

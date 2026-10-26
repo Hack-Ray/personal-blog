@@ -48,7 +48,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 - **CMS 只在你的電腦上。** 後端只綁定 `127.0.0.1`，以 scrypt 雜湊保存密碼，Session cookie 為 `HttpOnly`、`SameSite=Strict`，閒置 1 天或登入滿 3 天就要重新登入，也可以從介面登出所有裝置。同一個來源連續 5 次密碼錯誤後要等待，之後每錯一次等待時間加倍（最長 15 分鐘），其他來源不受影響。CMS 拒絕跨來源寫入與白名單以外的 Host，回應帶 CSP 等安全標頭。
 - **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。
 - **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。
-- **網址穩定。** 文章網址用不會改變的 ULID（`/posts/<docId>/`），改標題不會讓連結或 giscus 留言失效。
+- **網址穩定。** 文章網址預設是不會改變的 ULID（`/posts/<docId>/`），也可以在 CMS 設定英文 slug（`/posts/<slug>/`）。上線過的舊網址會留下轉址頁，giscus 留言一律綁 ULID，改標題或 slug 都不會讓連結或留言失效。
 - **讀者功能齊全。** 程式碼高亮（淺色與深色）、目錄、上一篇與下一篇、主題與標籤頁、站內搜尋、RSS、深淺色切換、Open Graph 與 giscus 留言。
 - **圖片自動處理。** 上傳的圖片依內容判斷格式，縮到最寬 1440px 並轉成 WebP，同時移除 EXIF（例如照片的 GPS 位置）。沒被引用超過 7 天的圖片會自動清除。
 - **內容與程式分開。** 內容在獨立的 private repo，有完整的 git 歷史；程式碼可以公開，也可以換掉整個前端而不動內容。
@@ -200,7 +200,7 @@ The backend and the frontend talk only through the Snapshot. `frontend/src/conte
 - **The CMS stays on your computer.** The backend binds only to `127.0.0.1` and stores the password as a scrypt hash. The session cookie is `HttpOnly` and `SameSite=Strict`; a session ends after a day idle or three days in total, and the CMS can sign out every device. After five wrong passwords, that client address must wait, and each further failure doubles the wait (up to 15 minutes) without locking out other addresses. Cross-origin writes and Host headers outside the allow list are refused, and responses carry a CSP and other security headers.
 - **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days.
 - **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it.
-- **Stable URLs.** Articles live at a fixed ULID (`/posts/<docId>/`), so changing a title breaks neither links nor giscus comments.
+- **Stable URLs.** Articles live at a fixed ULID (`/posts/<docId>/`) or at an English slug set in the CMS (`/posts/<slug>/`). Every URL that went live keeps a redirect page, and giscus comments stay keyed on the ULID, so changing a title or slug breaks neither links nor comments.
 - **Reader features.** Code highlighting in light and dark themes, a table of contents, previous and next links, topic and tag pages, site search, RSS, a theme toggle, Open Graph tags and giscus comments.
 - **Images handled for you.** Uploads are identified by their bytes, scaled to at most 1440px wide and re-encoded as WebP, which also strips EXIF data such as a photo's GPS location. Images nothing has referenced for 7 days are removed.
 - **Content separate from code.** Content sits in its own private repo with full git history. The code can be public, and the whole frontend could be replaced without touching the content.

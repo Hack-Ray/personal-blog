@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { article, content } from "../../test-fixtures/search.ts";
-import type { DocId } from "./model.ts";
+import type { DocId, Slug } from "./model.ts";
 import { buildSearchAssets } from "./search-assets.ts";
 import { buildIndex, prepareIndex, search, type SearchDoc } from "./search.ts";
 
@@ -72,6 +72,11 @@ test("assets use ordered Taipei years, stable hashes and prefixes of already nor
       assert.ok(doc.textKey.startsWith(prefix));
     }
   }
+});
+
+test("search metadata carries each article's path, so the browser links to its slug URL", () => {
+  const metadata = JSON.parse(buildSearchAssets(content(article("plain", 2026), article("slugged", 2025, { slug: "hello" as Slug }))).metadataJson);
+  assert.deepEqual(metadata.docs.map((d: { path: string }) => d.path), ["/posts/plain/", "/posts/hello/"]);
 });
 
 test("empty content exports no advertised placeholder or body asset", () => {

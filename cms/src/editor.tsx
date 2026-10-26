@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { statusLabel, unsavedReason } from "./editor-status.ts";
@@ -9,6 +9,7 @@ import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
 import { URL_POLICY, prePublishWarnings, urlProblems } from "./publish-checks.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
+import { onSlugBlur, publicPath, slugSaveFailed, type SlugStatus } from "./slug.ts";
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
@@ -16,6 +17,61 @@ function Field({ label, wide, children }: { label: string; wide?: boolean; child
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+// Saved on its own when the field loses focus, not through DraftSync: the slug
+// is not part of a Published Version and changes the URL without republishing.
+function SlugField({ docId, initial }: { docId: string; initial: string | null }) {
+  const id = useId();
+  const [saved, setSaved] = useState(initial);
+  const [text, setText] = useState(initial ?? "");
+  const [status, setStatus] = useState<SlugStatus>({ kind: "idle" });
+
+  const save = async (slug: string | null) => {
+    setText(slug ?? "");
+    setStatus({ kind: "saving" });
+    try {
+      setSaved((await api.setSlug(docId, slug)).slug);
+      setStatus({ kind: "saved" });
+    } catch (e) {
+      setStatus(slugSaveFailed(e));
+    }
+  };
+  const onBlur = () => {
+    const next = onSlugBlur(text, saved);
+    if (next.kind === "save") void save(next.slug);
+    else if (next.kind === "invalid") setStatus(next);
+  };
+
+  return (
+    <div className="field field-wide">
+      <span id={id}>網址 slug（英文小寫、數字、-；留空用文章 ID）</span>
+      <input
+        aria-labelledby={id}
+        value={text}
+        aria-invalid={status.kind === "invalid" || status.kind === "taken"}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={onBlur}
+      />
+      {status.kind === "idle" && <span className="hint">公開網址：{publicPath(docId, saved)}</span>}
+      {status.kind === "saving" && <span className="hint">儲存中…</span>}
+      {status.kind === "saved" && (
+        <span className="hint">
+          已儲存，公開網址：{publicPath(docId, saved)}。下次更新網站後生效，上線過的舊網址會自動轉址。
+        </span>
+      )}
+      {status.kind === "taken" && (
+        <span className="field-error">
+          這個 slug 已被其他文章使用。
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => void save(status.suggestion)}>
+            改用 {status.suggestion}
+          </button>
+        </span>
+      )}
+      {status.kind === "invalid" && <span className="field-error">{status.message}</span>}
+      {status.kind === "error" && <span className="field-error">slug 儲存失敗：{status.message}</span>}
+    </div>
   );
 }
 
@@ -219,6 +275,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
             onChange={(e) => update({ ...content, excerpt: e.target.value })}
           />
         </Field>
+        <SlugField docId={draft.doc_id} initial={draft.slug} />
       </div>
       {badUrls.length > 0 && (
         <p className="hint">

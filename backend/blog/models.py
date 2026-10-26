@@ -71,6 +71,8 @@ class Article(Base):
     # Pinned articles lead the home page, most recently pinned first. Not
     # versioned, so pinning needs no new Published Version.
     pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The public URL segment; None means the doc_id. Not versioned either.
+    slug: Mapped[str | None] = mapped_column(String(80), unique=True)
 
     draft: Mapped["WorkingDraft"] = relationship(back_populates="article", uselist=False, cascade="all, delete-orphan", passive_deletes=True)
 
@@ -117,6 +119,17 @@ class PublishedVersion(Base):
     topic: Mapped[Topic] = relationship()
     series: Mapped[Series | None] = relationship()
     tags: Mapped[list[Tag]] = relationship(secondary=published_version_tags, order_by=Tag.slug)
+
+
+class ArticleUrl(Base):
+    """A URL segment (a doc_id or a slug) an article has been exported under.
+    The site keeps a redirect there, so no other article may take it."""
+
+    __tablename__ = "article_urls"
+
+    segment: Mapped[str] = mapped_column(String(80), primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class RetiredDocId(Base):

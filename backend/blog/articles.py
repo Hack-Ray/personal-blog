@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -5,16 +6,21 @@ from enum import StrEnum
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
 
 from blog import images, url_policy
-from blog.models import Article, ArticleState, DraftSnapshot, PublishedVersion, RetiredDocId, Series, Tag, Topic, WorkingDraft
+from blog.models import Article, ArticleState, ArticleUrl, DraftSnapshot, PublishedVersion, RetiredDocId, Series, Tag, Topic, WorkingDraft
 
 PENDING_DELETION_RETENTION = timedelta(days=30)
 SNAPSHOT_INTERVAL = timedelta(minutes=10)
 SNAPSHOT_BIG_CHANGE = 500
 SNAPSHOT_LIMIT = 50
+SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+SLUG_MAX_LENGTH = 80
+# /posts/page/<n>/ is the article list.
+RESERVED_SLUGS = frozenset({"page"})
 
 
 @dataclass(frozen=True)
@@ -90,6 +96,17 @@ class NotPublishable(Exception):
 
 class SnapshotNotFound(Exception):
     pass
+
+
+class InvalidSlug(Exception):
+    pass
+
+
+class SlugTaken(Exception):
+    def __init__(self, slug: str, suggestion: str):
+        super().__init__(f"slug {slug} is used by another article")
+        self.slug = slug
+        self.suggestion = suggestion
 
 
 class InvalidTransition(Exception):
@@ -262,6 +279,66 @@ def set_pinned(session: Session, doc_id: str, pinned: bool) -> Article:
         article.pinned_at = func.now() if pinned else None
     session.commit()
     session.refresh(article)
+    return article
+
+
+def _check_slug(slug: str) -> None:
+    if len(slug) > SLUG_MAX_LENGTH or not SLUG.fullmatch(slug):
+        raise InvalidSlug(f"a slug is up to {SLUG_MAX_LENGTH} lowercase letters, digits and single hyphens")
+    if slug in RESERVED_SLUGS:
+        raise InvalidSlug(f"{slug} is reserved")
+
+
+def _taken(session: Session, slug: str, article_id: int) -> bool:
+    """Another article's current slug, or a URL another article was exported under."""
+    current = select(Article.id).where(Article.slug == slug, Article.id != article_id)
+    exported = select(ArticleUrl.article_id).where(ArticleUrl.segment == slug, ArticleUrl.article_id != article_id)
+    return session.scalar(select(current.exists() | exported.exists()))
+
+
+def _suggest(session: Session, slug: str, article_id: int) -> str:
+    n = 2
+    while True:
+        suffix = f"-{n}"
+        candidate = slug[: SLUG_MAX_LENGTH - len(suffix)].rstrip("-") + suffix
+        if not _taken(session, candidate, article_id):
+            return candidate
+        n += 1
+
+
+@dataclass(frozen=True)
+class SlugStatus:
+    available: bool
+    suggestion: str | None = None
+    reason: str | None = None
+
+
+def slug_status(session: Session, doc_id: str, slug: str) -> SlugStatus:
+    article = get_article(session, doc_id)
+    try:
+        _check_slug(slug)
+    except InvalidSlug as e:
+        return SlugStatus(False, reason=str(e))
+    if _taken(session, slug, article.id):
+        return SlugStatus(False, suggestion=_suggest(session, slug, article.id))
+    return SlugStatus(True)
+
+
+def set_slug(session: Session, doc_id: str, slug: str | None) -> Article:
+    """None returns the article to its doc_id URL. Takes effect on the site at
+    the next export, where every URL it was exported under becomes a redirect."""
+    article = _locked(session, doc_id, Action.EDIT)
+    if slug is not None and slug != article.slug:
+        _check_slug(slug)
+        if _taken(session, slug, article.id):
+            raise SlugTaken(slug, _suggest(session, slug, article.id))
+    article.slug = slug
+    try:
+        session.commit()
+    except IntegrityError:
+        # Another article took the slug after the check above.
+        session.rollback()
+        raise SlugTaken(slug, _suggest(session, slug, article.id)) from None
     return article
 
 

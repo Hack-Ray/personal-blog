@@ -4,6 +4,7 @@ import { type SearchDoc, prepareIndex, search } from "./search.ts";
 
 const doc = (docId: string, overrides: Partial<SearchDoc> = {}): SearchDoc => ({
   docId,
+  path: `/posts/${docId}/`,
   title: "",
   topic: "Backend",
   tags: [],

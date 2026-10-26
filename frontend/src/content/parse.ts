@@ -1,11 +1,15 @@
 import { Marked } from "marked";
 import { blockedUrls } from "./url-policy.ts";
-import type { DocId, Profile, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
+import type { ArticleUrls, DocId, Profile, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
+import { urlSegment } from "./queries.ts";
 
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MARKDOWN = new Marked();
 const URL_SCHEME = /^(https:\/\/|mailto:)\S+$/;
+const ARTICLE_SLUG_MAX_LENGTH = 80;
+// /posts/page/<n>/ is the article list.
+const RESERVED_ARTICLE_SLUGS = new Set(["page"]);
 
 const SCHEMA_VERSION = 1;
 
@@ -67,11 +71,32 @@ function parseTaxon(value: unknown, path: string): Taxon {
   return { slug: slug as Slug, name: string(o.name, `${path}.name`) };
 }
 
+function parseArticleSlug(value: unknown, path: string): Slug {
+  const slug = string(value, path);
+  if (!SLUG.test(slug) || slug.length > ARTICLE_SLUG_MAX_LENGTH) {
+    fail(path, `"${slug}" is not a lowercase kebab-case slug of up to ${ARTICLE_SLUG_MAX_LENGTH} characters`);
+  }
+  if (RESERVED_ARTICLE_SLUGS.has(slug)) fail(path, `"${slug}" is reserved`);
+  return slug as Slug;
+}
+
+const parseSegment = (value: unknown, path: string): string =>
+  typeof value === "string" && ULID.test(value) ? value : parseArticleSlug(value, path);
+
+function parseUrls(e: Record<string, unknown>, path: string): ArticleUrls {
+  return {
+    ...optional(e, "slug", path, parseArticleSlug),
+    ...(e.redirect_from === undefined
+      ? {}
+      : { redirectFrom: array(e.redirect_from, `${path}.redirect_from`).map((s, i) => parseSegment(s, `${path}.redirect_from[${i}]`)) }),
+  };
+}
+
 interface Manifest {
   releaseId: string;
   createdAt: Date;
-  articles: { docId: DocId; version: number }[];
-  archived: DocId[];
+  articles: ({ docId: DocId; version: number } & ArticleUrls)[];
+  archived: ({ docId: DocId } & ArticleUrls)[];
 }
 
 function parseManifest(value: unknown): Manifest {
@@ -83,15 +108,19 @@ function parseManifest(value: unknown): Manifest {
     releaseId: parseDocId(o.release_id, "manifest.release_id"),
     createdAt: date(o.created_at, "manifest.created_at"),
     articles: array(o.articles, "manifest.articles").map((a, i) => {
-      const e = record(a, `manifest.articles[${i}]`);
+      const path = `manifest.articles[${i}]`;
+      const e = record(a, path);
       return {
-        docId: parseDocId(e.doc_id, `manifest.articles[${i}].doc_id`),
-        version: positiveInt(e.version, `manifest.articles[${i}].version`),
+        docId: parseDocId(e.doc_id, `${path}.doc_id`),
+        version: positiveInt(e.version, `${path}.version`),
+        ...parseUrls(e, path),
       };
     }),
-    archived: array(o.archived_articles, "manifest.archived_articles").map((a, i) =>
-      parseDocId(record(a, `manifest.archived_articles[${i}]`).doc_id, `manifest.archived_articles[${i}].doc_id`),
-    ),
+    archived: array(o.archived_articles, "manifest.archived_articles").map((a, i) => {
+      const path = `manifest.archived_articles[${i}]`;
+      const e = record(a, path);
+      return { docId: parseDocId(e.doc_id, `${path}.doc_id`), ...parseUrls(e, path) };
+    }),
   };
 }
 
@@ -210,7 +239,7 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
     seen.add(docId);
   };
 
-  const articles: PublicArticle[] = manifest.articles.map(({ docId, version }) => {
+  const articles: PublicArticle[] = manifest.articles.map(({ docId, version, ...urls }) => {
     claim(docId);
     const path = `articles/${docId}.json`;
     const { version: fileVersion, ...article } = parseArticleFile(snapshot.readArticle(docId), path);
@@ -220,12 +249,20 @@ export function parseSnapshot(snapshot: Snapshot): SiteContent {
       if (!snapshot.hasImage(ref.slice("images/".length))) fail(path, `references missing image ${ref}`);
     }
     checkUrls(article.markdown, path);
-    return article;
+    return { ...article, ...urls };
   });
 
-  for (const docId of manifest.archived) {
+  for (const { docId, ...urls } of manifest.archived) {
     claim(docId);
-    articles.push({ state: "archived", docId });
+    articles.push({ state: "archived", docId, ...urls });
+  }
+  const owners = new Map<string, DocId>();
+  for (const a of articles) {
+    for (const segment of [urlSegment(a), ...(a.redirectFrom ?? [])]) {
+      const owner = owners.get(segment);
+      if (owner) fail("manifest", `/posts/${segment}/ is claimed by both ${owner} and ${a.docId}`);
+      owners.set(segment, a.docId);
+    }
   }
   const profile = snapshot.profile === undefined ? DEFAULT_PROFILE : parseProfile(snapshot.profile);
   for (const ref of imagePaths(profile.intro)) {

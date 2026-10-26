@@ -1,10 +1,11 @@
 import { absoluteUrl } from "../site.ts";
 import { coverOf, excerptOf } from "./card.ts";
 import type { Profile, PublishedArticle } from "./model.ts";
+import { postPath } from "./queries.ts";
 
 /** schema.org BlogPosting; the fields agree with the article page's openGraph. */
 export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" | "links">) {
-  const url = absoluteUrl(`/posts/${a.docId}/`);
+  const url = absoluteUrl(postPath(a));
   const cover = coverOf(a);
   // The profile's other accounts, so Google can tell this author from others with the same name.
   const sameAs = profile.links.map((l) => l.url).filter((u) => u.startsWith("https://"));

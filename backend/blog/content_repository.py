@@ -112,7 +112,7 @@ class GitHubRepository:
             return self._result(manifest, commit["sha"], parent)
 
     def _result(self, manifest: dict, commit: str, parent: str | None) -> exporter.ExportResult:
-        return exporter.ExportResult(manifest["release_id"], commit, {a["doc_id"]: a["version"] for a in manifest["articles"]}, parent, self.target)
+        return exporter.ExportResult.of(manifest, commit, parent, self.target)
 
     def publish(self, release: Release) -> None:
         if release.content_target != self.target:

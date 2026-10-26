@@ -5,7 +5,7 @@ import { loadSiteContent } from "./load.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { DocId, Slug } from "./model.ts";
 import { ContentError, DEFAULT_PROFILE, DEFAULT_SITE, parseSnapshot, type Snapshot } from "./parse.ts";
-import { archive, findArticle, inSeries, inTopic, neighbors, page, PAGE_SIZE, pinned, published, related, tags, taxonCounts, topics, withTag } from "./queries.ts";
+import { archive, findArticle, inSeries, inTopic, neighbors, page, PAGE_SIZE, pinned, postPath, postSegments, published, related, tags, taxonCounts, topics, withTag } from "./queries.ts";
 import { coverOf, excerptOf, thumbnailOf } from "./card.ts";
 import { sitemapEntries } from "./sitemap.ts";
 
@@ -199,8 +199,8 @@ test("published lists newest first and leaves out archived articles", () => {
     }),
   );
   assert.deepEqual(published(content).map((a) => a.docId), [C, A]);
-  assert.equal(findArticle(content, B as DocId)?.state, "archived");
-  assert.equal(findArticle(content, "01K7M4Y7P65BDCF8AHRTQY7ZQD" as DocId), undefined);
+  assert.equal(findArticle(content, B)?.article.state, "archived");
+  assert.equal(findArticle(content, "01K7M4Y7P65BDCF8AHRTQY7ZQD")?.article, undefined);
 });
 
 test("topics and tags come only from published articles", () => {
@@ -338,7 +338,7 @@ test("optional article fields are read when present and left out when absent", (
       },
     }),
   );
-  const [a, b] = [A, B].map((id) => findArticle(content, id as DocId));
+  const [a, b] = [A, B].map((id) => findArticle(content, id)?.article);
   assert.ok(a?.state === "published" && b?.state === "published");
   assert.equal(a.updatedAt?.toISOString(), "2026-10-05T00:00:00.000Z");
   assert.equal(a.pinnedAt?.toISOString(), "2026-10-06T00:00:00.000Z");
@@ -366,7 +366,7 @@ test("the author's excerpt and cover win over the ones derived from the Markdown
       },
     }),
   );
-  const [a, b] = [A, B].map((id) => findArticle(content, id as DocId));
+  const [a, b] = [A, B].map((id) => findArticle(content, id)?.article);
   assert.ok(a?.state === "published" && b?.state === "published");
   assert.deepEqual([excerptOf(a), coverOf(a)], ["Short", IMG]);
   assert.deepEqual([excerptOf(b), coverOf(b)], ["Opening text", "images/first.webp"]);
@@ -479,4 +479,54 @@ test("a disallowed URL fails the build", () => {
   assert.throws(() => parseSnapshot(snapshot({ files })), /articles\/.*\.json: URLs not allowed in articles: javascript:alert\(1\)/);
   const profile = profileFile({ intro: "![x](http://x.dev/a.png)" });
   assert.throws(() => parseSnapshot(snapshot({ profile })), /profile\.json: URLs not allowed in articles: http:\/\/x\.dev\/a\.png/);
+});
+
+test("an article with a slug lives at its slug and its earlier URLs redirect to it", () => {
+  const content = parseSnapshot(
+    snapshot({
+      files: { [A]: articleFile(A), [B]: articleFile(B) },
+      manifest: {
+        articles: [
+          { doc_id: A, version: 1, slug: "hello", redirect_from: [A, "old-hello"] },
+          { doc_id: B, version: 1 },
+        ],
+        archived_articles: [{ doc_id: C, slug: "gone", redirect_from: [C] }],
+      },
+    }),
+  );
+  const { article: a, redirect } = findArticle(content, "hello")!;
+  assert.equal(redirect, false);
+  assert.equal(postPath(a), "/posts/hello/");
+  assert.equal(postPath(findArticle(content, B)!.article), `/posts/${B}/`);
+  assert.deepEqual(findArticle(content, A), { article: a, redirect: true });
+  assert.equal(findArticle(content, "old-hello")?.redirect, true);
+  assert.equal(findArticle(content, "gone")?.article.state, "archived");
+  assert.equal(findArticle(content, C)?.redirect, true);
+  assert.deepEqual(postSegments(content).sort(), [A, B, C, "gone", "hello", "old-hello"].sort());
+  assert.deepEqual(sitemapEntries(content).filter((e) => e.path.startsWith("/posts/") && !e.path.startsWith("/posts/page/")).map((e) => e.path).sort(), [
+    "/posts/",
+    `/posts/${B}/`,
+    "/posts/hello/",
+  ].sort());
+});
+
+test("an article without a slug or earlier URL has no redirect pages", () => {
+  const content = parseSnapshot(snapshot({ files: { [A]: articleFile(A) } }));
+  const a = content.articles[0]!;
+  assert.ok(!("slug" in a) && !("redirectFrom" in a));
+  assert.deepEqual(postSegments(content), [A]);
+});
+
+test("rejects a malformed or reserved slug and a URL two articles claim", () => {
+  const bad = (articles: Record<string, unknown>[], archived: Record<string, unknown>[] = []) => () =>
+    parseSnapshot(snapshot({ files: { [A]: articleFile(A), [B]: articleFile(B) }, manifest: { articles, archived_articles: archived } }));
+  const b = { doc_id: B, version: 1 };
+  assert.throws(bad([{ doc_id: A, version: 1, slug: "Hello" }, b]), /manifest\.articles\[0\]\.slug: "Hello" is not a lowercase kebab-case slug/);
+  assert.throws(bad([{ doc_id: A, version: 1, slug: "a".repeat(81) }, b]), /\.slug: .* up to 80 characters/);
+  assert.throws(bad([{ doc_id: A, version: 1, slug: "page" }, b]), /\.slug: "page" is reserved/);
+  assert.throws(bad([{ doc_id: A, version: 1, redirect_from: ["Not A Slug"] }, b]), /\.redirect_from\[0\]/);
+  assert.throws(bad([{ doc_id: A, version: 1, slug: "x" }, { ...b, slug: "x" }]), /\/posts\/x\/ is claimed by both/);
+  assert.throws(bad([{ doc_id: A, version: 1, slug: "x" }, { ...b, redirect_from: ["x"] }]), /\/posts\/x\/ is claimed by both/);
+  assert.throws(bad([{ doc_id: A, version: 1 }, { ...b, redirect_from: [A] }]), new RegExp(`/posts/${A}/ is claimed by both`));
+  assert.throws(bad([{ doc_id: A, version: 1 }, b], [{ doc_id: C, redirect_from: ["page"] }]), /archived_articles\[0\]\.redirect_from\[0\]: "page" is reserved/);
 });

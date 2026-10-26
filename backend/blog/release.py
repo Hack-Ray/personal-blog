@@ -16,13 +16,14 @@ from pathlib import Path
 from typing import Protocol
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from blog import config, exporter, retention
 from blog.content_repository import GitHubRepository
 from blog.db import advisory_lock
 from blog.github import GitHubClient, GitHubError, client_from_settings
-from blog.models import Article, Release, ReleaseArticle, ReleaseStatus
+from blog.models import Article, ArticleUrl, Release, ReleaseArticle, ReleaseStatus
 
 R = ReleaseStatus
 TERMINAL = frozenset({R.DEPLOYED, R.SUPERSEDED, R.FAILED})
@@ -276,8 +277,20 @@ def record_export(session: Session, result: exporter.ExportResult, deployer: Dep
         deployment_target=getattr(deployer, "target", None),
     )
     session.add(release)
-    for doc_id, article_id in session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions))):
-        session.add(ReleaseArticle(release_id=release.id, article_id=article_id, version=result.versions[doc_id]))
+    ids = dict(session.execute(select(Article.doc_id, Article.id).where(Article.doc_id.in_(result.versions.keys() | result.segments.keys()))).all())
+    for doc_id, version in result.versions.items():
+        if doc_id in ids:
+            session.add(ReleaseArticle(release_id=release.id, article_id=ids[doc_id], version=version))
+    # Recorded even if this release never deploys; that only costs a redirect.
+    # A slug moved to another article while this export ran stays with that article.
+    owners = dict(session.execute(select(Article.slug, Article.id).where(Article.slug.in_(result.segments.values()))).all())
+    urls = [
+        {"segment": segment, "article_id": ids[doc_id]}
+        for doc_id, segment in result.segments.items()
+        if doc_id in ids and owners.get(segment, ids[doc_id]) == ids[doc_id]
+    ]
+    if urls:
+        session.execute(insert(ArticleUrl).values(urls).on_conflict_do_nothing())
     return release
 
 

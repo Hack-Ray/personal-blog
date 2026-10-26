@@ -1,9 +1,10 @@
 import type { SiteContent } from "./model.ts";
-import { published } from "./queries.ts";
+import { postPath, published } from "./queries.ts";
 import { plainText } from "./summary.ts";
 
 export interface SearchMetadata {
   docId: string;
+  path: string;
   title: string;
   topic: string;
   tags: string[];
@@ -40,6 +41,7 @@ const distinctPhrases = (text: string) => [...new Set(text.split(PHRASE_BREAK).f
 export function buildIndex(content: SiteContent): SearchDoc[] {
   return published(content).map((a) => ({
     docId: a.docId,
+    path: postPath(a),
     title: a.title,
     topic: a.topic.name,
     tags: a.tags.map((t) => t.name),

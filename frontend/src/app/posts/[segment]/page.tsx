@@ -4,8 +4,7 @@ import { notFound } from "next/navigation";
 import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
-import type { DocId } from "../../../content/model.ts";
-import { findArticle, inSeries, neighbors, related } from "../../../content/queries.ts";
+import { findArticle, inSeries, neighbors, postPath, postSegments, related } from "../../../content/queries.ts";
 import { jsonLd, blogPosting } from "../../../content/structured-data.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { coverOf, excerptOf } from "../../../content/card.ts";
@@ -17,27 +16,26 @@ import { ArticleToc } from "./article-toc.tsx";
 import { Comments } from "./comments.tsx";
 import { ReadingProgress } from "./reading-progress.tsx";
 
-type Props = { params: Promise<{ docId: string }> };
+type Props = { params: Promise<{ segment: string }> };
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return staticParams(
-    "docId",
-    loadSiteContent().articles.map((a) => a.docId),
-  );
+  return staticParams("segment", postSegments(loadSiteContent()));
 }
 
-async function article(params: Props["params"]) {
-  const found = findArticle(loadSiteContent(), (await params).docId as DocId);
+async function find(params: Props["params"]) {
+  const found = findArticle(loadSiteContent(), (await params).segment);
   if (!found) notFound();
   return found;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const a = await article(params);
-  if (a.state === "archived") return { title: "文章已封存", robots: { index: false } };
-  const url = absoluteUrl(`/posts/${a.docId}/`);
+  const { article: a, redirect } = await find(params);
+  const title = a.state === "archived" ? "文章已封存" : a.title;
+  if (redirect) return { title, robots: { index: false }, alternates: { canonical: absoluteUrl(postPath(a)) } };
+  if (a.state === "archived") return { title, robots: { index: false } };
+  const url = absoluteUrl(postPath(a));
   const image = coverOf(a);
   const images = image ? [absoluteUrl(`/${image}`)] : undefined;
   return {
@@ -60,7 +58,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PostPage({ params }: Props) {
-  const a = await article(params);
+  const { article: a, redirect } = await find(params);
+  // GitHub Pages cannot send a redirect status, so an earlier URL is a page that refreshes to the current one.
+  if (redirect) {
+    return (
+      <>
+        <meta httpEquiv="refresh" content={`0; url=${BASE_PATH}${postPath(a)}`} />
+        <h1>文章已搬到新網址</h1>
+        <p>
+          <Link href={postPath(a)}>前往文章</Link>
+        </p>
+      </>
+    );
+  }
   if (a.state === "archived") {
     return (
       <>
@@ -96,7 +106,7 @@ export default async function PostPage({ params }: Props) {
                 {s.docId === a.docId ? (
                   <span aria-current="page">{s.title}</span>
                 ) : (
-                  <Link href={`/posts/${s.docId}/`}>{s.title}</Link>
+                  <Link href={postPath(s)}>{s.title}</Link>
                 )}
               </li>
             ))}
@@ -111,7 +121,7 @@ export default async function PostPage({ params }: Props) {
           <ul>
             {relatedArticles.map((r) => (
               <li key={r.docId}>
-                <Link href={`/posts/${r.docId}/`}>{r.title}</Link>
+                <Link href={postPath(r)}>{r.title}</Link>
               </li>
             ))}
           </ul>
@@ -120,13 +130,13 @@ export default async function PostPage({ params }: Props) {
       {(newer || older) && (
         <nav className="post-nav" aria-label="上下篇文章">
           {older && (
-            <Link href={`/posts/${older.docId}/`} rel="prev">
+            <Link href={postPath(older)} rel="prev">
               <span className="meta">← 較舊</span>
               {older.title}
             </Link>
           )}
           {newer && (
-            <Link href={`/posts/${newer.docId}/`} rel="next" className="next">
+            <Link href={postPath(newer)} rel="next" className="next">
               <span className="meta">較新 →</span>
               {newer.title}
             </Link>
