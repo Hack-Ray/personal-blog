@@ -58,7 +58,7 @@ function SlugField({ docId, initial }: { docId: string; initial: string | null }
       {status.kind === "saving" && <span className="hint">儲存中…</span>}
       {status.kind === "saved" && (
         <span className="hint">
-          已儲存，公開網址：{publicPath(docId, saved)}。下次更新網站後生效，舊網址會自動轉址。
+          已儲存，公開網址：{publicPath(docId, saved)}。下次更新網站後生效，上線過的舊網址會自動轉址。
         </span>
       )}
       {status.kind === "taken" && (
