@@ -169,11 +169,13 @@ class DraftOut(BaseModel):
     cover: str | None
     series: TaxonBody | None
     updated_at: datetime
+    slug: str | None
 
     @classmethod
     def of(cls, d: WorkingDraft) -> "DraftOut":
         return cls(
             doc_id=d.article.doc_id,
+            slug=d.article.slug,
             state=d.article.state,
             revision=d.revision,
             title=d.title,
@@ -199,6 +201,7 @@ class ArticleOut(BaseModel):
     state: ArticleState
     title: str
     pinned: bool
+    slug: str | None
     deleted_at: datetime | None
     purge_after: datetime | None
 
@@ -206,6 +209,7 @@ class ArticleOut(BaseModel):
     def of(cls, a: Article) -> "ArticleOut":
         return cls(
             doc_id=a.doc_id,
+            slug=a.slug,
             state=a.state,
             title=a.draft.title,
             pinned=a.pinned_at is not None,
@@ -321,6 +325,35 @@ class PinnedBody(BaseModel):
 @app.put("/api/articles/{doc_id}/pinned")
 def set_pinned(doc_id: str, body: PinnedBody, session: SessionDep) -> ArticleOut:
     return ArticleOut.of(articles.set_pinned(session, doc_id, body.pinned))
+
+
+class SlugBody(BaseModel):
+    slug: str | None
+
+
+@app.exception_handler(articles.SlugTaken)
+def _slug_taken(_, exc: articles.SlugTaken) -> JSONResponse:
+    return JSONResponse({"detail": str(exc), "suggestion": exc.suggestion}, status_code=status.HTTP_409_CONFLICT)
+
+
+@app.put("/api/articles/{doc_id}/slug")
+def set_slug(doc_id: str, body: SlugBody, session: SessionDep) -> ArticleOut:
+    try:
+        return ArticleOut.of(articles.set_slug(session, doc_id, body.slug))
+    except articles.InvalidSlug as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+
+
+class SlugStatusOut(BaseModel):
+    available: bool
+    suggestion: str | None = None
+    reason: str | None = None
+
+
+@app.get("/api/slugs/{slug}", response_model_exclude_none=True)
+def check_slug(slug: str, doc_id: str, session: SessionDep) -> SlugStatusOut:
+    """Whether the article `doc_id` may take `slug`; PUT .../slug checks again."""
+    return SlugStatusOut(**vars(articles.slug_status(session, doc_id, slug)))
 
 
 @app.post("/api/articles/{doc_id}/archive")
