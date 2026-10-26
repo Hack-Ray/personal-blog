@@ -4,7 +4,7 @@ export function shareLinks(url: string, title: string): { name: string; href: st
   const t = encodeURIComponent(title);
   return [
     { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${u}` },
-    { name: "X", href: `https://x.com/intent/post?url=${u}&text=${t}` },
+    { name: "X", href: `https://x.com/intent/tweet?url=${u}&text=${t}` },
     { name: "Threads", href: `https://www.threads.com/intent/post?url=${u}&text=${t}` },
     { name: "LINE", href: `https://social-plugins.line.me/lineit/share?url=${u}` },
   ];
