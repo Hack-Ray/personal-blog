@@ -18,24 +18,17 @@ const ICONS: Record<string, string> = {
 type Copy = "idle" | "copied" | "failed";
 const COPY_LABEL: Record<Copy, string> = { idle: "複製連結", copied: "已複製", failed: "複製失敗" };
 
-/**
- * On phones the Facebook app claims facebook.com links and drops the sharer's
- * URL, so a touch device with the Web Share API opens the system share sheet instead.
- */
-const shareSheet = (e: MouseEvent<HTMLAnchorElement>, url: string, title: string) => {
-  if (!navigator.share || !matchMedia("(pointer: coarse)").matches) return;
-  e.preventDefault();
-  const sharer = e.currentTarget.href;
-  navigator.share({ url, title }).catch((err) => {
-    if (err.name !== "AbortError") open(sharer, "_blank", "noopener");
-  });
-};
+/** Phones get the system share sheet; a desktop's own share menu is easy to miss, so it keeps copy. */
+type Extra = "sheet" | "copy" | "none";
+
+const pickExtra = (): Extra =>
+  "share" in navigator && matchMedia("(pointer: coarse)").matches ? "sheet" : navigator.clipboard ? "copy" : "none";
 
 export function Share({ url, title }: { url: string; title: string }) {
-  const [canCopy, setCanCopy] = useState(false);
+  const [extra, setExtra] = useState<Extra>("none");
   const [copy, setCopy] = useState<Copy>("idle");
 
-  useEffect(() => setCanCopy(Boolean(navigator.clipboard)), []);
+  useEffect(() => setExtra(pickExtra()), []);
 
   const onCopy = async () => {
     try {
@@ -45,6 +38,17 @@ export function Share({ url, title }: { url: string; title: string }) {
       setCopy("failed");
     }
     setTimeout(() => setCopy("idle"), COPIED_MS);
+  };
+
+  // On phones the Facebook app claims facebook.com links and drops the sharer's URL,
+  // so the Facebook button opens the share sheet there too.
+  const onFacebook = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (extra !== "sheet") return;
+    e.preventDefault();
+    const sharer = e.currentTarget.href;
+    navigator.share({ url, title }).catch((err) => {
+      if (err.name !== "AbortError") open(sharer, "_blank", "noopener");
+    });
   };
 
   return (
@@ -58,14 +62,28 @@ export function Share({ url, title }: { url: string; title: string }) {
           rel="noopener noreferrer"
           aria-label={`分享到 ${l.name}`}
           title={l.name}
-          onClick={l.name === "Facebook" ? (e) => shareSheet(e, url, title) : undefined}
+          onClick={l.name === "Facebook" ? onFacebook : undefined}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d={ICONS[l.name]} />
           </svg>
         </a>
       ))}
-      {canCopy && (
+      {extra === "sheet" && (
+        <button
+          type="button"
+          onClick={() => navigator.share({ url, title }).catch(() => {})}
+          aria-label="更多分享方式"
+          title="更多分享方式"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="stroke">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+            <path d="m16 6-4-4-4 4" />
+            <path d="M12 2v13" />
+          </svg>
+        </button>
+      )}
+      {extra === "copy" && (
         <button type="button" onClick={onCopy} aria-label={COPY_LABEL[copy]} title={COPY_LABEL[copy]}>
           <svg viewBox="0 0 24 24" aria-hidden="true" className="stroke">
             {copy === "copied" ? (
