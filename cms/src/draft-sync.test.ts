@@ -30,7 +30,7 @@ function fakeServer() {
       check(base);
       stored = c;
       revision += 1;
-      return { ...c, doc_id: "D", state: "draft", revision, updated_at: "" };
+      return { ...c, doc_id: "D", slug: null, state: "draft", revision, updated_at: "" };
     },
     async publish(_docId, base, c) {
       calls.push(`publish@${base}:${c.markdown}`);
@@ -47,7 +47,7 @@ function fakeServer() {
       check(base);
       stored = { ...stored, markdown: `snapshot ${snapshotId}` };
       revision += 1;
-      return { ...stored, doc_id: "D", state: "draft", revision, updated_at: "" };
+      return { ...stored, doc_id: "D", slug: null, state: "draft", revision, updated_at: "" };
     },
   };
   const tick = () => new Promise((r) => setImmediate(r));

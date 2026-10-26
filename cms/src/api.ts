@@ -21,6 +21,8 @@ export const EMPTY_METADATA = { excerpt: "", cover: null, series: null } satisfi
 
 export interface Draft extends DraftContent {
   doc_id: string;
+  /** The public URL segment; null means the doc_id. Saved on its own, not with the draft. */
+  slug: string | null;
   state: ArticleState;
   revision: number;
   updated_at: string;
@@ -31,6 +33,7 @@ export interface ArticleSummary {
   state: ArticleState;
   title: string;
   pinned: boolean;
+  slug: string | null;
   deleted_at: string | null;
   purge_after: string | null;
 }
@@ -143,11 +146,13 @@ export interface AnalyticsReport {
   top_pages: SearchItem[];
 }
 
+type ErrorBody = { detail?: unknown; current_revision?: number; suggestion?: string };
+
 export class ApiError extends Error {
   readonly status: number;
-  readonly body: { detail?: unknown; current_revision?: number };
+  readonly body: ErrorBody;
 
-  constructor(status: number, body: { detail?: unknown; current_revision?: number }) {
+  constructor(status: number, body: ErrorBody) {
     super(typeof body.detail === "string" ? body.detail : `HTTP ${status}`);
     this.status = status;
     this.body = body;
@@ -181,6 +186,7 @@ export const api = {
     request<Draft>("PUT", `/articles/${docId}/draft`, { ...content, base_revision: baseRevision }),
   publish: (docId: string, baseRevision: number, content: DraftContent) =>
     request<Published>("POST", `/articles/${docId}/publish`, { ...content, base_revision: baseRevision }),
+  setSlug: (docId: string, slug: string | null) => request<ArticleSummary>("PUT", `/articles/${docId}/slug`, { slug }),
   setPinned: (docId: string, pinned: boolean) => request<ArticleSummary>("PUT", `/articles/${docId}/pinned`, { pinned }),
   archive: (docId: string) => request<ArticleSummary>("POST", `/articles/${docId}/archive`),
   remove: (docId: string) => request<ArticleSummary>("DELETE", `/articles/${docId}`),
