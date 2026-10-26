@@ -513,15 +513,40 @@ pre {
 
 .share a,
 .share button {
-  padding: 4px 12px;
-  font: inherit;
-  font-size: 0.9em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  text-decoration: none;
+  border-radius: 50%;
   cursor: pointer;
+}
+
+.share svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.share svg.stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.share-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .share a:hover,

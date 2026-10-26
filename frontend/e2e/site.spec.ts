@@ -177,10 +177,26 @@ test("a post offers share links to its slug URL and copies it", async ({ page, c
   await page.goto("posts/nextjs-static-export/");
   const share = page.getByRole("region", { name: "分享這篇文章" });
   const url = "https://example.com/personal-blog/posts/nextjs-static-export/";
-  const facebook = await share.getByRole("link", { name: "Facebook" }).getAttribute("href");
+  const facebook = await share.getByRole("link", { name: "分享到 Facebook" }).getAttribute("href");
   expect(new URL(facebook!).searchParams.get("u")).toBe(url);
-  await expect(share.getByRole("link", { name: "LINE" })).toHaveAttribute("target", "_blank");
+  await expect(share.getByRole("link", { name: "分享到 LINE" })).toHaveAttribute("target", "_blank");
   await share.getByRole("button", { name: "複製連結" }).click();
   await expect(share.getByRole("button", { name: "已複製" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test("the Facebook button opens the system share sheet instead of the app", async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { shared?: ShareData };
+      navigator.share = async (data) => void (w.shared = data);
+    });
+    await page.goto("posts/nextjs-static-export/");
+    await page.getByRole("link", { name: "分享到 Facebook" }).click();
+    const shared = await page.evaluate(() => (window as unknown as { shared?: ShareData }).shared);
+    expect(shared?.url).toBe("https://example.com/personal-blog/posts/nextjs-static-export/");
+    expect(page.context().pages()).toHaveLength(1);
+  });
 });
