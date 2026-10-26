@@ -199,4 +199,17 @@ test.describe("on a touch screen", () => {
     expect(shared?.url).toBe("https://example.com/personal-blog/posts/nextjs-static-export/");
     expect(page.context().pages()).toHaveLength(1);
   });
+
+  test("the last button opens the share sheet instead of copying", async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { shared?: ShareData };
+      navigator.share = async (data) => void (w.shared = data);
+    });
+    await page.goto("posts/nextjs-static-export/");
+    const share = page.getByRole("region", { name: "分享這篇文章" });
+    await expect(share.getByRole("button", { name: "複製連結" })).toHaveCount(0);
+    await share.getByRole("button", { name: "更多分享方式" }).click();
+    const shared = await page.evaluate(() => (window as unknown as { shared?: ShareData }).shared);
+    expect(shared).toEqual({ url: "https://example.com/personal-blog/posts/nextjs-static-export/", title: "Next.js Static Export 部署到 GitHub Pages" });
+  });
 });
