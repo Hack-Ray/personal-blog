@@ -1,5 +1,5 @@
 import type { SiteContent } from "./model.ts";
-import { page, published, tags, topics } from "./queries.ts";
+import { page, postPath, published, tags, topics } from "./queries.ts";
 
 export interface SitemapEntry {
   path: string;
@@ -18,7 +18,7 @@ export function sitemapEntries(content: SiteContent): SitemapEntry[] {
     { path: "/about/" },
     { path: "/topics/" },
     { path: "/tags/" },
-    ...posts.map((a) => ({ path: `/posts/${a.docId}/`, lastModified: a.updatedAt ?? a.publishedAt })),
+    ...posts.map((a) => ({ path: postPath(a), lastModified: a.updatedAt ?? a.publishedAt })),
     ...topics(content).map((t) => ({ path: `/topics/${t.slug}/` })),
     ...tags(content).map((t) => ({ path: `/tags/${t.slug}/` })),
   ];

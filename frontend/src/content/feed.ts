@@ -1,5 +1,5 @@
 import type { SiteContent } from "./model.ts";
-import { published } from "./queries.ts";
+import { postPath, published } from "./queries.ts";
 import { excerptOf } from "./card.ts";
 
 const LIMIT = 20;
@@ -12,7 +12,7 @@ export function buildFeed(content: SiteContent, url: (path: string) => string): 
   const posts = published(content).slice(0, LIMIT);
   const { site } = content.profile;
   const items = posts.map((a) => {
-    const link = escapeXml(url(`/posts/${a.docId}/`));
+    const link = escapeXml(url(postPath(a)));
     return [
       "    <item>",
       `      <title>${escapeXml(a.title)}</title>`,

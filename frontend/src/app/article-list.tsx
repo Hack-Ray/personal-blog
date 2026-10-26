@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublishedArticle } from "../content/model.ts";
 import { coverOf, excerptOf, thumbnailOf } from "../content/card.ts";
+import { postPath } from "../content/queries.ts";
 import { BASE_PATH, TIME_ZONE } from "../site.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: TIME_ZONE });
@@ -46,7 +47,7 @@ export function ArticleList({ articles, showPinned = false }: { articles: Publis
           <li key={a.docId} className="article-card">
             <div>
               {showPinned && a.pinnedAt && <span className="pin-badge">置頂</span>}
-              <Link href={`/posts/${a.docId}/`} className="post-link">
+              <Link href={postPath(a)} className="post-link">
                 {a.title}
               </Link>
               <ArticleMeta article={a} />

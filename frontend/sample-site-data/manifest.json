@@ -9,7 +9,11 @@
     },
     {
       "doc_id": "01K7P2B9X3QW8N5R7TZ4HJMVCD",
-      "version": 1
+      "version": 1,
+      "slug": "nextjs-static-export",
+      "redirect_from": [
+        "01K7P2B9X3QW8N5R7TZ4HJMVCD"
+      ]
     },
     {
       "doc_id": "01K7R6F2M8KD4S9V1YCX3BNQWE",

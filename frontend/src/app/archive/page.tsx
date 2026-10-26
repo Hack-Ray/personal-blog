@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { loadSiteContent } from "../../content/load.ts";
-import { type Archive, archive, published } from "../../content/queries.ts";
+import { type Archive, archive, postPath, published } from "../../content/queries.ts";
 import { absoluteUrl, TIME_ZONE } from "../../site.ts";
 import { SortableList } from "./sortable-list.tsx";
 
@@ -22,7 +22,7 @@ function Years({ years }: { years: Archive }) {
                 <time className="meta" dateTime={a.publishedAt.toISOString()}>
                   {dayFormat.format(a.publishedAt)}
                 </time>
-                <Link href={`/posts/${a.docId}/`}>{a.title}</Link>
+                <Link href={postPath(a)}>{a.title}</Link>
               </li>
             ))}
           </ul>

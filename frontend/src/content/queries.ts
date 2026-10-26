@@ -1,4 +1,9 @@
-import type { DocId, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
+import type { ArticleUrls, DocId, PublicArticle, PublishedArticle, SiteContent, Slug, Taxon } from "./model.ts";
+
+export const urlSegment = (a: ArticleUrls & { docId: DocId }): string => a.slug ?? a.docId;
+
+/** The site path of an article, such as "/posts/X/". */
+export const postPath = (a: ArticleUrls & { docId: DocId }): string => `/posts/${urlSegment(a)}/`;
 
 export function published(content: SiteContent): PublishedArticle[] {
   return content.articles
@@ -14,9 +19,17 @@ export function neighbors(content: SiteContent, docId: DocId): { newer?: Publish
   return { newer: list[i - 1], older: list[i + 1] };
 }
 
-export function findArticle(content: SiteContent, docId: DocId): PublicArticle | undefined {
-  return content.articles.find((a) => a.docId === docId);
+/** The article served at /posts/<segment>/, and whether the segment is an earlier URL that redirects to it. */
+export function findArticle(content: SiteContent, segment: string): { article: PublicArticle; redirect: boolean } | undefined {
+  for (const article of content.articles) {
+    if (urlSegment(article) === segment) return { article, redirect: false };
+    if (article.redirectFrom?.includes(segment)) return { article, redirect: true };
+  }
 }
+
+/** Every /posts/<segment>/ page: each article's own URL and the earlier URLs that redirect to it. */
+export const postSegments = (content: SiteContent): string[] =>
+  content.articles.flatMap((a) => [urlSegment(a), ...(a.redirectFrom ?? [])]);
 
 function uniqueBySlug(taxa: Taxon[]): Taxon[] {
   return [...new Map(taxa.map((t) => [t.slug, t])).values()].sort((a, b) => a.name.localeCompare(b.name));

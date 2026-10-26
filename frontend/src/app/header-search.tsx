@@ -77,7 +77,7 @@ export function HeaderSearch() {
             <ul>
               {hits.slice(0, PREVIEW_LIMIT).map(({ doc }) => (
                 <li key={doc.docId}>
-                  <Link href={`/posts/${doc.docId}/`}>{doc.title}</Link>
+                  <Link href={doc.path}>{doc.title}</Link>
                   <span className="meta">
                     {doc.topic}
                     {doc.tags.map((t) => ` · #${t}`).join("")}

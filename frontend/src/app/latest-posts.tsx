@@ -7,7 +7,7 @@ import { BASE_PATH } from "../site.ts";
 // Every page's payload carries the 404 page, so it fetches the latest posts
 // at runtime instead of embedding them.
 export function LatestPosts() {
-  const [docs, setDocs] = useState<{ docId: string; title: string }[]>([]);
+  const [docs, setDocs] = useState<{ docId: string; path: string; title: string }[]>([]);
   useEffect(() => {
     fetch(`${BASE_PATH}/latest-posts.json`)
       .then((r) => (r.ok ? r.json() : []))
@@ -20,7 +20,7 @@ export function LatestPosts() {
       <ul>
         {docs.map((d) => (
           <li key={d.docId}>
-            <Link href={`/posts/${d.docId}/`}>{d.title}</Link>
+            <Link href={d.path}>{d.title}</Link>
           </li>
         ))}
       </ul>

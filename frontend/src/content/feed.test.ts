@@ -81,3 +81,9 @@ test("feed GUIDs survive a change of domain and basePath", () => {
   assert.equal(a.match(/<guid[^>]*>.*<\/guid>/)?.[0], b.match(/<guid[^>]*>.*<\/guid>/)?.[0]);
   assert.ok(b.includes("https://new.example/posts/"));
 });
+
+test("an item links to the article's slug URL and keeps its docId guid", () => {
+  const xml = buildFeed(site(post(1, { slug: "hello" as Slug })), url);
+  assert.match(xml, /<link>https:\/\/example\.com\/blog\/posts\/hello\/<\/link>/);
+  assert.match(xml, /<guid isPermaLink="false">urn:ulid:01K7M4Y7P65BDCF8AHRTQY7Z01<\/guid>/);
+});

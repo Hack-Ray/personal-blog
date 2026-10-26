@@ -6,7 +6,14 @@ export interface Taxon {
   name: string;
 }
 
-export interface PublishedArticle {
+export interface ArticleUrls {
+  /** The URL segment under /posts/; when absent, the docId. */
+  slug?: Slug;
+  /** Earlier URL segments (docIds or slugs) the site redirects to this article. */
+  redirectFrom?: string[];
+}
+
+export interface PublishedArticle extends ArticleUrls {
   state: "published";
   docId: DocId;
   title: string;
@@ -24,7 +31,7 @@ export interface PublishedArticle {
   pinnedAt?: Date;
 }
 
-export interface ArchivedArticle {
+export interface ArchivedArticle extends ArticleUrls {
   state: "archived";
   docId: DocId;
 }

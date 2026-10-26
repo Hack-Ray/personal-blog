@@ -26,6 +26,18 @@ test("a header search result opens its post when tapped", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(FASTAPI_POST));
 });
 
+test("an earlier URL of a post redirects to its slug URL", async ({ page }) => {
+  await page.goto("posts/01K7P2B9X3QW8N5R7TZ4HJMVCD/");
+  await expect(page).toHaveURL(/\/personal-blog\/posts\/nextjs-static-export\/$/);
+  await expect(page.locator("h1")).toHaveText("Next.js Static Export 部署到 GitHub Pages");
+});
+
+test("a search result links to the post's slug URL", async ({ page }) => {
+  await page.goto("search/?q=GitHub%20Pages");
+  await page.getByRole("link", { name: "Next.js Static Export 部署到 GitHub Pages" }).click();
+  await expect(page).toHaveURL(/\/posts\/nextjs-static-export\/$/);
+});
+
 test("the header search preview closes on a tap outside it", async ({ page }) => {
   await page.goto("");
   const box = page.getByRole("searchbox", { name: "搜尋文章" }).first();

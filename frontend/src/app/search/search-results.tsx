@@ -30,7 +30,7 @@ export function SearchResults() {
       <ul className="article-list">
         {hits.map(({ doc }) => (
           <li key={doc.docId}>
-            <Link href={`/posts/${doc.docId}/`}>{doc.title}</Link>
+            <Link href={doc.path}>{doc.title}</Link>
             <p className="meta">
               {dateFormat.format(new Date(doc.publishedAt))} · {doc.topic}
               {doc.tags.map((t) => ` · #${t}`).join("")}
