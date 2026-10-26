@@ -15,6 +15,7 @@ import { ArticleBody } from "../../article-body.tsx";
 import { ArticleToc } from "./article-toc.tsx";
 import { Comments } from "./comments.tsx";
 import { ReadingProgress } from "./reading-progress.tsx";
+import { Share } from "./share.tsx";
 
 type Props = { params: Promise<{ segment: string }> };
 
@@ -143,6 +144,7 @@ export default async function PostPage({ params }: Props) {
           )}
         </nav>
       )}
+      <Share url={absoluteUrl(postPath(a))} title={a.title} />
       <Comments docId={a.docId} />
     </article>
   );
