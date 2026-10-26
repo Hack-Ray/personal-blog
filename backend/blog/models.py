@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Column, Date, DateTime, Double, Enum, ForeignKey, Integer, LargeBinary, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -263,3 +263,42 @@ class ReleaseJob(Base):
     detail: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TrafficDay(Base):
+    """One UTC day of requests through Cloudflare, the site's CDN proxy."""
+
+    __tablename__ = "traffic_days"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    requests: Mapped[int] = mapped_column(BigInteger)
+    cached_requests: Mapped[int] = mapped_column(BigInteger)
+    bytes: Mapped[int] = mapped_column(BigInteger)
+    cached_bytes: Mapped[int] = mapped_column(BigInteger)
+    page_views: Mapped[int] = mapped_column(BigInteger)
+    visitors: Mapped[int] = mapped_column(BigInteger)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SearchDay(Base):
+    """One day of Google Search results: the day's total (key ''), or one query or page."""
+
+    __tablename__ = "search_days"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    dimension: Mapped[str] = mapped_column(Text, primary_key=True)
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    clicks: Mapped[int] = mapped_column(Integer)
+    impressions: Mapped[int] = mapped_column(Integer)
+    position: Mapped[float] = mapped_column(Double)
+
+
+class AnalyticsSource(Base):
+    """When a traffic source last synced, and why its latest attempt failed."""
+
+    __tablename__ = "analytics_sources"
+
+    source: Mapped[str] = mapped_column(Text, primary_key=True)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)

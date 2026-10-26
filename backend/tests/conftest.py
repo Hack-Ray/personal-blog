@@ -53,7 +53,7 @@ def clean_tables(profile_seed):
         conn.execute(
             text(
                 "TRUNCATE articles, topics, tags, series, images, retired_doc_ids, admin_credentials, admin_sessions, releases,"
-                " sign_in_attempts"
+                " sign_in_attempts, traffic_days, search_days, analytics_sources"
                 " RESTART IDENTITY CASCADE"
             )
         )

@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Annotated
+from datetime import UTC, date, datetime
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import articles, auth, config, exporter, images, profile, release, release_jobs, taxa
+from blog import analytics, articles, auth, config, exporter, images, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
@@ -500,6 +500,85 @@ def retry_release(release_id: str, session: SessionDep) -> ReleaseOut:
         return ReleaseOut.of(release.retry(session, release_id, _content_repo(), release.deployer_from_env()))
     except release.ReleaseError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+
+
+class SourceStatusOut(BaseModel, from_attributes=True):
+    source: Literal["cloudflare", "search_console"]
+    configured: bool
+    synced_at: datetime | None
+    attempted_at: datetime | None
+    error: str | None
+    stale: bool
+
+
+class TrafficDayOut(BaseModel, from_attributes=True):
+    day: date
+    requests: int
+    page_views: int
+    visitors: int
+    bytes: int
+
+
+class TrafficTotalsOut(BaseModel, from_attributes=True):
+    requests: int
+    page_views: int
+    visitors: int
+    bytes: int
+    cache_hit_ratio: float | None
+
+
+class SearchDayOut(BaseModel, from_attributes=True):
+    day: date
+    clicks: int
+    impressions: int
+    ctr: float | None
+    position: float | None
+
+
+class SearchTotalsOut(BaseModel, from_attributes=True):
+    clicks: int
+    impressions: int
+    ctr: float | None
+    position: float | None
+
+
+class SearchItemOut(BaseModel, from_attributes=True):
+    key: str
+    clicks: int
+    impressions: int
+    ctr: float | None
+    position: float | None
+
+
+class AnalyticsOut(BaseModel, from_attributes=True):
+    start: date
+    end: date
+    sources: list[SourceStatusOut]
+    traffic: list[TrafficDayOut]
+    traffic_totals: TrafficTotalsOut
+    search: list[SearchDayOut]
+    search_totals: SearchTotalsOut
+    top_queries: list[SearchItemOut]
+    top_pages: list[SearchItemOut]
+
+
+class SyncBody(BaseModel):
+    force: bool = False
+
+
+@app.get("/api/analytics")
+def get_analytics(session: SessionDep, days: int = 28) -> AnalyticsOut:
+    """Stored traffic and search data for the last `days` UTC days; never calls Cloudflare or Google."""
+    if days not in analytics.RANGES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"days must be one of {', '.join(map(str, analytics.RANGES))}")
+    return AnalyticsOut.model_validate(analytics.report(session, days, datetime.now(UTC)))
+
+
+@app.post("/api/analytics/sync")
+def sync_analytics(session: SessionDep, body: SyncBody | None = None) -> list[SourceStatusOut]:
+    """Fetches the configured sources whose data is stale, or all of them with `force`."""
+    statuses = analytics.sync(session, datetime.now(UTC), force=body.force if body else False)
+    return [SourceStatusOut.model_validate(s) for s in statuses]
 
 
 class ProfileBody(BaseModel):
