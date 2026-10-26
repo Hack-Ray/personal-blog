@@ -6,6 +6,7 @@ from enum import StrEnum
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from ulid import ULID
 
@@ -332,7 +333,12 @@ def set_slug(session: Session, doc_id: str, slug: str | None) -> Article:
         if _taken(session, slug, article.id):
             raise SlugTaken(slug, _suggest(session, slug, article.id))
     article.slug = slug
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        # Another article took the slug after the check above.
+        session.rollback()
+        raise SlugTaken(slug, _suggest(session, slug, article.id)) from None
     return article
 
 

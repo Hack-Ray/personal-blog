@@ -282,7 +282,13 @@ def record_export(session: Session, result: exporter.ExportResult, deployer: Dep
         if doc_id in ids:
             session.add(ReleaseArticle(release_id=release.id, article_id=ids[doc_id], version=version))
     # Recorded even if this release never deploys; that only costs a redirect.
-    urls = [{"segment": segment, "article_id": ids[doc_id]} for doc_id, segment in result.segments.items() if doc_id in ids]
+    # A slug moved to another article while this export ran stays with that article.
+    owners = dict(session.execute(select(Article.slug, Article.id).where(Article.slug.in_(result.segments.values()))).all())
+    urls = [
+        {"segment": segment, "article_id": ids[doc_id]}
+        for doc_id, segment in result.segments.items()
+        if doc_id in ids and owners.get(segment, ids[doc_id]) == ids[doc_id]
+    ]
     if urls:
         session.execute(insert(ArticleUrl).values(urls).on_conflict_do_nothing())
     return release

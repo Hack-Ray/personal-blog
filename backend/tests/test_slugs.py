@@ -181,3 +181,28 @@ def test_the_migration_records_the_doc_id_url_of_every_article_published_before_
         command.upgrade(config, "head")
     with engine.connect() as conn:
         assert conn.execute(text("SELECT segment FROM article_urls")).scalars().all() == ["01K7M4Y7P65BDCF8AHRTQY7ZQA"]
+
+
+def test_a_slug_moved_to_another_article_during_an_export_stays_with_that_article(client, repo):
+    a, b = published(client), published(client)
+    set_slug(client, a, "x")
+    with SessionLocal() as s:
+        render = release.exporter.render_snapshot
+
+        def moved_mid_export(session):
+            files = render(session)
+            assert set_slug(client, a, "y").status_code == 200
+            assert set_slug(client, b, "x").status_code == 200
+            return files
+
+        release.exporter.render_snapshot = moved_mid_export
+        try:
+            assert release.create(s, repo, None) is not None
+        finally:
+            release.exporter.render_snapshot = render
+    with engine.connect() as conn:
+        owners = dict(conn.execute(text("SELECT u.segment, a.doc_id FROM article_urls u JOIN articles a ON a.id = u.article_id")).all())
+    assert "x" not in owners
+    set_slug(client, b, "z")
+    manifest = release_site(repo)
+    assert "x" not in entry(manifest, a).get("redirect_from", [])
