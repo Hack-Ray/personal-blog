@@ -64,7 +64,7 @@ function SlugField({ docId, initial }: { docId: string; initial: string | null }
       {status.kind === "taken" && (
         <span className="field-error">
           這個 slug 已被其他文章使用。
-          <button type="button" onClick={() => void save(status.suggestion)}>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => void save(status.suggestion)}>
             改用 {status.suggestion}
           </button>
         </span>
