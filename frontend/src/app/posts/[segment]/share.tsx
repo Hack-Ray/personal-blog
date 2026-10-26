@@ -22,10 +22,13 @@ const COPY_LABEL: Record<Copy, string> = { idle: "複製連結", copied: "已複
  * On phones the Facebook app claims facebook.com links and drops the sharer's
  * URL, so a touch device with the Web Share API opens the system share sheet instead.
  */
-const shareSheet = (e: MouseEvent, url: string, title: string) => {
+const shareSheet = (e: MouseEvent<HTMLAnchorElement>, url: string, title: string) => {
   if (!navigator.share || !matchMedia("(pointer: coarse)").matches) return;
   e.preventDefault();
-  navigator.share({ url, title }).catch(() => {});
+  const sharer = e.currentTarget.href;
+  navigator.share({ url, title }).catch((err) => {
+    if (err.name !== "AbortError") open(sharer, "_blank", "noopener");
+  });
 };
 
 export function Share({ url, title }: { url: string; title: string }) {
@@ -74,11 +77,11 @@ export function Share({ url, title }: { url: string; title: string }) {
               </>
             )}
           </svg>
-          <span className="share-status" aria-live="polite">
-            {copy === "idle" ? "" : COPY_LABEL[copy]}
-          </span>
         </button>
       )}
+      <span className="share-status" aria-live="polite">
+        {copy === "idle" ? "" : COPY_LABEL[copy]}
+      </span>
     </section>
   );
 }
