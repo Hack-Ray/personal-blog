@@ -281,7 +281,7 @@ stateDiagram-v2
 
 瀏覽器端（`app/search/load-index.ts`）是一個 `useSyncExternalStore` store：先以 `no-store` 抓 metadata 並檢查 version，接著從最新年份開始逐年抓 chunk，每年抓完就更新結果。某年失敗時保留已載入的文章，`retry` 從失敗的年份繼續。header 的搜尋框 focus 時才開始載入。
 
-**其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；瀏覽器有 clipboard 才顯示「複製連結」）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
+**其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；圖示是內嵌的 Simple Icons（CC0）SVG；手機上 Facebook App 會攔下 facebook.com 連結而丟掉要分享的網址，所以觸控裝置有 Web Share API 時，Facebook 按鈕改開系統分享選單；瀏覽器有 clipboard 才顯示「複製連結」）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
 
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
