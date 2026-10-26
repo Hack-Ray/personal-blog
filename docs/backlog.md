@@ -2,7 +2,7 @@
 
 這份清單只記錄還沒處理的問題。完成一項就從清單刪除，在 commit 或 PR 說明寫上項目編號；處理紀錄留在 git 歷史與 PR。已確認的設計決策寫進 `docs/design/` 的 addendum，不留在這裡。新發現的問題加在對應分類的最後。
 
-2026-10-24 刪除已完成的項目。A 系列、G 系列與 D4–D6 已在 PR #24–#73 完成。剩下的項目都要等作者決定雲端主機或網域，程式與文件已準備好，啟用時只需設定。
+2026-10-24 刪除已完成的項目。A 系列、G 系列與 D4–D6 已在 PR #24–#73 完成。剩下的項目都要等作者決定雲端主機或實際啟用 CDN 規則，程式與文件已準備好，啟用時只需設定。
 
 ## 需要先決定的事
 
@@ -15,14 +15,9 @@
 
 ## 自訂網域與 CDN
 
-作者目前不設網域。買網域後的 DNS 與 GitHub 設定見 `docs/site-domain.md`。以下項目要等選定 CDN 才能處理。
+網域與 CDN 的設定步驟見 `docs/site-domain.md`，以 Cloudflare 為例。D2 已決定：先讓 Pages 以自訂網域取得憑證，再開 Cloudflare proxy，SSL 用 Full (strict)。
 
-- [ ] **D2 GitHub Pages 前面加 CDN 時的憑證設計。**
-  - DNS 指向 CDN 時，Pages 無法自行申請憑證。二選一：
-    - 先讓 Pages 用自訂網域取得憑證，再把 CDN 放到前面。
-    - CDN 直接以 `hack-ray.github.io/personal-blog` 為來源，並設定 `BASE_PATH=""`。缺點是舊網址會繼續存在，形成重複內容；canonical 可以緩解。
-  - 兩種做法都要在 GitHub 驗證網域，防止子網域被搶用（**推測**）。
 - [ ] **D3 部署後清除 CDN 快取。**
-  - 快取規則已由 build 產生在 `out/cdn-headers.json`。
-  - 目前 release 以 Pages 部署成功判定為 `deployed`，不代表 CDN 已經更新。選定 CDN 後，在部署 workflow 呼叫它的 purge API。
-- [ ] **D7 在 CDN 套用 CSP。** build 已產生逐頁 CSP，Pages 不會套用。要在 CDN 先以 Report-Only 實測，見 `docs/site-domain.md`。
+  - Cloudflare 預設不快取 HTML 與 JSON，只快取圖片、CSS、JS 等副檔名，並沿用 Pages 的 `Cache-Control: max-age=600`（Browser Cache TTL 要設成 Respect Existing Headers）。所以部署後最多 10 分鐘內可能看到舊圖片；`_next/static/` 檔名帶 hash，不受影響。
+  - 目前不需要 purge。之後若開啟 Cache Everything 或延長快取，再在部署 workflow 呼叫 Cloudflare 的 purge API（API token 只給 Zone → Cache Purge 權限）。
+- [ ] **D7 在 CDN 套用 CSP。** build 已產生逐頁 CSP，Pages 不會套用。CSP 的 hash 每次部署都會變，Cloudflare 的 Transform Rules 是固定規則，要逐頁套用需要 Worker 或 Snippets 在每次部署後更新。先以 Report-Only 實測，見 `docs/site-domain.md`。
