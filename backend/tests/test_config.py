@@ -155,3 +155,64 @@ def test_app_configuration_can_be_selected_in_either_environment(tmp_path):
 def test_settings_do_not_display_credentials():
     s = config.load({"CMS_GITHUB_TOKEN": "dont-show-token", "DATABASE_URL": "postgresql://dont-show-password"})
     assert "dont-show" not in repr(s)
+
+
+ZONE = "0123456789abcdef0123456789abcdef"
+
+
+def test_traffic_sources_are_off_until_both_settings_of_a_pair_are_set(tmp_path):
+    key = tmp_path / "search-console.json"
+    key.write_text("{}")
+    s = config.load({})
+    assert (s.cloudflare_api_token, s.cloudflare_zone_id, s.gsc_site_url, s.gsc_credentials_file) == (None, None, None, None)
+    search_console = {"GSC_SITE_URL": "sc-domain:example.com", "GSC_CREDENTIALS_FILE": str(key)}
+    s = config.load({"CLOUDFLARE_API_TOKEN": "cf-token", "CLOUDFLARE_ZONE_ID": ZONE.upper(), **search_console})
+    assert (s.cloudflare_api_token, s.cloudflare_zone_id, s.gsc_site_url, s.gsc_credentials_file) == ("cf-token", ZONE, "sc-domain:example.com", key)
+    assert config.load({"GSC_SITE_URL": "https://example.com/blog/", "GSC_CREDENTIALS_FILE": str(key)}).gsc_site_url == "https://example.com/blog/"
+
+
+@pytest.mark.parametrize(
+    ("env", "missing"),
+    [
+        ({"CLOUDFLARE_API_TOKEN": "cf-token"}, "CLOUDFLARE_ZONE_ID"),
+        ({"CLOUDFLARE_ZONE_ID": ZONE}, "CLOUDFLARE_API_TOKEN"),
+        ({"GSC_SITE_URL": "sc-domain:example.com"}, "GSC_CREDENTIALS_FILE"),
+        ({"GSC_CREDENTIALS_FILE": "key.json"}, "GSC_SITE_URL"),
+    ],
+)
+def test_half_a_traffic_source_pair_names_the_missing_setting(env, missing):
+    with pytest.raises(config.ConfigError, match=f"^{missing} must be set"):
+        config.load(env)
+
+
+@pytest.mark.parametrize(
+    ("env", "name"),
+    [
+        ({"CLOUDFLARE_API_TOKEN": "t", "CLOUDFLARE_ZONE_ID": "example.com"}, "CLOUDFLARE_ZONE_ID"),
+        ({"CLOUDFLARE_API_TOKEN": "t", "CLOUDFLARE_ZONE_ID": ZONE + "0"}, "CLOUDFLARE_ZONE_ID"),
+        ({"GSC_SITE_URL": "example.com", "GSC_CREDENTIALS_FILE": "key.json"}, "GSC_SITE_URL"),
+        ({"GSC_SITE_URL": "https://example.com", "GSC_CREDENTIALS_FILE": "key.json"}, "GSC_SITE_URL"),
+        ({"GSC_SITE_URL": "sc-domain:https://example.com", "GSC_CREDENTIALS_FILE": "key.json"}, "GSC_SITE_URL"),
+        ({"GSC_SITE_URL": "sc-domain:example.com", "GSC_CREDENTIALS_FILE": "/nonexistent/key.json"}, "GSC_CREDENTIALS_FILE"),
+        ({"CLOUDFLARE_API_URL": "http://example.com"}, "CLOUDFLARE_API_URL"),
+        ({"GSC_API_URL": "https://user:pass@example.com"}, "GSC_API_URL"),
+    ],
+)
+def test_malformed_traffic_settings_stop_the_start(env, name):
+    with pytest.raises(config.ConfigError, match=f"^{name} must"):
+        config.load(env)
+
+
+def test_traffic_api_urls_allow_loopback_only_outside_the_cloud():
+    s = config.load({"CLOUDFLARE_API_URL": "http://127.0.0.1:9000/", "GSC_API_URL": "http://localhost:9001"})
+    assert (s.cloudflare_api_url, s.gsc_api_url) == ("http://127.0.0.1:9000", "http://localhost:9001")
+    with pytest.raises(config.ConfigError, match="CLOUDFLARE_API_URL"):
+        config.load({**CLOUD, "CLOUDFLARE_API_URL": "http://127.0.0.1:9000"})
+
+
+def test_settings_do_not_display_traffic_credentials(tmp_path):
+    key = tmp_path / "dont-show-key.json"
+    key.write_text("{}")
+    search_console = {"GSC_SITE_URL": "sc-domain:example.com", "GSC_CREDENTIALS_FILE": str(key)}
+    s = config.load({"CLOUDFLARE_API_TOKEN": "dont-show-cf", "CLOUDFLARE_ZONE_ID": ZONE, **search_console})
+    assert "dont-show" not in repr(s)

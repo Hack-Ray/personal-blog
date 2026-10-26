@@ -298,6 +298,7 @@ stateDiagram-v2
 | 分類 `#/taxa` | `GET /api/taxa`、`PUT /api/taxa/{kind}/{slug}`、`POST .../merge`、`DELETE ...` |
 | 個人資料 `#/profile` | `GET /api/profile`、`PUT /api/profile` |
 | 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/releases`、`POST /api/releases/{id}/retry` |
+| 流量數據 `#/analytics` | `GET /api/analytics?days=7\|28\|90`、`POST /api/analytics/sync` |
 
 `GET /api/articles` 不帶 `state` 時回傳所有狀態，「文章」分頁在前端濾掉 pending_deletion。`GET /api/releases` 與 `/healthz` CMS 沒有用到。
 
@@ -354,6 +355,18 @@ stateDiagram-v2
 
 Dependabot 每週檢查 `/frontend`、`/cms` 的 npm（minor 與 patch 合併成一組）、`/backend` 的 uv、以及 Actions。
 
+### 3.8 流量數據
+
+選用功能，詳細設定見 [`analytics.md`](../analytics.md)。`backend/blog/analytics.py` 在伺服器端讀 Cloudflare GraphQL Analytics API（每日請求、快取、bytes、頁面瀏覽、不重複訪客）與 Google Search Console API（每日總數，以及依搜尋字詞、依頁面的數字）。公開網站沒有追蹤程式。
+
+- **設定**：`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID`、`GSC_SITE_URL` + `GSC_CREDENTIALS_FILE` 各為一對，只設一個就 `ConfigError`。沒設定的來源從不連線。
+- **資料表**（migration 0015）：`traffic_days`（每 UTC 日一列）、`search_days`（PK `day, dimension, key`；`dimension` 是 `total`／`query`／`page`，總數的 key 是空字串。總數另外存，因為 Search Console 不提供匿名化的字詞，字詞加總不等於總數）、`analytics_sources`（每個來源最後成功的 `synced_at`、最後嘗試的 `attempted_at` 與 `error`）。
+- **來源表**：`SOURCES` 列出兩個來源，各自定義是否已設定、第一次回補天數（30／90）、之後在上次成功日之前重抓幾天（2／9）、`fetch` 與 `store`。新增來源就是加一筆，`sync` 與 `status` 不用改。
+- **`sync(session, now, force)`**：拿 advisory lock（`LOCK_KEY = 0x7472_6166`），拿不到就直接回傳狀態。逐一處理已設定、`synced_at` 超過 6 小時（`STALE`）或 `force` 的來源：先抓完再寫入同一個交易。Cloudflare 以 `ON CONFLICT DO UPDATE` upsert；Search Console 先刪除重抓期間的所有列再寫入，消失的字詞不會殘留。失敗時只更新 `attempted_at` 與 `error`，不影響另一個來源。
+- **邊界**：HTTP 都經過 `_post`（urllib、30 秒逾時、不跟隨 redirect、回應上限 32 MiB），回應在模組邊界解析成 `CloudflareDay`／`SearchRow`。任何 HTTP 或格式問題都變成一個 `AnalyticsError`，訊息會遮掉 token，存進 `analytics_sources.error` 給 CMS 顯示，API 本身仍回 200。Google 的 access token 以服務帳戶金鑰簽 RS256 JWT 換得，每次 sync 換一次。
+- **`report(session, days, now)`**：只讀資料庫。快取命中率是 `cached_requests / requests`，平均排名以曝光數加權。`days` 只接受 7、28、90，其他值 422。
+- **CMS**：`analytics-page.tsx` 開頁時先 GET，若有已設定的來源 `stale` 就 POST sync 一次再 GET；「立即更新」送 `force`。圖表是手寫 inline SVG，純計算在 `analytics.ts`。
+
 ## 4. 程式碼位置
 
 ```
@@ -372,6 +385,7 @@ backend/
     release.py      Release 狀態機、GitHubActions REST client、refresh
     retention.py    Published Version 清理
     maintenance.py  到期工作的入口
+    analytics.py    Cloudflare 與 Search Console 的同步與報表
   migrations/versions/  Alembic 0001..0012（含 trigger 與 CHECK）
   scripts/          start.sh、stop.sh、backup.sh、restore.sh、lib.sh
   tests/            每個模組一個測試檔，conftest.py 需要 TEST_DATABASE_URL
@@ -381,7 +395,7 @@ cms/src/
   api.ts            fetch 包裝與 wire type
   draft-sync.ts     自動儲存佇列
   editor.tsx        編輯器；preview.ts、publish-checks.ts、cover.ts、snapshot-panel.tsx
-  article-list.tsx、taxa-page.tsx、profile-page.tsx、releases.tsx
+  article-list.tsx、taxa-page.tsx、profile-page.tsx、releases.tsx、analytics-page.tsx
   url-policy.ts     frontend 的逐字複本
 frontend/
   next.config.ts    basePath、SITE_ORIGIN、GISCUS_*

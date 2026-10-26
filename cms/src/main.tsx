@@ -1,5 +1,6 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { AnalyticsPage } from "./analytics-page.tsx";
 import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
@@ -17,6 +18,7 @@ type Route =
   | { page: "releases" }
   | { page: "profile" }
   | { page: "taxa" }
+  | { page: "analytics" }
   | { page: "edit"; docId: string };
 
 function parseRoute(hash: string): Route {
@@ -25,6 +27,7 @@ function parseRoute(hash: string): Route {
   if (hash === "#/new") return { page: "new" };
   if (hash === "#/profile") return { page: "profile" };
   if (hash === "#/taxa") return { page: "taxa" };
+  if (hash === "#/analytics") return { page: "analytics" };
   return hash === "#/releases" ? { page: "releases" } : { page: "list" };
 }
 
@@ -107,6 +110,8 @@ function Page({ route }: { route: Route }) {
       return <ProfilePage />;
     case "taxa":
       return <TaxaPage />;
+    case "analytics":
+      return <AnalyticsPage />;
     case "edit":
       return <EditArticle docId={route.docId} />;
   }

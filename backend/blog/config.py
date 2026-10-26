@@ -50,6 +50,12 @@ class Settings:
     github_installation_id: str | None = None
     github_private_key_file: Path | None = field(default=None, repr=False)
     github_timeout: float = 30
+    cloudflare_api_token: str | None = field(default=None, repr=False)
+    cloudflare_zone_id: str | None = None
+    cloudflare_api_url: str = "https://api.cloudflare.com/client/v4"
+    gsc_site_url: str | None = None
+    gsc_credentials_file: Path | None = field(default=None, repr=False)
+    gsc_api_url: str = "https://www.googleapis.com"
 
     @property
     def session_cookie(self) -> str:
@@ -115,16 +121,54 @@ def _branch(value: str, name: str) -> str:
     return value
 
 
-def _api_url(value: str, cloud: bool) -> str:
+def _api_url(value: str, cloud: bool, name: str = "GITHUB_API_URL") -> str:
     try:
         u = urlsplit(value)
         _ = u.port
     except ValueError as e:
-        raise ConfigError("GITHUB_API_URL must be an HTTPS API URL") from e
+        raise ConfigError(f"{name} must be an HTTPS API URL") from e
     local_http = not cloud and u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1")
     if (u.scheme != "https" and not local_http) or not u.hostname or u.username or u.password or u.query or u.fragment:
-        raise ConfigError("GITHUB_API_URL must be HTTPS; local HTTP is allowed only for loopback test servers")
+        raise ConfigError(f"{name} must be HTTPS; local HTTP is allowed only for loopback test servers")
     return value.rstrip("/")
+
+
+def _pair(env: Mapping[str, str], first: str, second: str) -> tuple[str | None, str | None]:
+    """Two settings that only work together: both or neither."""
+    a, b = _optional(env, first), _optional(env, second)
+    if (a is None) != (b is None):
+        missing, given = (first, second) if a is None else (second, first)
+        raise ConfigError(f"{missing} must be set when {given} is set")
+    return a, b
+
+
+def _zone_id(value: str | None) -> str | None:
+    if value is not None and not re.fullmatch(r"[0-9a-fA-F]{32}", value):
+        raise ConfigError("CLOUDFLARE_ZONE_ID must be the 32-character Zone ID from the Cloudflare dashboard")
+    return value.lower() if value else None
+
+
+def _site_url(value: str | None) -> str | None:
+    if value is None:
+        return None
+    domain = re.fullmatch(r"sc-domain:[a-z0-9-]+(?:\.[a-z0-9-]+)+", value)
+    try:
+        u = urlsplit(value)
+        prefix = u.scheme in ("http", "https") and bool(u.hostname) and value.endswith("/") and not (u.query or u.fragment or u.username or u.password)
+    except ValueError:
+        prefix = False
+    if not (domain or prefix):
+        raise ConfigError("GSC_SITE_URL must be sc-domain:<domain> or a URL prefix ending in /, as the Search Console property shows it")
+    return value
+
+
+def _credentials_file(value: str | None) -> Path | None:
+    if value is None:
+        return None
+    path = Path(value)
+    if not path.is_file() or not os.access(path, os.R_OK):
+        raise ConfigError("GSC_CREDENTIALS_FILE must point to a readable service account JSON key")
+    return path
 
 
 def load(env: Mapping[str, str] = os.environ) -> Settings:
@@ -176,6 +220,8 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds") from e
     if not 1 <= timeout <= 300:
         raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds")
+    cloudflare_token, zone_id = _pair(env, "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID")
+    site_url, credentials = _pair(env, "GSC_SITE_URL", "GSC_CREDENTIALS_FILE")
 
     return Settings(
         env=cms_env,
@@ -200,6 +246,12 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         github_installation_id=installation_id,
         github_private_key_file=Path(key_file) if key_file else None,
         github_timeout=timeout,
+        cloudflare_api_token=cloudflare_token,
+        cloudflare_zone_id=_zone_id(zone_id),
+        cloudflare_api_url=_api_url(_optional(env, "CLOUDFLARE_API_URL") or "https://api.cloudflare.com/client/v4", cloud, "CLOUDFLARE_API_URL"),
+        gsc_site_url=_site_url(site_url),
+        gsc_credentials_file=_credentials_file(credentials),
+        gsc_api_url=_api_url(_optional(env, "GSC_API_URL") or "https://www.googleapis.com", cloud, "GSC_API_URL"),
     )
 
 
