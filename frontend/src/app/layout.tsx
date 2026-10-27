@@ -2,14 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { loadSiteContent } from "../content/load.ts";
-import { absoluteUrl, BASE_PATH, siteOg } from "../site.ts";
+import { absoluteUrl, BASE_PATH, DEFAULT_OG_IMAGE, siteOg } from "../site.ts";
 import "./globals.css";
 import { THEME_SCRIPT } from "../theme.ts";
 import { HeaderSearch } from "./header-search.tsx";
 import { ThemeToggle } from "./theme-toggle.tsx";
-
-// Replace frontend/public/og-default.png to change it.
-const DEFAULT_IMAGE = absoluteUrl("/og-default.png");
 
 export function generateMetadata(): Metadata {
   const { title, description } = loadSiteContent().profile.site;
@@ -17,10 +14,9 @@ export function generateMetadata(): Metadata {
   return {
     title: { default: title, template: `%s | ${title}` },
     description: description || undefined,
-    // Article pages set their own openGraph and twitter, so the default image only reaches the other pages.
-    openGraph: { ...siteOg(title), images: [DEFAULT_IMAGE] },
-    twitter: { card: "summary", images: [DEFAULT_IMAGE] },
-    // Edit frontend/public/icon.svg and run `npm run icons` to change them.
+    openGraph: { ...siteOg(title), images: [DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary", images: [DEFAULT_OG_IMAGE] },
+    // Edit frontend/public/icon.svg and run `npm run icons` to change them and og-default.png.
     icons: {
       icon: [
         { url: `${BASE_PATH}/favicon.ico`, sizes: "48x48" },
