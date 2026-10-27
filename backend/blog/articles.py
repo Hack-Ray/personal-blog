@@ -21,6 +21,8 @@ SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SLUG_MAX_LENGTH = 80
 # /posts/page/<n>/ is the article list.
 RESERVED_SLUGS = frozenset({"page"})
+# Arbitrary key for pg_advisory_xact_lock, distinct from the other LOCK_KEYs.
+SLUG_LOCK_KEY = 0x736C_7567
 
 
 @dataclass(frozen=True)
@@ -289,6 +291,13 @@ def _check_slug(slug: str) -> None:
         raise InvalidSlug(f"{slug} is reserved")
 
 
+def lock_slugs(session: Session) -> None:
+    """Makes slug claims and the recording of exported URLs wait for each other
+    until the transaction ends. Take it before any row lock: recording an export
+    locks article rows through its foreign keys."""
+    session.execute(select(func.pg_advisory_xact_lock(SLUG_LOCK_KEY)))
+
+
 def _taken(session: Session, slug: str, article_id: int) -> bool:
     """Another article's current slug, or a URL another article was exported under."""
     current = select(Article.id).where(Article.slug == slug, Article.id != article_id)
@@ -327,6 +336,7 @@ def slug_status(session: Session, doc_id: str, slug: str) -> SlugStatus:
 def set_slug(session: Session, doc_id: str, slug: str | None) -> Article:
     """None returns the article to its doc_id URL. Takes effect on the site at
     the next export, where every URL it was exported under becomes a redirect."""
+    lock_slugs(session)
     article = _locked(session, doc_id, Action.EDIT)
     if slug is not None and slug != article.slug:
         _check_slug(slug)

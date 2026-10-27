@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20，2026-10-27 補上 BE-023–BE-024
+> **日期**：2026-10-20，2026-10-27 補上 BE-023–BE-024，同日 BE-023 補上 slug 與匯出的互斥
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -305,7 +305,7 @@
   - 另一篇文章目前使用的 slug，以及另一篇文章匯出過的片段，都不能使用。只在 CMS 打錯、還沒匯出過的 slug 可以再給別篇用。
   - 匯出時，manifest 的每篇文章帶目前的 `slug`，以及 `redirect_from`，也就是 `article_urls` 裡目前網址以外的片段。沒有時兩個 key 都省略，`schema_version` 維持 1。
   - 永久刪除文章時，`article_urls` 隨文章一起刪除，用過的 slug 跟著釋出。
-- **Consequences**：建立 release 時，`record_export` 先查目前誰擁有每個匯出的 slug；匯出期間 slug 已移到另一篇文章時，不記成原文章的舊網址。但 `set_slug` 與 release 交易之間沒有互斥，兩者在極短時間內重疊時，資料庫仍可能一邊讓 B 使用 slug，一邊把同一個片段記成 A 的舊網址。下一次匯出的 manifest 會讓兩篇文章宣告同一個網址，前端 parser 讓 build 失敗，不會部署錯的網站。這個情況尚未處理，見 `docs/backlog.md` 的 S1。
+- **Consequences**：建立 release 時，`record_export` 先查目前誰擁有每個匯出的 slug；匯出期間 slug 已移到另一篇文章時，不記成原文章的舊網址。`set_slug` 與 `record_export` 在讀取占用情況前，都先取得同一把交易層級的 advisory lock（`pg_advisory_xact_lock`），直到各自 commit 才放開，所以 B 設定 slug 一定看得到已記錄的 (A, X)，`record_export` 也一定看得到 B 已 commit 的 slug。這把鎖會等待而不是拒絕：「更新網站」只在寫入 release 紀錄的交易期間持有它，不包括匯出、push 與部署，所以 slug 儲存最多等這筆資料庫交易結束。兩邊都在取得任何文章列鎖之前先取這把鎖，因為寫入 `release_articles` 與 `article_urls` 會透過外鍵鎖住文章列，順序相反會死結。
 - **Supersedes**：無；實作 Addendum 04 FE-015。
 
 ### BE-024：CMS 的流量數據頁
