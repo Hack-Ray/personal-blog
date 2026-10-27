@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-017
+> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-018
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -177,7 +177,7 @@
   - `LEGACY_SITE_URLS` 列出舊站的根網址。build 時，Markdown 連結中指向舊站的部分改成新站的相對網址，內容 repo 不改寫。
   - RSS 的 `<guid>` 是 `urn:ulid:<docId>`，換網域或 basePath 都不會變。
   - 自訂網域接 CDN 時，先讓 Pages 以自訂網域取得憑證並開啟 Enforce HTTPS，再開 CDN proxy，SSL 用 Full (strict)。CDN 不快取 HTML 與 JSON，所以部署後不需要清除快取；圖片沿用 Pages 的 10 分鐘快取，部署後最多 10 分鐘內可能看到舊圖。步驟在 `docs/site-domain.md`，以 Cloudflare 為例。
-- **Consequences**：fork 的人只要設定 variables 就能部署（`docs/fork-and-deploy.md`）。從 GitHub Pages 預設網址換到自訂網域時，RSS 閱讀器可能把舊文章再顯示一次，這是 GUID 改成 ULID 時的一次性遷移。`cdn-headers.json` 的逐頁 CSP 還沒套用到 CDN，見 `docs/backlog.md` 的 D7。
+- **Consequences**：fork 的人只要設定 variables 就能部署（`docs/fork-and-deploy.md`）。從 GitHub Pages 預設網址換到自訂網域時，RSS 閱讀器可能把舊文章再顯示一次，這是 GUID 改成 ULID 時的一次性遷移。CSP 的套用方式見 FE-018。
 - **Supersedes**：FE-001 的 `SITE_ORIGIN` 預設值與「不提供 `robots.txt`」，FE-006 中 ID 寫在 `comments.tsx` 的做法。
 
 ### FE-015：文章可以使用英文 slug 網址，舊網址留下轉址頁
@@ -216,6 +216,17 @@
   - 沒有封面也沒有上傳圖片的文章，以及首頁、列表等非文章頁，`og:image` 都是 `og-default.png`。有圖片的文章仍用 FE-008 與 FE-011 的規則。`twitter:card` 只有文章自己有圖時是 `summary_large_image`，其餘為 `summary`。
 - **Consequences**：fork 的人換掉 `icon.svg` 並執行 `npm run icons`，就能換成自己的圖示與預設分享圖。
 - **Supersedes**：FE-008 中「沒圖時不輸出 `og:image`」。
+
+### FE-018：CSP 寫在每個 HTML 的 meta，CDN 只加固定標頭
+
+- **Status**：Confirmed（使用者 2026-10-27 同意加上 CSP）
+- **Context**：GitHub Pages 不能設定回應標頭。原本 build 產生 `cdn-headers.json`，列出每一頁含 inline script hash 的 CSP 標頭，等 CDN 逐頁套用。但 hash 每次部署都會變，Cloudflare 的 Transform Rules 是固定規則，要逐頁套用得寫 Worker 並在每次部署後同步，還會在 HTML 與設定不同步的那段時間擋掉 script。
+- **Decision**：
+  - build 在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，政策由 `frontend/src/content/cdn-headers.ts` 依該頁的 inline script 計算。script 只允許 `'self'`、`https://giscus.app` 與該頁 inline script 的 SHA-256；`style-src` 保留 `'unsafe-inline'`，並允許 giscus 載入自己的樣式表（`https://giscus.app/default.css`）；`img-src` 允許 `https:` 與 `data:`；`connect-src` 只有 `'self'`；`frame-src` 只有 giscus；`object-src 'none'`、`base-uri 'self'`、`form-action 'self'`。
+  - meta 不支援 `frame-ancestors`。`frame-ancestors 'none'`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin` 是每個回應都一樣的固定標頭，由 CDN 加上（Cloudflare 用一條 Response Header Transform Rule）。步驟在 `docs/site-domain.md`。
+  - e2e 測試在沒有任何回應標頭的靜態伺服器上執行，所以也檢查 meta CSP：頁面沒有 CSP 違規，未列入的 inline script 不會執行。
+- **Consequences**：CSP 在沒有 CDN 的 fork 上也生效，部署不需要同步 CDN 設定。meta 版 CSP 沒有 Report-Only 模式，政策錯誤會在部署後直接擋住功能，所以靠 e2e 在合併前發現。CDN 若往 HTML 插入其他網域的 script（例如 Cloudflare Web Analytics 的自動注入）會被擋下，Rocket Loader 必須關閉。
+- **Supersedes**：`cdn-headers.json` 原本帶逐頁 CSP 標頭、由 CDN 逐頁套用的做法；檔案只保留快取標頭與上述固定標頭。
 
 ## Open Questions
 

@@ -10,9 +10,3 @@
   - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
   - 選定後照 `docs/cms-deployment.md` 設定。容器限制、SSM、最小權限 role、RDS 憑證與 CloudWatch Logs 都已是選用設定。啟用 `cms-v*` tag 部署時，同時建立 tag ruleset（見 `docs/cms-deployment.md`）。
   - CMS 若要開放給 tailnet 以外的網路，還需要第二道驗證（TOTP 或 OIDC）、全域登入次數上限或 WAF，以及正確的 `FORWARDED_ALLOW_IPS`。目前的設計不支援這種用法。
-
-## CDN
-
-網域與 CDN 的設定步驟見 `docs/site-domain.md`，決策見 Addendum 04 FE-014。CDN 不快取 HTML 與 JSON，部署後不需要清除快取，圖片最多 10 分鐘內可能是舊的；之後若開啟 Cache Everything 或延長快取，再在部署 workflow 呼叫 CDN 的 purge API。
-
-- [ ] **D7 在 CDN 套用 CSP。** build 已產生逐頁 CSP（`cdn-headers.json`），Pages 不會套用。CSP 的 hash 每次部署都會變，Cloudflare 的 Transform Rules 是固定規則，要逐頁套用需要 Worker 或 Snippets 在每次部署後更新。先以 Report-Only 實測，見 `docs/site-domain.md`。

@@ -185,6 +185,28 @@ test("a post offers share links to its slug URL and copies it", async ({ page, c
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
 });
 
+test("the meta CSP is enforced without violations and blocks unlisted inline scripts", async ({ page }) => {
+  type Probe = { __violations: string[]; __ran?: number };
+  await page.addInitScript(() => {
+    const w = window as unknown as Probe;
+    w.__violations = [];
+    document.addEventListener("securitypolicyviolation", (e) => w.__violations.push(`${e.violatedDirective} ${e.blockedURI} ${e.sourceFile}:${e.lineNumber} ${e.sample}`));
+  });
+  for (const path of ["", FASTAPI_POST]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
+    expect(await page.evaluate(() => (window as unknown as Probe).__violations)).toEqual([]);
+    const ran = await page.evaluate(() => {
+      const script = document.createElement("script");
+      script.textContent = "window.__ran = 1";
+      document.body.append(script);
+      return (window as unknown as Probe).__ran;
+    });
+    expect(ran).toBeUndefined();
+  }
+});
+
 test.describe("on a touch screen", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
