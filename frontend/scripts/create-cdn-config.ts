@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { cacheControl, MUTABLE_CACHE, securityHeaders } from "../src/content/cdn-headers.ts";
+import { cacheControl, MUTABLE_CACHE, SECURITY_HEADERS, withCspMeta } from "../src/content/cdn-headers.ts";
 
 const out = process.argv[2] ?? join(import.meta.dirname, "..", "out");
 const basePath = process.env.BASE_PATH ?? "/personal-blog";
@@ -13,7 +13,10 @@ function visit(dir: string): void {
     const rel = relative(out, file).replaceAll("\\", "/");
     if (rel === "cdn-headers.json") continue;
     const headers: Record<string, string> = { "Cache-Control": cacheControl(rel) };
-    if (rel.endsWith(".html")) Object.assign(headers, securityHeaders(readFileSync(file, "utf8")));
+    if (rel.endsWith(".html")) {
+      writeFileSync(file, withCspMeta(readFileSync(file, "utf8")));
+      Object.assign(headers, SECURITY_HEADERS);
+    }
     const path = `${basePath}/${rel}`;
     entries.push({ path, headers });
     if (rel.endsWith("index.html")) entries.push({ path: path.slice(0, -"index.html".length), headers });
@@ -27,4 +30,4 @@ writeFileSync(join(out, "cdn-headers.json"), JSON.stringify({
   default_headers: { "Cache-Control": MUTABLE_CACHE },
   entries,
 }, null, 2) + "\n");
-console.log(`Prepared CDN response headers for ${entries.length} paths; GitHub Pages does not apply this file.`);
+console.log(`Wrote a CSP meta into every HTML file and CDN response headers for ${entries.length} paths; GitHub Pages does not apply the headers file.`);
