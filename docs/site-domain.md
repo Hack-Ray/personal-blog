@@ -57,7 +57,7 @@ Cloudflare 預設只快取圖片、CSS、JS 等靜態副檔名，不快取 HTML 
 
 CSP 分成兩部分（Addendum 04 FE-018）。
 
-- **寫在每個 HTML 裡的 CSP。** `npm run build` 在每個 HTML 的 `<head>` 開頭加上 `<meta http-equiv="Content-Security-Policy">`。script 只允許自己網站的檔案、`https://giscus.app`，以及該頁 inline script 的 SHA-256 hash，不允許 `unsafe-inline` 或 `unsafe-eval`。hash 依該次 build 的 HTML 產生，所以每次部署都自動正確，GitHub Pages 不需要設定標頭，CDN 也不需要逐頁規則。程式碼高亮與元件需要 inline style，所以 `style-src` 保留 `unsafe-inline`。圖片允許任何 `https:` 來源。
+- **寫在每個 HTML 裡的 CSP。** `npm run build` 在每個 HTML 的 charset 之後加上 `<meta http-equiv="Content-Security-Policy">`。script 只允許自己網站的檔案、`https://giscus.app`，以及該頁 inline script 的 SHA-256 hash，不允許 `unsafe-inline` 或 `unsafe-eval`。hash 依該次 build 的 HTML 產生，所以每次部署都自動正確，GitHub Pages 不需要設定標頭，CDN 也不需要逐頁規則。程式碼高亮與元件需要 inline style，所以 `style-src` 保留 `unsafe-inline`；giscus 會在頁面載入自己的樣式表，所以 `style-src` 也允許 `https://giscus.app`。圖片允許任何 `https:` 來源。
 - **只能放在回應標頭的部分。** `frame-ancestors`（禁止別的網站用 iframe 嵌入）在 meta 裡無效，要由 CDN 加上。下面三個標頭每個回應都一樣，`out/cdn-headers.json` 的 `entries` 也列了同樣的值。
 
 | 標頭 | 值 |

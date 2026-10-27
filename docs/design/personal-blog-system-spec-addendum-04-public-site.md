@@ -222,7 +222,7 @@
 - **Status**：Confirmed（使用者 2026-10-27 同意加上 CSP）
 - **Context**：GitHub Pages 不能設定回應標頭。原本 build 產生 `cdn-headers.json`，列出每一頁含 inline script hash 的 CSP 標頭，等 CDN 逐頁套用。但 hash 每次部署都會變，Cloudflare 的 Transform Rules 是固定規則，要逐頁套用得寫 Worker 並在每次部署後同步，還會在 HTML 與設定不同步的那段時間擋掉 script。
 - **Decision**：
-  - build 在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，政策由 `frontend/src/content/cdn-headers.ts` 依該頁的 inline script 計算。script 只允許 `'self'`、`https://giscus.app` 與該頁 inline script 的 SHA-256；`style-src` 保留 `'unsafe-inline'`；`img-src` 允許 `https:` 與 `data:`；`connect-src` 只有 `'self'`；`frame-src` 只有 giscus；`object-src 'none'`、`base-uri 'self'`、`form-action 'self'`。
+  - build 在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，政策由 `frontend/src/content/cdn-headers.ts` 依該頁的 inline script 計算。script 只允許 `'self'`、`https://giscus.app` 與該頁 inline script 的 SHA-256；`style-src` 保留 `'unsafe-inline'`，並允許 giscus 載入自己的樣式表（`https://giscus.app/default.css`）；`img-src` 允許 `https:` 與 `data:`；`connect-src` 只有 `'self'`；`frame-src` 只有 giscus；`object-src 'none'`、`base-uri 'self'`、`form-action 'self'`。
   - meta 不支援 `frame-ancestors`。`frame-ancestors 'none'`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin` 是每個回應都一樣的固定標頭，由 CDN 加上（Cloudflare 用一條 Response Header Transform Rule）。步驟在 `docs/site-domain.md`。
   - e2e 測試在沒有任何回應標頭的靜態伺服器上執行，所以也檢查 meta CSP：頁面沒有 CSP 違規，未列入的 inline script 不會執行。
 - **Consequences**：CSP 在沒有 CDN 的 fork 上也生效，部署不需要同步 CDN 設定。meta 版 CSP 沒有 Report-Only 模式，政策錯誤會在部署後直接擋住功能，所以靠 e2e 在合併前發現。CDN 若往 HTML 插入其他網域的 script（例如 Cloudflare Web Analytics 的自動注入）會被擋下，Rocket Loader 必須關閉。

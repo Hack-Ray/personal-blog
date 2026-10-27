@@ -14,6 +14,7 @@ test("CSP authorizes exact inline scripts without permitting arbitrary inline Ja
   assert.ok(!csp.split(";").find((d) => d.trim().startsWith("script-src"))!.includes("unsafe-inline"));
   assert.ok(csp.includes("script-src 'self' https://giscus.app"));
   assert.ok(csp.includes("frame-src https://giscus.app"));
+  assert.ok(csp.includes("style-src 'self' 'unsafe-inline' https://giscus.app"));
   assert.ok(!csp.includes("unsafe-eval"));
   assert.ok(!csp.includes("frame-ancestors"));
 });

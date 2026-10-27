@@ -22,7 +22,7 @@ export function contentSecurityPolicy(html: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' https://giscus.app ${[...hashes].sort().join(" ")}`.trim(),
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://giscus.app",
     "img-src 'self' https: data:",
     "font-src 'self'",
     "connect-src 'self'",
