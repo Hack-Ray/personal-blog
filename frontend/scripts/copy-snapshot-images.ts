@@ -15,9 +15,8 @@ if (existsSync(source)) {
   cpSync(source, join(publicDir, "images"), { recursive: true });
   mkdirSync(join(publicDir, "thumbs"));
   for (const name of readdirSync(source)) {
-    const { width, height, pageHeight } = await sharp(join(source, name)).metadata();
-    // An animated image stacks its frames; pageHeight is one frame's height.
-    sizes[`images/${name}`] = { width, height: pageHeight ?? height };
+    const { width, height } = await sharp(join(source, name)).metadata();
+    sizes[`images/${name}`] = { width, height };
     const thumb = thumbnailOf(`images/${name}`);
     if (thumb.startsWith("thumbs/")) {
       // sharp reads only the first frame of an animated image.
