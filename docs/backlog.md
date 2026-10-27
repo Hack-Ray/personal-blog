@@ -13,10 +13,10 @@
 
 ## CDN
 
-網域與 CDN 的設定步驟見 `docs/site-domain.md`，決策見 Addendum 04 FE-014。CDN 不快取 HTML 與 JSON，部署後不需要清除快取；之後若開啟 Cache Everything 或延長快取，再在部署 workflow 呼叫 CDN 的 purge API。
+網域與 CDN 的設定步驟見 `docs/site-domain.md`，決策見 Addendum 04 FE-014。CDN 不快取 HTML 與 JSON，部署後不需要清除快取，圖片最多 10 分鐘內可能是舊的；之後若開啟 Cache Everything 或延長快取，再在部署 workflow 呼叫 CDN 的 purge API。
 
 - [ ] **D7 在 CDN 套用 CSP。** build 已產生逐頁 CSP（`cdn-headers.json`），Pages 不會套用。CSP 的 hash 每次部署都會變，Cloudflare 的 Transform Rules 是固定規則，要逐頁套用需要 Worker 或 Snippets 在每次部署後更新。先以 Report-Only 實測，見 `docs/site-domain.md`。
 
 ## 文章網址
 
-- [ ] **S1 設定 slug 與匯出同時發生時，兩篇文章可能宣告同一個網址。** 匯出讀取 slug 的交易與 `PUT /api/articles/{id}/slug` 沒有互斥，同一瞬間發生時，manifest 可能讓兩篇文章使用同一個 `/posts/<片段>/`。前端 parser 會讓 build 失敗，所以不會部署錯的網站，但作者要改掉 slug 再更新一次。可以讓設定 slug 時取得與發布相同的 advisory lock（Addendum 03 BE-023）。
+- [ ] **S1 設定 slug 與更新網站同時進行時，兩篇文章可能宣告同一個網址。** 「更新網站」匯出時文章 A 的 slug 是 X；匯出完成、寫入 `article_urls` 之前，A 改掉 X、B 設成 X，`set_slug` 的占用檢查還看不到 (A, X)，所以通過。之後 `record_export` 寫入 (A, X)，下一次匯出的 manifest 就讓 A 的 `redirect_from` 與 B 的 slug 都是 X。前端 parser 讓 build 失敗，不會部署錯的網站，但作者要改掉 slug 再更新一次。修法之一是讓 `set_slug` 與 `record_export` 取得同一把鎖；發布用的是 `pg_try_advisory_lock`，直接共用會讓更新網站期間的 slug 儲存被拒絕而不是等待（Addendum 03 BE-023）。

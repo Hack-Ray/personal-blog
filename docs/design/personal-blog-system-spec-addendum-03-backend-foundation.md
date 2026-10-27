@@ -300,12 +300,12 @@
 - **Context**：Addendum 04 FE-015 讓文章可以用英文 slug 當網址。網址換過之後，舊網址要能轉到新網址，而且不能被另一篇文章拿去用。
 - **Decision**：
   - `articles.slug` 可為空，格式是小寫英數字與單一 `-`，最多 80 字。`page` 是保留字，因為 `/posts/page/<n>/` 是文章列表的分頁。
-  - `PUT /api/articles/{id}/slug` 設定或清除 slug，不建立新版本，下一次「更新網站」生效。格式不符回 422。被占用時回 409，並建議第一個可用的 `<slug>-2`、`-3`。`GET /api/slugs/{slug}` 只檢查、不寫入，給編輯器在欄位失焦時使用。
+  - `PUT /api/articles/{id}/slug` 設定或清除 slug，不建立新版本，下一次「更新網站」生效。格式不符回 422。被占用時回 409，並建議第一個可用的 `<slug>-2`、`-3`。編輯器在欄位失焦時先在本機檢查格式，再直接送出 `PUT`，衝突由 409 處理。`GET /api/slugs/{slug}?doc_id=` 只檢查、不寫入。
   - `article_urls`（migration 0016）記錄每篇文章實際匯出過的網址片段，包括 `doc_id` 與 slug，在建立 release 時寫入。migration 0016 替已經發布過的文章補上 `doc_id`。
   - 另一篇文章目前使用的 slug，以及另一篇文章匯出過的片段，都不能使用。只在 CMS 打錯、還沒匯出過的 slug 可以再給別篇用。
   - 匯出時，manifest 的每篇文章帶目前的 `slug`，以及 `redirect_from`，也就是 `article_urls` 裡目前網址以外的片段。沒有時兩個 key 都省略，`schema_version` 維持 1。
   - 永久刪除文章時，`article_urls` 隨文章一起刪除，用過的 slug 跟著釋出。
-- **Consequences**：設定 slug 與匯出之間若在同一瞬間發生，兩篇文章可能在 manifest 中宣告同一個網址。前端 parser 會讓 build 失敗，不會部署錯的網站，改掉其中一個 slug 再「更新網站」即可。這個情況尚未加鎖處理，見 `docs/backlog.md`。
+- **Consequences**：`set_slug` 的占用檢查與建立 release 時寫入 `article_urls` 之間沒有互斥，同時發生時，資料庫可能一邊讓 B 使用 slug，一邊把同一個片段記成 A 的舊網址。下一次匯出的 manifest 會讓兩篇文章宣告同一個網址，前端 parser 讓 build 失敗，不會部署錯的網站。這個情況尚未處理，見 `docs/backlog.md` 的 S1。
 - **Supersedes**：無；實作 Addendum 04 FE-015。
 
 ### BE-024：CMS 的流量數據頁
@@ -319,7 +319,7 @@
   - 任何 HTTP 或格式錯誤都變成同一種錯誤，訊息遮掉 token，存起來給 CMS 顯示。一個來源失敗不影響另一個，API 仍回 200。
   - `GET /api/analytics?days=7|28|90` 回報表，`POST /api/analytics/sync` 更新資料。圖表是 CMS 內手寫的 inline SVG，不新增套件。
 - **Consequences**：Cloudflare 第一次只能取得最近 30 天，90 天的圖要慢慢累積。Search Console 的資料約晚 2–3 天。設定步驟見 `docs/analytics.md`。實作時沒有用真實帳號的 API 回應測試。
-- **Supersedes**：無；回答 Addendum 04 的 Open Question「流量分析服務的選型」。
+- **Supersedes**：Baseline 3.3「流量分析使用第三方服務」：公開網站不放分析程式，改由 CMS 從 API 讀取。回答 Addendum 04 的 Open Question「流量分析服務的選型」。
 
 ## Known gaps
 

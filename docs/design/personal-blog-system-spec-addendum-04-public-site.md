@@ -176,7 +176,7 @@
   - build 產生 `robots.txt`，其中的 sitemap 網址來自這次 build 的 `SITE_ORIGIN`。網站在網域根路徑時，爬蟲才讀得到它。
   - `LEGACY_SITE_URLS` 列出舊站的根網址。build 時，Markdown 連結中指向舊站的部分改成新站的相對網址，內容 repo 不改寫。
   - RSS 的 `<guid>` 是 `urn:ulid:<docId>`，換網域或 basePath 都不會變。
-  - 自訂網域接 CDN 時，先讓 Pages 以自訂網域取得憑證並開啟 Enforce HTTPS，再開 CDN proxy，SSL 用 Full (strict)。CDN 不快取 HTML 與 JSON，所以部署後不需要清除快取。步驟在 `docs/site-domain.md`，以 Cloudflare 為例。
+  - 自訂網域接 CDN 時，先讓 Pages 以自訂網域取得憑證並開啟 Enforce HTTPS，再開 CDN proxy，SSL 用 Full (strict)。CDN 不快取 HTML 與 JSON，所以部署後不需要清除快取；圖片沿用 Pages 的 10 分鐘快取，部署後最多 10 分鐘內可能看到舊圖。步驟在 `docs/site-domain.md`，以 Cloudflare 為例。
 - **Consequences**：fork 的人只要設定 variables 就能部署（`docs/fork-and-deploy.md`）。從 GitHub Pages 預設網址換到自訂網域時，RSS 閱讀器可能把舊文章再顯示一次，這是 GUID 改成 ULID 時的一次性遷移。`cdn-headers.json` 的逐頁 CSP 還沒套用到 CDN，見 `docs/backlog.md` 的 D7。
 - **Supersedes**：FE-001 的 `SITE_ORIGIN` 預設值與「不提供 `robots.txt`」，FE-006 中 ID 寫在 `comments.tsx` 的做法。
 
@@ -199,7 +199,7 @@
 - **Status**：Confirmed（使用者 2026-10-26 至 2026-10-27 指定）
 - **Context**：讀者要分享文章只能自己複製網址。Instagram 沒有網頁分享網址，不列入。
 - **Decision**：
-  - 已發布文章的留言區上方有一列分享按鈕：Facebook、X、Threads、LINE，最後一顆在電腦上是「複製連結」，在手機上是「更多分享方式」。
+  - 已發布文章的留言區上方有一列分享按鈕：Facebook、X、Threads、LINE，最後一顆在支援 Web Share API 的觸控裝置上是「更多分享方式」，其他情況是「複製連結」。
   - 分享網址由 `frontend/src/content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK 或追蹤程式。分享的是文章的 canonical 網址。
   - 圖示是內嵌的 Simple Icons（CC0）SVG，不另外下載。
   - 手機的 Facebook App 會攔下 facebook.com 連結，並丟掉要分享的網址。所以觸控裝置支援 Web Share API 時，Facebook 按鈕與「更多分享方式」都打開系統分享選單。電腦的瀏覽器不支援 clipboard 時不顯示「複製連結」。
