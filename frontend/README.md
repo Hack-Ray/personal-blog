@@ -31,10 +31,12 @@ images/{contentHash}.{ext}
   "schema_version": 1,
   "release_id": "<ULID>",
   "created_at": "<ISO 8601>",
-  "articles": [{ "doc_id": "<ULID>", "version": 1 }],
+  "articles": [{ "doc_id": "<ULID>", "version": 1, "slug": "my-post", "redirect_from": ["<ULID>"] }],
   "archived_articles": [{ "doc_id": "<ULID>" }]
 }
 ```
+
+`slug` and `redirect_from` appear only when set, on published and archived entries alike. An article lives at `/posts/<slug>/` when it has a slug and at `/posts/<docId>/` otherwise; each `redirect_from` segment is an earlier URL that becomes a redirect page. Every `/posts/<segment>/` must belong to one article (Addendum 04 FE-015).
 
 `articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Optional keys appear only when set: `updated_at` (from the second version on), `excerpt`, `cover` (an `images/<file>` path the article itself contains), `series` (`slug`, `name`) and `pinned_at`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
@@ -55,6 +57,11 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 | `GISCUS_REPO`, `GISCUS_CATEGORY` | `""`, `Announcements` | repository variables, defaulting to this repo and `Announcements` |
 | `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` | `""` (no comments) | repository variables, from <https://giscus.app> |
 | `GOOGLE_SITE_VERIFICATION` | `""` (no tag) | repository variable; the `content` of Search Console's `google-site-verification` meta tag |
+| `LEGACY_SITE_URLS` | `""` | repository variable; comma-separated roots of earlier sites, whose links in Markdown become relative links to this site (`docs/site-domain.md`) |
+
+## Icons
+
+`public/icon.svg` is the only source. `npm run icons` writes `favicon.ico`, `apple-touch-icon.png` and `og-default.png` (the share image for pages without one of their own) next to it. Commit all four; the build does not regenerate them.
 
 ## Checking the built site
 

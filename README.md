@@ -31,8 +31,8 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 | `backend/` | 本機 CMS API。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
 | `cms/` | CMS 介面，由後端在 `/admin/` 提供。 | Vite、React、TypeScript |
 | `frontend/` | 公開網站，從內容 Snapshot 產生靜態頁面。 | Next.js（`output: "export"`）、TypeScript、marked、shiki |
-| `docs/` | Fork 與部署教學、本機安裝步驟、作者的部署紀錄；`docs/architecture/` 是架構導覽（系統怎麼運作、為什麼這樣設計）；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）。 | |
-| `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站。 | GitHub Actions |
+| `docs/` | Fork 與部署教學、本機安裝步驟、網域與 CDN、流量數據、雲端 CMS、作者的部署紀錄；`docs/architecture/` 是架構導覽（系統怎麼運作、為什麼這樣設計）；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）；`docs/backlog.md` 是待辦事項。 | |
+| `.github/workflows/` | `ci.yml` 跑三組測試；`deploy.yml` 建置並部署網站；`token-expiry.yml` 在內容 repo 的 token 快到期時開 issue；`cms-image.yml` 檢查 CMS 容器；`cms-deploy.yml` 以 `cms-v*` tag 部署雲端 CMS（預設停用）。 | GitHub Actions |
 
 網站內容不在這個 repo，而在你自己建立的 private 內容 repo。發布流程：
 
@@ -49,7 +49,8 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 - **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。
 - **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。
 - **網址穩定。** 文章網址預設是不會改變的 ULID（`/posts/<docId>/`），也可以在 CMS 設定英文 slug（`/posts/<slug>/`）。上線過的舊網址會留下轉址頁，giscus 留言一律綁 ULID，改標題或 slug 都不會讓連結或留言失效。
-- **讀者功能齊全。** 程式碼高亮（淺色與深色）、目錄、上一篇與下一篇、主題與標籤頁、站內搜尋、RSS、深淺色切換、Open Graph 與 giscus 留言。
+- **讀者功能齊全。** 程式碼高亮（淺色與深色）、目錄、上一篇與下一篇、系列與相關文章、主題與標籤頁、歸檔、站內搜尋、RSS、深淺色切換、Open Graph 預覽圖、分享按鈕（Facebook、X、Threads、LINE，不載入任何平台的程式）與 giscus 留言。
+- **不追蹤讀者也看得到流量。** 公開網站沒有分析或追蹤程式。網站接上 Cloudflare 與 Google Search Console 後，CMS 的「流量數據」頁可以從它們的 API 讀取每日流量與搜尋字詞（選用，見 [`docs/analytics.md`](docs/analytics.md)）。
 - **圖片自動處理。** 上傳的圖片依內容判斷格式，縮到最寬 1440px 並轉成 WebP，同時移除 EXIF（例如照片的 GPS 位置）。沒被引用超過 7 天的圖片會自動清除。
 - **內容與程式分開。** 內容在獨立的 private repo，有完整的 git 歷史；程式碼可以公開，也可以換掉整個前端而不動內容。
 
@@ -93,7 +94,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 | 位置 | 要設定的內容 |
 | --- | --- |
 | 你的 GitHub 帳號 | 建立 private 內容 repo，預設名稱是 `<fork 名稱>-content`，例如 `you/personal-blog-content` |
-| repo 的 Settings → Pages | Source 選 GitHub Actions。網站網址與 basePath 由 Pages 決定，自訂網域也一樣 |
+| repo 的 Settings → Pages | Source 選 GitHub Actions。網站網址與 basePath 由 Pages 決定，自訂網域也一樣（見 [`docs/site-domain.md`](docs/site-domain.md)） |
 | repo 的 Actions secret `CONTENT_REPO_TOKEN` | 可以讀取你的內容 repo 的 token |
 | repo 的 Actions variable `CONTENT_REPO`（選用） | 內容 repo 不叫 `<fork 名稱>-content` 時才需要 |
 | repo 的 Actions variables `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（選用） | 從 <https://giscus.app> 取得；沒設定就不顯示留言 |
@@ -101,7 +102,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 
 文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。CMS 的本機與雲端設定、API 發布及 GitHub App 認證見 [`docs/portable-cms.md`](docs/portable-cms.md)。
 
-網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。
+網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。網站圖示與預設分享圖由 `frontend/public/icon.svg` 產生：換掉這個檔案，在 `frontend/` 執行 `npm run icons`，再 commit 產生的圖檔。
 
 #### 4. 開發與測試
 
@@ -183,8 +184,8 @@ Your computer                              GitHub
 | `backend/` | The local CMS API. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
 | `cms/` | The CMS UI, served by the backend at `/admin/`. | Vite, React, TypeScript |
 | `frontend/` | The public site, generated as static pages from a content Snapshot. | Next.js (`output: "export"`), TypeScript, marked, shiki |
-| `docs/` | Fork and deploy guide, local setup guide, the author's deployment notes; `docs/architecture/` is the architecture guide (how the system works and why it is built this way); `docs/design/` holds the design record (Baseline and Addendum 01–04). Written in Traditional Chinese. | |
-| `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site. | GitHub Actions |
+| `docs/` | Fork and deploy guide, local setup guide, domain and CDN, traffic data, cloud CMS, the author's deployment notes; `docs/architecture/` is the architecture guide (how the system works and why it is built this way); `docs/design/` holds the design record (Baseline and Addendum 01–04); `docs/backlog.md` lists open work. Written in Traditional Chinese. | |
+| `.github/workflows/` | `ci.yml` runs the three test suites; `deploy.yml` builds and deploys the site; `token-expiry.yml` opens an issue when the content repo token is about to expire; `cms-image.yml` checks the CMS container; `cms-deploy.yml` deploys a cloud CMS on a `cms-v*` tag (off by default). | GitHub Actions |
 
 The site's content does not live in this repo. It lives in a private content repo you create. Publishing works like this:
 
@@ -201,7 +202,8 @@ The backend and the frontend talk only through the Snapshot. `frontend/src/conte
 - **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days.
 - **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it.
 - **Stable URLs.** Articles live at a fixed ULID (`/posts/<docId>/`) or at an English slug set in the CMS (`/posts/<slug>/`). Every URL that went live keeps a redirect page, and giscus comments stay keyed on the ULID, so changing a title or slug breaks neither links nor comments.
-- **Reader features.** Code highlighting in light and dark themes, a table of contents, previous and next links, topic and tag pages, site search, RSS, a theme toggle, Open Graph tags and giscus comments.
+- **Reader features.** Code highlighting in light and dark themes, a table of contents, previous and next links, series and related posts, topic and tag pages, an archive, site search, RSS, a theme toggle, Open Graph preview images, share buttons (Facebook, X, Threads, LINE, with no script from any of them) and giscus comments.
+- **Traffic data without tracking readers.** The public site has no analytics or tracking script. Once the site sits behind Cloudflare and Google Search Console, the CMS's "流量數據" (Traffic) page reads daily traffic and search queries from their APIs (optional, see [`docs/analytics.md`](docs/analytics.md)).
 - **Images handled for you.** Uploads are identified by their bytes, scaled to at most 1440px wide and re-encoded as WebP, which also strips EXIF data such as a photo's GPS location. Images nothing has referenced for 7 days are removed.
 - **Content separate from code.** Content sits in its own private repo with full git history. The code can be public, and the whole frontend could be replaced without touching the content.
 
@@ -245,7 +247,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 | Where | What to set |
 | --- | --- |
 | Your GitHub account | Create a private content repo, by default named `<fork name>-content`, e.g. `you/personal-blog-content` |
-| Repo Settings → Pages | Set Source to GitHub Actions. Pages decides the site URL and basePath, custom domains included |
+| Repo Settings → Pages | Set Source to GitHub Actions. Pages decides the site URL and basePath, custom domains included (see [`docs/site-domain.md`](docs/site-domain.md)) |
 | Actions secret `CONTENT_REPO_TOKEN` | A token that can read your content repo |
 | Actions variable `CONTENT_REPO` (optional) | Only when the content repo is not named `<fork name>-content` |
 | Actions variables `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` (optional) | From <https://giscus.app>; without them the site has no comments |
@@ -253,7 +255,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 
 The default setup runs the CMS locally and deploys the public site to GitHub Pages. The same CMS can run in the cloud with environment settings. See [`docs/portable-cms.md`](docs/portable-cms.md) for API publishing and GitHub App authentication.
 
-The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release.
+The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release. The site icon and the default share image come from `frontend/public/icon.svg`: replace that file, run `npm run icons` in `frontend/`, and commit the images it writes.
 
 #### 4. Develop and test
 

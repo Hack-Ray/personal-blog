@@ -41,3 +41,6 @@ backend/secrets/
 
 # CMS server log (scripts/start.sh)
 backend/logs/
+
+# pstack working notes (todo lists, decision trails)
+.audit/

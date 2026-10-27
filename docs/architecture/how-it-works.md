@@ -1,6 +1,6 @@
 # 系統如何運作：架構導覽
 
-> **這是導覽，不是規格。** 給要改程式的人快速建立心智模型。設計決策與理由在 [`docs/design/`](../design/)；本機操作在 [`local-setup.md`](../local-setup.md)。內容以 2026-10-22 的程式碼為準，行為有出入時以程式碼為準。
+> **這是導覽，不是規格。** 給要改程式的人快速建立心智模型。設計決策與理由在 [`docs/design/`](../design/)；本機操作在 [`local-setup.md`](../local-setup.md)。內容以 2026-10-27 的程式碼為準，行為有出入時以程式碼為準。
 
 ## 本機與雲端共用發布流程
 
@@ -283,6 +283,8 @@ stateDiagram-v2
 
 **其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；圖示是內嵌的 Simple Icons（CC0）SVG；手機上 Facebook App 會攔下 facebook.com 連結而丟掉要分享的網址，所以觸控裝置有 Web Share API 時，Facebook 按鈕與最後一顆「更多分享方式」都開系統分享選單；其他情況（電腦）最後一顆是「複製連結」，瀏覽器有 clipboard 才顯示）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
 
+**圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；沒有封面或上傳圖片的文章與非文章頁，`og:image` 都是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
+
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
 ### 3.5 CMS 前端
@@ -354,6 +356,7 @@ stateDiagram-v2
 | `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**site-changes**：只在 push 時執行，比對 `github.event.before` 與這次 commit，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才輸出 `changed=true`；找不到前一個 commit 時也視為有改。**build**：push 時只在 site-changes 不是 `false` 時執行，`workflow_dispatch` 一律執行；checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
 | `token-expiry.yml` | 每週一 01:00 UTC | 讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
 | `cms-image.yml` | 獨立 | 建 Docker image、跑 migration、測 backup／restore、探測 `/healthz` |
+| `cms-deploy.yml` | push `cms-v*` tag | repo variable `CMS_DEPLOY_ENABLED=true` 時才執行：先跑 `ci.yml`，再經 Tailscale 部署雲端 CMS（`docs/cms-deployment.md`）。預設停用 |
 
 `deploy.yml` 的 `run-name` 是 `Deploy content ${{ inputs.content_sha || 'HEAD' }}`。CMS 靠這個標題找 run，靠 step 名稱 `Deploy to GitHub Pages` 判斷是否真的部署。只有 deploy job 有 `pages: write` 與 `id-token: write`。內容 repo 由 `vars.CONTENT_REPO` 指定，預設 `<本 repo>-content`。
 
