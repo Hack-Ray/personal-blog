@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 
 import pytest
@@ -206,3 +207,32 @@ def test_a_slug_moved_to_another_article_during_an_export_stays_with_that_articl
     set_slug(client, b, "z")
     manifest = release_site(repo)
     assert "x" not in entry(manifest, a).get("redirect_from", [])
+
+
+@pytest.mark.parametrize("b_published", [True, False])
+def test_a_slug_claimed_while_an_export_is_being_recorded_is_never_claimed_twice(client, repo, monkeypatch, b_published):
+    a = published(client)
+    b = published(client) if b_published else create(client)
+    set_slug(client, a, "x")
+    render = release.exporter.render_snapshot
+
+    def moved_mid_export(session):
+        files = render(session)
+        assert set_slug(client, a, "y").status_code == 200
+        return files
+
+    with monkeypatch.context() as m, ThreadPoolExecutor(1) as pool, SessionLocal() as s:
+        m.setattr(release.exporter, "render_snapshot", moved_mid_export)
+        claims = []
+
+        def claim_before_the_release_commits(_):
+            claims.append(pool.submit(set_slug, client, b, "x"))
+            wait(claims, timeout=1)
+
+        release.create(s, repo, None, on_prepared=claim_before_the_release_commits)
+        claimed = claims[0].result(timeout=10).status_code == 200
+    if not b_published:
+        client.post(f"/api/articles/{b}/publish", json={"base_revision": 1, "title": "Hello", "topic": BACKEND, "markdown": "body"})
+    manifest = release_site(repo)
+    claimants = [e["doc_id"] for e in manifest["articles"] if e.get("slug") == "x" or "x" in e.get("redirect_from", [])]
+    assert claimants == [b if claimed else a]

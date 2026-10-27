@@ -19,7 +19,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from blog import config, exporter, retention
+from blog import articles, config, exporter, retention
 from blog.content_repository import GitHubRepository
 from blog.db import advisory_lock
 from blog.github import GitHubClient, GitHubError, client_from_settings
@@ -268,6 +268,7 @@ def _create(session: Session, repo: Path | GitHubRepository, deployer: Deployer 
 
 
 def record_export(session: Session, result: exporter.ExportResult, deployer: Deployer | None = None) -> Release:
+    articles.lock_slugs(session)
     release = Release(
         id=result.release_id,
         content_commit=result.commit,

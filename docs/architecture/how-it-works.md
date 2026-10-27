@@ -195,7 +195,7 @@ sequenceDiagram
    - `git add --all` 只對 `SNAPSHOT_PATHS`，`git commit -m "Release <release_id>"`。這一步不 push。
    - export 回傳 None 時，`create` 再用 `head_release` 看 HEAD 是不是一個還沒有 Release 列的 release commit（上次 crash 留下的），有的話接手它。
 6. 兩者皆無，或該 Release 已存在：回傳 `{release: null}`，CMS 顯示「已發布的內容沒有變更」。
-7. 否則 `record_export` 新增 `Release(EXPORTED)` 與 `release_articles`，並依 manifest 把每篇已發布與封存文章這次的網址片段寫進 `article_urls`（已存在就略過；這次 release 後來失敗也只是多一個轉址頁），把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
+7. 否則 `record_export` 先取得 slug 鎖（`articles.lock_slugs`，`set_slug` 也取同一把，直到 commit），再新增 `Release(EXPORTED)` 與 `release_articles`，並依 manifest 把每篇已發布與封存文章這次的網址片段寫進 `article_urls`（已存在就略過；這次 release 後來失敗也只是多一個轉址頁），把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
 8. `_advance` 從目前狀態往下推：
    - EXPORTED、PUSH_FAILED：`git push --quiet`（`GIT_TERMINAL_PROMPT=0`）。成功 PUSHED；失敗或逾時 PUSH_FAILED，`detail` 存遮蔽過的 stderr 最後 500 字。
    - PUSHED、DISPATCH_FAILED、FAILED：沒有 deployer 直接 DISPATCH_FAILED。否則 `POST /repos/{DEPLOY_REPO}/actions/workflows/{DEPLOY_WORKFLOW}/dispatches`，`ref` 為 `DEPLOY_REF`，`inputs.content_sha` 為 commit。成功 DISPATCHED，重設 `dispatched_at`，清掉 `run_url`，**刻意保留** `run_id`。
