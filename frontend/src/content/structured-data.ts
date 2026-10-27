@@ -26,6 +26,20 @@ export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" |
   };
 }
 
+/** schema.org BreadcrumbList: the site, the article's topic, the article. */
+export function breadcrumbList(a: PublishedArticle, siteTitle: string) {
+  const trail = [
+    { name: siteTitle, url: absoluteUrl("/") },
+    { name: a.topic.name, url: absoluteUrl(`/topics/${a.topic.slug}/`) },
+    { name: a.title, url: absoluteUrl(postPath(a)) },
+  ];
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map(({ name, url }, i) => ({ "@type": "ListItem", position: i + 1, name, item: url })),
+  };
+}
+
 /** schema.org WebSite; Google reads it on the home page for the site name. */
 export function webSite(site: Profile["site"]) {
   return {

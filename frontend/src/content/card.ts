@@ -16,3 +16,12 @@ export const THUMBNAIL_WIDTH = 320;
  */
 export const thumbnailOf = (image: string): string =>
   image.endsWith(".svg") ? image : `thumbs/${image.slice("images/".length).replace(/\.[^.]+$/, "")}.webp`;
+
+const DESCRIPTION_TITLES = 3;
+
+/** The meta description of a topic or tag page, such as "Backend 主題的 3 篇文章：〈A〉、〈B〉、〈C〉。"; `articles` is newest first. */
+export const taxonDescription = (label: string, articles: PublishedArticle[]): string =>
+  `${label}的 ${articles.length} 篇文章：${articles
+    .slice(0, DESCRIPTION_TITLES)
+    .map((a) => `〈${a.title}〉`)
+    .join("、")}。`;

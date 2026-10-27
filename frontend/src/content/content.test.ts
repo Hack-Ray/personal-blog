@@ -225,6 +225,14 @@ test("snapshot image references resolve under the basePath", () => {
   assert.match(html, /src="https:\/\/example\.com\/x\.png"/);
 });
 
+test("images listed in the size manifest get width and height; others and remote images do not", () => {
+  const sizes = { "images/abc.svg": { width: 320, height: 120 } };
+  const html = renderMarkdown("![a](images/abc.svg) ![b](images/other.png) ![c](https://example.com/x.png)", "/personal-blog", sizes);
+  assert.match(html, /src="\/personal-blog\/images\/abc\.svg" alt="a" width="320" height="120"/);
+  assert.equal(html.match(/width=/g)?.length, 1);
+  assert.match(renderMarkdown("![a](images/abc.svg)", "", sizes), /src="\/images\/abc\.svg" alt="a" width="320"/);
+});
+
 test("fenced code in a known language is highlighted with light and dark variables", () => {
   const html = renderMarkdown("```ts\nconst x = 1;\n```", "");
   assert.match(html, /<pre class="shiki/);

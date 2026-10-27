@@ -1,7 +1,9 @@
 import { Marked, type Tokens } from "marked";
 import { createHighlighter } from "shiki";
+import { existsSync, readFileSync } from "node:fs";
 import { SITE_ORIGIN } from "../site.ts";
 import { inlineText, slugger } from "./headings.ts";
+import { IMAGE_SIZES_FILE } from "./load.ts";
 import { allowedImage, allowedLink } from "./url-policy.ts";
 import { legacySiteUrls, migrateSiteLink } from "./site-links.ts";
 
@@ -34,11 +36,16 @@ function highlight(code: string, info: string | undefined): string {
 const codeBlock = (pre: string) =>
   `<div class="code-block">${pre}<button type="button" class="copy-code" aria-live="polite" hidden>複製</button></div>\n`;
 
+type ImageSizes = Record<string, { width: number; height: number }>;
+
+// Written by the build; without it (unit tests, a fresh checkout) images get no size attributes.
+const imageSizes: ImageSizes = existsSync(IMAGE_SIZES_FILE) ? JSON.parse(readFileSync(IMAGE_SIZES_FILE, "utf8")) : {};
+
 const isExternal = (href: string) => /^https?:\/\//i.test(href) && !(SITE_ORIGIN && href.startsWith(`${SITE_ORIGIN}/`));
 
 // Snapshot Markdown references images as images/<file>; the build copies them
 // to public/images, which is served under the site's basePath.
-export function renderMarkdown(markdown: string, basePath: string): string {
+export function renderMarkdown(markdown: string, basePath: string, sizes: ImageSizes = imageSizes): string {
   const idFor = slugger();
   const marked = new Marked({
     renderer: {
@@ -56,11 +63,13 @@ export function renderMarkdown(markdown: string, basePath: string): string {
         const onlyImage = tokens.every((t) => t.type === "image");
         return `<a ${attrs} target="_blank" rel="noopener noreferrer"${onlyImage ? "" : ' class="external"'}>${inner}</a>`;
       },
-      // marked leaves the alt text unescaped.
-      image: ({ href, title, text }) =>
-        href === ""
-          ? escapeHtml(text)
-          : `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy">`,
+      // marked leaves the alt text unescaped. walkTokens has put basePath in front of images/ hrefs.
+      image({ href, title, text }) {
+        if (href === "") return escapeHtml(text);
+        const size = href.startsWith(`${basePath}/images/`) ? sizes[href.slice(basePath.length + 1)] : undefined;
+        const dims = size ? ` width="${size.width}" height="${size.height}"` : "";
+        return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""}${dims} loading="lazy">`;
+      },
       // An image alone in its paragraph is a figure, captioned with its alt text.
       paragraph({ tokens }) {
         const inner = this.parser.parseInline(tokens);

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SiteContent } from "./model.ts";
+import { taxonDescription } from "./card.ts";
 import { imagePaths, parseSnapshot } from "./parse.ts";
+import { published } from "./queries.ts";
 import { sitemapEntries } from "./sitemap.ts";
 import { summary } from "./summary.ts";
 
@@ -44,6 +46,14 @@ test("sitemap lists published pages and leaves out archived articles", () => {
   );
   assert.equal(entries[0]!.lastModified?.toISOString(), "2026-03-01T00:00:00.000Z");
   assert.ok(!entries.some((e) => e.path.includes(C)));
+});
+
+test("a topic or tag description counts the articles and lists the newest three titles", () => {
+  const [newest] = published(content());
+  const titled = (n: number) => Array.from({ length: n }, (_, i) => ({ ...newest!, title: `文${i + 1}` }));
+  assert.equal(taxonDescription("Backend 主題", titled(2)), "Backend 主題的 2 篇文章：〈文1〉、〈文2〉。");
+  assert.equal(taxonDescription("#Python 標籤", titled(1)), "#Python 標籤的 1 篇文章：〈文1〉。");
+  assert.equal(taxonDescription("Backend 主題", titled(5)), "Backend 主題的 5 篇文章：〈文1〉、〈文2〉、〈文3〉。");
 });
 
 test("summary is plain text of the opening, without code, images or link syntax", () => {
