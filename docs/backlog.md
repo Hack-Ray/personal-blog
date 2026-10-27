@@ -10,7 +10,3 @@
   - 不建議 API Gateway + Lambda：它們的請求大小上限是 10 MB 和 6 MB，而圖片上傳允許到 10 MB。
   - 選定後照 `docs/cms-deployment.md` 設定。容器限制、SSM、最小權限 role、RDS 憑證與 CloudWatch Logs 都已是選用設定。啟用 `cms-v*` tag 部署時，同時建立 tag ruleset（見 `docs/cms-deployment.md`）。
   - CMS 若要開放給 tailnet 以外的網路，還需要第二道驗證（TOTP 或 OIDC）、全域登入次數上限或 WAF，以及正確的 `FORWARDED_ALLOW_IPS`。目前的設計不支援這種用法。
-
-## 文章網址
-
-- [ ] **S1 設定 slug 與更新網站同時進行時，兩篇文章可能宣告同一個網址。** 「更新網站」匯出時文章 A 的 slug 是 X，之後 A 改掉 X、B 設成 X。一般情況已有保護：`record_export`（`backend/blog/release.py`）寫入 `article_urls` 前會讀取目前誰擁有 X，B 已經擁有時就不記成 A 的舊網址（`test_a_slug_moved_to_another_article_during_an_export_stays_with_that_article`）。剩下的窗口很窄：B 的 `set_slug` 在 release 交易 commit 之前通過占用檢查，而且 B 的 commit 在 `record_export` 讀取擁有者時還看不到。這時資料庫同時有 B 的 slug X 與 (A, X)，下一次匯出的 manifest 讓兩篇文章都宣告 X。前端 parser 讓 build 失敗，不會部署錯的網站，但作者要改掉 slug 再更新一次。修法之一是讓 `set_slug` 與 `record_export` 取得同一把鎖；發布用的是 `pg_try_advisory_lock`，直接共用會讓更新網站期間的 slug 儲存被拒絕而不是等待（Addendum 03 BE-023）。
