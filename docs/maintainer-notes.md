@@ -4,7 +4,7 @@
 
 ## 環境
 
-- 程式 repo：`Hack-Ray/personal-blog`（公開），網站 <https://hack-ray.github.io/personal-blog/>。
+- 程式 repo：`Hack-Ray/personal-blog`（公開）。網站使用自訂網域，網域設定在 repo 的 Settings → Pages，DNS 與 CDN 在 Cloudflare（步驟見 [`site-domain.md`](./site-domain.md)）。
 - 內容 repo：`Hack-Ray/personal-blog-content`（private）。名稱符合預設的 `<repo>-content`，所以不需要設定 `CONTENT_REPO`。
 - repo variables：`GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（Announcements 分類）。
 - 本機 `backend/.env`：`CONTENT_REPO_DIR`、`DEPLOY_REPO=Hack-Ray/personal-blog`、`CMS_GITHUB_TOKEN`（舊名 `GITHUB_TOKEN` 仍可用）。

@@ -4,7 +4,7 @@
 
 ## 換成自訂網域
 
-目前網站使用 GitHub Pages 的預設網址，程式和 workflow 不需要事先修改。買好網域後，照下面的順序設定。
+網站預設使用 GitHub Pages 的預設網址。換成自訂網域時，程式和 workflow 不需要修改（Addendum 04 FE-014）。買好網域後，照下面的順序設定。
 
 ### 設定 DNS 與 GitHub
 

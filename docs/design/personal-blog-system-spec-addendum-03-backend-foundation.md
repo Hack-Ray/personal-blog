@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20
+> **日期**：2026-10-20，2026-10-27 補上 BE-023–BE-024
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -42,7 +42,7 @@
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
   - 只 stage `manifest.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。（BE-017 加入 `profile.json`。）
   - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
-- **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先建立 CMS 用的 GitHub token。
+- **Consequences**：觸發 deploy workflow（PUB-004）尚未實作，需先建立 CMS 用的 GitHub token。（已由 BE-010 實作。）
 
 ### BE-005：Article Lifecycle 狀態機
 
@@ -281,16 +281,45 @@
   - 不開長期的雲端分支。能用同一種做法同時適用本機與雲端的，就不做成選項，例如定期維護是同一個指令 `python -m blog.maintenance`。
   - 只有真的不同的設定放進 `.env`，由 `backend/blog/config.py` 啟動時一次讀取並檢查。`CMS_ENV=local|cloud` 只決定預設值，每一項都能個別覆寫。
   - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式。workflow 透過 Tailscale 的 GitHub Action 連到主機，主機仍不開進站連接埠（BE-020）。
-- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 要等運算服務決定後再寫（`docs/backlog.md`「需要先決定的事」）。
+- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行；選哪個運算服務仍待決定（`docs/backlog.md`）。
 - **Supersedes**：無。
 
 ### BE-022：本機與雲端共用發布流程
 
-- 同一份 CMS 程式以環境設定選擇資料庫、網址、備份位置與憑證。本機預設與既有 clone 設定保留。
-- 新設定可選 Git Data API 發布，不需要內容 repo clone；認證可用 PAT 或 GitHub App。App 私鑰由執行環境提供，後端自動取得短效 token。
-- CMS 先持久化背景工作並回應 202。worker 匯出 Snapshot、準備 commit、保存內容與部署目的地後，才更新遠端分支。中斷後重試接續同一個 commit；其他 writer 改變 HEAD 時拒絕覆蓋。
-- 公開網站仍由 Actions 讀取 Snapshot 建置，不連回 CMS。`cms-v*` tag 的 CMS 主機部署獨立且預設停用。
+- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Decision**：
+  - 同一份 CMS 程式以環境設定選擇資料庫、網址、備份位置與憑證。本機預設與既有 clone 設定保留。
+  - 新設定可選 Git Data API 發布，不需要內容 repo clone；認證可用 PAT 或 GitHub App。App 私鑰由執行環境提供，後端自動取得短效 token。
+  - CMS 先持久化背景工作並回應 202。worker 匯出 Snapshot、準備 commit、保存內容與部署目的地後，才更新遠端分支。中斷後重試接續同一個 commit；其他 writer 改變 HEAD 時拒絕覆蓋。
+  - 公開網站仍由 Actions 讀取 Snapshot 建置，不連回 CMS。`cms-v*` tag 的 CMS 主機部署獨立且預設停用。
 - **Supersedes**：BE-004 中只能使用本機 clone 的限制，以及 BE-010 同步執行更新網站的介面行為。完整設定與切換見 `docs/portable-cms.md`。
+
+### BE-023：文章 slug 與匯出過的網址
+
+- **Status**：Confirmed（使用者 2026-10-26 指定）
+- **Context**：Addendum 04 FE-015 讓文章可以用英文 slug 當網址。網址換過之後，舊網址要能轉到新網址，而且不能被另一篇文章拿去用。
+- **Decision**：
+  - `articles.slug` 可為空，格式是小寫英數字與單一 `-`，最多 80 字。`page` 是保留字，因為 `/posts/page/<n>/` 是文章列表的分頁。
+  - `PUT /api/articles/{id}/slug` 設定或清除 slug，不建立新版本，下一次「更新網站」生效。格式不符回 422。被占用時回 409，並建議第一個可用的 `<slug>-2`、`-3`。編輯器在欄位失焦時先在本機檢查格式，再直接送出 `PUT`，衝突由 409 處理。`GET /api/slugs/{slug}?doc_id=` 只檢查、不寫入。
+  - `article_urls`（migration 0016）記錄每篇文章實際匯出過的網址片段，包括 `doc_id` 與 slug，在建立 release 時寫入。migration 0016 替已經發布過的文章補上 `doc_id`。
+  - 另一篇文章目前使用的 slug，以及另一篇文章匯出過的片段，都不能使用。只在 CMS 打錯、還沒匯出過的 slug 可以再給別篇用。
+  - 匯出時，manifest 的每篇文章帶目前的 `slug`，以及 `redirect_from`，也就是 `article_urls` 裡目前網址以外的片段。沒有時兩個 key 都省略，`schema_version` 維持 1。
+  - 永久刪除文章時，`article_urls` 隨文章一起刪除，用過的 slug 跟著釋出。
+- **Consequences**：建立 release 時，`record_export` 先查目前誰擁有每個匯出的 slug；匯出期間 slug 已移到另一篇文章時，不記成原文章的舊網址。但 `set_slug` 與 release 交易之間沒有互斥，兩者在極短時間內重疊時，資料庫仍可能一邊讓 B 使用 slug，一邊把同一個片段記成 A 的舊網址。下一次匯出的 manifest 會讓兩篇文章宣告同一個網址，前端 parser 讓 build 失敗，不會部署錯的網站。這個情況尚未處理，見 `docs/backlog.md` 的 S1。
+- **Supersedes**：無；實作 Addendum 04 FE-015。
+
+### BE-024：CMS 的流量數據頁
+
+- **Status**：Confirmed（使用者 2026-10-26 指定）
+- **Context**：作者想看網站流量與搜尋表現，但已決定公開網站不放分析或追蹤程式（Baseline 3.3 的待選項目）。網站接上 Cloudflare 與 Google Search Console 之後，兩者都有可以從伺服器讀取的 API。
+- **Decision**：
+  - `backend/blog/analytics.py` 在伺服器端讀 Cloudflare GraphQL Analytics API 與 Google Search Console API，存進 `traffic_days`、`search_days` 與 `analytics_sources`（migration 0015）。公開網站完全不變。
+  - 預設關閉。`backend/.env` 設定 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ZONE_ID`，或 `GSC_SITE_URL` 與 `GSC_CREDENTIALS_FILE`，才啟用對應的來源。Cloudflare token 只給 Analytics 唯讀權限。Google 用服務帳戶金鑰，放在 git 忽略的 `backend/secrets/`。
+  - 沒有排程。開啟 CMS「流量數據」頁時，資料超過 6 小時就先更新一次。「立即更新」強制更新。重抓的日期整天覆蓋，所以重複更新不會重複計算。
+  - 任何 HTTP 或格式錯誤都變成同一種錯誤，訊息遮掉 token，存起來給 CMS 顯示。一個來源失敗不影響另一個，API 仍回 200。
+  - `GET /api/analytics?days=7|28|90` 回報表，`POST /api/analytics/sync` 更新資料。圖表是 CMS 內手寫的 inline SVG，不新增套件。
+- **Consequences**：Cloudflare 第一次只能取得最近 30 天，90 天的圖要慢慢累積。Search Console 的資料約晚 2–3 天。設定步驟見 `docs/analytics.md`。實作時沒有用真實帳號的 API 回應測試。
+- **Supersedes**：Baseline 3.3「流量分析使用第三方服務」：公開網站不放分析程式，改由 CMS 從 API 讀取。回答 Addendum 04 的 Open Question「流量分析服務的選型」。
 
 ## Known gaps
 

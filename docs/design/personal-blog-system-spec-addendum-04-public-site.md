@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20
+> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-017
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -18,6 +18,7 @@
   - 文章頁有 description（Markdown 轉純文字的前 120 字）與 Open Graph article metadata。
   - 封存頁 `noindex`；沒有資料時的動態路由佔位頁是 404 頁並且 `noindex`。
 - **Consequences**：GitHub Pages 專案網站無法在網域根目錄放 `robots.txt`，所以不提供；改用自訂網域後可再加入。
+- **Amended by**：FE-014（`SITE_ORIGIN` 與 basePath 改由部署環境提供，並產生 `robots.txt`）、FE-015（文章網址可以是 slug）。
 
 ### FE-002：純靜態文章搜尋
 
@@ -70,6 +71,7 @@
   - 主題跟隨系統深淺模式，介面語言 zh-TW，延遲載入。
   - repo 與分類的 ID 寫在 `frontend/src/app/posts/[docId]/comments.tsx`；ID 為空時不顯示留言區。
 - **Consequences**：討論串在第一則留言時由 giscus 建立，標題就是 `doc_id`。留言者需要 GitHub 帳號。
+- **Amended by**：FE-014（repo 與分類的 ID 改由 Actions variables 提供，不寫在程式碼）。
 
 ### FE-007：關於頁內容由 CMS 編輯
 
@@ -94,6 +96,7 @@
   - 目錄：renderer 為 h2、h3 產生固定 `id`（保留中文、英文轉小寫、空白轉 `-`、移除標點，重複時加 `-2`、`-3`）。文章至少有 3 個 h2／h3 時，內文上方顯示「目錄」，h3 縮排在 h2 之下；連結為純 `#id`，不受 basePath 影響。
   - 手動深淺色：頁首「關於」之後的按鈕依序切換跟隨系統、淺色、深色，選擇存在 `localStorage`，以 `<html data-theme="light|dark">` 套用，沒有屬性即跟隨系統。`<head>` 內的小段 inline script 在繪製前套用，避免閃爍。giscus 初始主題依選擇計算，切換時以 `postMessage` 通知 iframe。
 - **Consequences**：多了一段 inline script 與一個 client 元件；`localStorage` 不可用時（無痕模式等）退回跟隨系統。社群平台通常不支援 SVG 預覽圖，實際內容的圖片為 WebP（BE-014）。
+- **Amended by**：FE-017（沒有圖片的文章與其他頁面改用預設分享圖，每頁都有 `og:image`）。
 
 ### FE-009：網站名稱與簡介由 CMS 編輯
 
@@ -163,6 +166,57 @@
 - **Consequences**：作者確認現有文章沒有使用原始 HTML，上線不改變顯示（#27）。
 - **Supersedes**：無。
 
+### FE-014：網址、網域與各站設定由部署環境提供
+
+- **Status**：Confirmed（使用者 2026-10-22 與 2026-10-26 決定）
+- **Context**：FE-001 的 `SITE_ORIGIN` 預設是作者的 Pages 網址，FE-006 的 giscus ID 寫在程式碼。別人 fork 後必須改程式才能部署，換成自訂網域也要改程式。這個 repo 是公開的，作者的網域與帳號資料不應該寫進程式碼。
+- **Decision**：
+  - `deploy.yml` 從 `actions/configure-pages` 取得網站的 origin 與 basePath，傳給 build 的 `SITE_ORIGIN` 與 `BASE_PATH`。Pages 設定自訂網域後，下一次部署就使用新網域，不需要改程式。直接 build 時的預設是 `https://example.com` 與 `/personal-blog`。
+  - 每個站不同的值都放在 Actions variables 與 secrets：`CONTENT_REPO`（預設 `<repo>-content`）、`GISCUS_REPO`、`GISCUS_REPO_ID`、`GISCUS_CATEGORY`、`GISCUS_CATEGORY_ID`、`GOOGLE_SITE_VERIFICATION`、`LEGACY_SITE_URLS`。程式碼與文件不寫作者的網域，文件用 `<網域>` 這類替代字。
+  - build 產生 `robots.txt`，其中的 sitemap 網址來自這次 build 的 `SITE_ORIGIN`。網站在網域根路徑時，爬蟲才讀得到它。
+  - `LEGACY_SITE_URLS` 列出舊站的根網址。build 時，Markdown 連結中指向舊站的部分改成新站的相對網址，內容 repo 不改寫。
+  - RSS 的 `<guid>` 是 `urn:ulid:<docId>`，換網域或 basePath 都不會變。
+  - 自訂網域接 CDN 時，先讓 Pages 以自訂網域取得憑證並開啟 Enforce HTTPS，再開 CDN proxy，SSL 用 Full (strict)。CDN 不快取 HTML 與 JSON，所以部署後不需要清除快取；圖片沿用 Pages 的 10 分鐘快取，部署後最多 10 分鐘內可能看到舊圖。步驟在 `docs/site-domain.md`，以 Cloudflare 為例。
+- **Consequences**：fork 的人只要設定 variables 就能部署（`docs/fork-and-deploy.md`）。從 GitHub Pages 預設網址換到自訂網域時，RSS 閱讀器可能把舊文章再顯示一次，這是 GUID 改成 ULID 時的一次性遷移。`cdn-headers.json` 的逐頁 CSP 還沒套用到 CDN，見 `docs/backlog.md` 的 D7。
+- **Supersedes**：FE-001 的 `SITE_ORIGIN` 預設值與「不提供 `robots.txt`」，FE-006 中 ID 寫在 `comments.tsx` 的做法。
+
+### FE-015：文章可以使用英文 slug 網址，舊網址留下轉址頁
+
+- **Status**：Confirmed（使用者 2026-10-26 指定）
+- **Context**：Baseline 4.1 讓文章網址固定為 `/posts/<docId>/`。ULID 網址穩定，但讀者看不出文章在講什麼，分享時也不好看。
+- **Decision**：
+  - 作者可以在 CMS 替文章設定英文 slug，公開網址變成 `/posts/<slug>/`；沒有設定時仍是 `/posts/<docId>/`。slug 由作者手動輸入，CMS 不呼叫任何翻譯或 AI 服務。
+  - slug 與置頂一樣屬於文章、不進版本：欄位失焦就儲存，下一次「更新網站」生效，不需要重新發布。格式、唯一性與保留字見 Addendum 03 BE-023。
+  - 實際上線過的網址，換成新網址後會留下轉址頁。GitHub Pages 不能回傳 301，所以轉址頁是 `noindex`、canonical 指向新網址，並以 `<meta http-equiv="refresh">` 立即轉到新網址。沒有上線過的網址不產生轉址頁，避免每篇文章都多一頁 docId 轉址頁。轉址頁不進 sitemap。
+  - giscus 的 mapping 與 RSS 的 `<guid>` 仍以 `doc_id` 為鍵，換 slug 不會換到另一個討論串，閱讀器也不會重複顯示。
+  - 站內所有文章連結都經過 `postPath()`（`frontend/src/content/queries.ts`）。`search-metadata.json` 與 `latest-posts.json` 直接帶好 `path`，client 元件不需要知道 slug 規則。
+  - manifest 的每篇文章可帶 `slug` 與 `redirect_from`。前端 parser 檢查格式，並檢查任一個 `/posts/<片段>/` 只屬於一篇文章，否則 build 失敗。
+- **Consequences**：改 slug 後，舊網址要經過一次轉址才到文章，搜尋引擎也要重新收錄新網址。
+- **Supersedes**：Baseline 4.1 中「公開網址固定為 `doc_id`」的限制；`doc_id` 仍是文章的身分。
+
+### FE-016：文章頁的分享按鈕
+
+- **Status**：Confirmed（使用者 2026-10-26 至 2026-10-27 指定）
+- **Context**：讀者要分享文章只能自己複製網址。Instagram 沒有網頁分享網址，不列入。
+- **Decision**：
+  - 已發布文章的留言區上方有一列分享按鈕：Facebook、X、Threads、LINE，最後一顆在支援 Web Share API 的觸控裝置上是「更多分享方式」，其他情況是「複製連結」。
+  - 分享網址由 `frontend/src/content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK 或追蹤程式。分享的是文章的 canonical 網址。
+  - 圖示是內嵌的 Simple Icons（CC0）SVG，不另外下載。
+  - 手機的 Facebook App 會攔下 facebook.com 連結，並丟掉要分享的網址。所以觸控裝置支援 Web Share API 時，Facebook 按鈕與「更多分享方式」都打開系統分享選單。電腦的瀏覽器不支援 clipboard 時不顯示「複製連結」。
+  - 傳給 `navigator.share` 的是網址與標題。只傳網址不會讓 iOS 分享選單顯示網站圖示（#86 試過後以 #87 還原）。
+- **Consequences**：iOS 分享選單上方的預覽由系統決定。從 `navigator.share` 開啟時通常顯示指南針圖示；只有 Safari 自己的分享按鈕會顯示 `og:image` 或 touch icon。系統分享選單中 App 的排列順序由作業系統控制。
+
+### FE-017：網站圖示與預設分享圖
+
+- **Status**：Confirmed（使用者 2026-10-27 指定）
+- **Context**：網站沒有 favicon，沒有圖片的文章分享到社群或 iOS 分享選單時沒有預覽圖。
+- **Decision**：
+  - 圖示的來源只有 `frontend/public/icon.svg`。`npm run icons`（`frontend/scripts/make-icons.ts`）由它產生 `favicon.ico`、180×180 的 `apple-touch-icon.png` 與 1200×630 的 `og-default.png`，產生的檔案一起 commit，build 不重新產生。
+  - layout 宣告 `favicon.ico`、SVG 圖示與 touch icon，路徑都加上 basePath。
+  - 沒有封面也沒有上傳圖片的文章，以及首頁、列表等非文章頁，`og:image` 都是 `og-default.png`。有圖片的文章仍用 FE-008 與 FE-011 的規則。`twitter:card` 只有文章自己有圖時是 `summary_large_image`，其餘為 `summary`。
+- **Consequences**：fork 的人換掉 `icon.svg` 並執行 `npm run icons`，就能換成自己的圖示與預設分享圖。
+- **Supersedes**：FE-008 中「沒圖時不輸出 `og:image`」。
+
 ## Open Questions
 
-- 流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。
+- ~~流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。~~ 公開網站不放任何分析或追蹤程式。流量改在 CMS 從 Cloudflare 與 Search Console 的 API 讀取，見 Addendum 03 BE-024。
