@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { taxonDescription } from "../../../content/card.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { tags, withTag } from "../../../content/queries.ts";
 import { ArticleList } from "../../article-list.tsx";
@@ -24,7 +25,11 @@ async function tag(params: Props["params"]) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await tag(params);
-  return { title: `#${t.name}`, alternates: { canonical: absoluteUrl(`/tags/${t.slug}/`) } };
+  return {
+    title: `#${t.name}`,
+    description: taxonDescription(`#${t.name} 標籤`, withTag(loadSiteContent(), t.slug)),
+    alternates: { canonical: absoluteUrl(`/tags/${t.slug}/`) },
+  };
 }
 
 export default async function TagPage({ params }: Props) {

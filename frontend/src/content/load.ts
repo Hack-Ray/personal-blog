@@ -6,6 +6,9 @@ import { ContentError, parseSnapshot } from "./parse.ts";
 // CI checks out the private content repo and points SITE_DATA_DIR at it.
 export const SITE_DATA_DIR = resolve(process.env.SITE_DATA_DIR ?? "sample-site-data");
 
+/** Intrinsic sizes of the snapshot images, keyed by images/<file>; written by scripts/copy-snapshot-images.ts, outside public/ so it is not deployed. */
+export const IMAGE_SIZES_FILE = resolve(".generated/image-sizes.json");
+
 function readJson(path: string): unknown {
   if (!existsSync(path)) throw new ContentError(`${path}: file not found`);
   return JSON.parse(readFileSync(path, "utf8"));

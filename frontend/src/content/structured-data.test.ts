@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DocId, PublishedArticle, Slug } from "./model.ts";
-import { blogPosting, jsonLd, webSite } from "./structured-data.ts";
+import { blogPosting, breadcrumbList, jsonLd, webSite } from "./structured-data.ts";
 
 const taxon = (name: string) => ({ slug: name.toLowerCase() as Slug, name });
 const profile = { name: "Ray", links: [] };
@@ -54,6 +54,18 @@ test("cover, tags and updatedAt show up when the article has them", () => {
   assert.ok(d.image?.endsWith("/images/a.png"));
   assert.deepEqual(d.keywords, ["Python", "API"]);
   assert.equal(d.dateModified, "2026-02-01T00:00:00.000Z");
+});
+
+test("breadcrumbList runs from the site through the topic to the article, with absolute URLs", () => {
+  const d = breadcrumbList(base, "Site");
+  assert.equal(d["@type"], "BreadcrumbList");
+  assert.deepEqual(
+    d.itemListElement.map((i) => [i.position, i.name]),
+    [[1, "Site"], [2, "Backend"], [3, "標題"]],
+  );
+  assert.ok(d.itemListElement[0]!.item.endsWith("/"));
+  assert.ok(d.itemListElement[1]!.item.endsWith("/topics/backend/"));
+  assert.equal(d.itemListElement[2]!.item, blogPosting(base, profile).url);
 });
 
 test("webSite omits an empty description", () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { taxonDescription } from "../../../content/card.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { inTopic, topics } from "../../../content/queries.ts";
 import { ArticleList } from "../../article-list.tsx";
@@ -24,7 +25,11 @@ async function topic(params: Props["params"]) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await topic(params);
-  return { title: t.name, alternates: { canonical: absoluteUrl(`/topics/${t.slug}/`) } };
+  return {
+    title: t.name,
+    description: taxonDescription(`${t.name} 主題`, inTopic(loadSiteContent(), t.slug)),
+    alternates: { canonical: absoluteUrl(`/topics/${t.slug}/`) },
+  };
 }
 
 export default async function TopicPage({ params }: Props) {

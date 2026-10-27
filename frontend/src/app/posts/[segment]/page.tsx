@@ -5,7 +5,7 @@ import { tocHeadings } from "../../../content/headings.ts";
 import { loadSiteContent } from "../../../content/load.ts";
 import { renderMarkdown } from "../../../content/markdown.ts";
 import { findArticle, inSeries, neighbors, postPath, postSegments, related } from "../../../content/queries.ts";
-import { jsonLd, blogPosting } from "../../../content/structured-data.ts";
+import { jsonLd, blogPosting, breadcrumbList } from "../../../content/structured-data.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { coverOf, excerptOf } from "../../../content/card.ts";
 import { ArticleMeta } from "../../article-list.tsx";
@@ -90,6 +90,10 @@ export default async function PostPage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(blogPosting(a, loadSiteContent().profile)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbList(a, loadSiteContent().profile.site.title)) }}
       />
       <ReadingProgress />
       <h1>{a.title}</h1>

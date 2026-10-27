@@ -155,13 +155,16 @@ test("the table of contents is a drawer on narrow screens", async ({ page }) => 
   await expect(target).toHaveAttribute("aria-current", "location");
 });
 
-test("an article page carries one BlogPosting JSON-LD whose headline is the h1", async ({ page }) => {
+test("an article page carries a BlogPosting JSON-LD whose headline is the h1, and a BreadcrumbList ending at it", async ({ page }) => {
   await page.goto(FASTAPI_POST);
   const scripts = page.locator('script[type="application/ld+json"]');
-  await expect(scripts).toHaveCount(1);
-  const data = JSON.parse((await scripts.textContent()) ?? "");
-  expect(data["@type"]).toBe("BlogPosting");
-  expect(data.headline).toBe(await page.locator("h1").innerText());
+  await expect(scripts).toHaveCount(2);
+  const [post, crumbs] = (await scripts.allTextContents()).map((t) => JSON.parse(t));
+  const h1 = await page.locator("h1").innerText();
+  expect(post["@type"]).toBe("BlogPosting");
+  expect(post.headline).toBe(h1);
+  expect(crumbs["@type"]).toBe("BreadcrumbList");
+  expect(crumbs.itemListElement.at(-1).name).toBe(h1);
 });
 
 test("the home page carries a WebSite JSON-LD and no Search Console tag by default", async ({ page }) => {
