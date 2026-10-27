@@ -57,7 +57,7 @@ check "404 page offers search" 'body $B/404.html | grep -q "class=\"not-found-se
 check "pages do not embed the 404 latest-post list" '! body $B/topics/frontend/ | grep -q 01K7M4Y7P65BDCF8AHRTQY7ZQF'
 check "404 latest-post list is a small file of published titles" 'p=$(body $B/latest-posts.json); echo "$p" | grep -q "\"docId\":\"01K7R6F2M8KD4S9V1YCX3BNQWE\"" && ! echo "$p" | grep -q 01K6ZT3H5J7K9M1N3P5Q7R9S1T && ! echo "$p" | grep -q markdown'
 check "list pages share the default image" 'body $B/posts/ | grep -q "property=\"og:image\" content=\"https://example.com/personal-blog/og-default.png\"" && [ "$(code $B/og-default.png)" = 200 ]'
-check "pages link the favicon, SVG icon and touch icon, and each is served" 'p=$(body $B/posts/); (for f in favicon.ico icon.svg apple-touch-icon.png; do echo "$p" | grep -q "href=\"/personal-blog/$f\"" && [ "$(code $B/$f)" = 200 ] || exit 1; done)'
+check "pages link the favicon, SVG icon and touch icon, and each is served" 'p=$(body $B/posts/); (for f in favicon.ico icon.svg apple-touch-icon.png; do echo "$p" | grep -q "href=\"/personal-blog/$f\"" && [ "$(code $B/$f)" = 200 ] || exit 1; done; echo "$p" | grep -q "rel=\"apple-touch-icon\" href=\"/personal-blog/apple-touch-icon.png\" sizes=\"180x180\"")'
 check "feed links to itself" 'body $B/feed.xml | grep -q "<atom:link href=\"https://example.com/personal-blog/feed.xml\" rel=\"self\""'
 check "404.html exists for GitHub Pages" '[ "$(code $B/404.html)" = 200 ]'
 echo "failures=$fails"; [ $fails = 0 ]

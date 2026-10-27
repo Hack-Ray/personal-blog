@@ -26,7 +26,7 @@ export function generateMetadata(): Metadata {
         { url: `${BASE_PATH}/favicon.ico`, sizes: "48x48" },
         { url: `${BASE_PATH}/icon.svg`, type: "image/svg+xml" },
       ],
-      apple: `${BASE_PATH}/apple-touch-icon.png`,
+      apple: { url: `${BASE_PATH}/apple-touch-icon.png`, sizes: "180x180" },
     },
     verification: googleVerification ? { google: googleVerification } : undefined,
   };
