@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DocId, PublishedArticle, Slug } from "./model.ts";
-import { blogPosting, breadcrumbList, jsonLd, webSite } from "./structured-data.ts";
+import { blogPosting, breadcrumbList, jsonLd, profilePage, webSite } from "./structured-data.ts";
 
 const taxon = (name: string) => ({ slug: name.toLowerCase() as Slug, name });
 const profile = { name: "Ray", links: [] };
@@ -29,7 +29,7 @@ test("a bare article gets the required fields and none of the optional ones", ()
   assert.equal(d.inLanguage, "zh-Hant");
   assert.equal(d.author.name, "Ray");
   assert.ok(d.author.url.endsWith("/about/"));
-  assert.ok(!("image" in d));
+  assert.ok(d.image.endsWith("/og-default.png"), "without a cover the image is the og:image fallback");
   assert.ok(!("keywords" in d));
   assert.ok(!("sameAs" in d.author));
 });
@@ -66,6 +66,14 @@ test("breadcrumbList runs from the site through the topic to the article, with a
   assert.ok(d.itemListElement[0]!.item.endsWith("/"));
   assert.ok(d.itemListElement[1]!.item.endsWith("/topics/backend/"));
   assert.equal(d.itemListElement[2]!.item, blogPosting(base, profile).url);
+});
+
+test("profilePage describes the same Person as the article author", () => {
+  const links = [{ label: "GitHub", url: "https://github.com/x" }];
+  const d = profilePage({ name: "Ray", links });
+  assert.equal(d["@type"], "ProfilePage");
+  assert.ok(d.url.endsWith("/about/"));
+  assert.deepEqual(d.mainEntity, blogPosting(base, { name: "Ray", links }).author);
 });
 
 test("webSite omits an empty description", () => {

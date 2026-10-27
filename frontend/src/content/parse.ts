@@ -52,9 +52,13 @@ function positiveInt(value: unknown, path: string): number {
   return value as number;
 }
 
+// A time without Z or an offset would be read in the build machine's time zone.
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
 function date(value: unknown, path: string): Date {
-  const d = new Date(string(value, path));
-  if (Number.isNaN(d.getTime())) fail(path, "expected an ISO 8601 date");
+  const s = string(value, path);
+  const d = new Date(s);
+  if (!ISO_DATE_TIME.test(s) || Number.isNaN(d.getTime())) fail(path, "expected an ISO 8601 date and time with Z or an offset");
   return d;
 }
 

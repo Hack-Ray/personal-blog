@@ -799,3 +799,17 @@ input[type="search"] {
   pointer-events: none;
 }
 
+/* Keyboard users can jump past the header; the link shows only while focused. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid currentColor;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}

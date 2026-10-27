@@ -47,6 +47,7 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href) && !(SITE_ORIGIN
 // to public/images, which is served under the site's basePath.
 export function renderMarkdown(markdown: string, basePath: string, sizes: ImageSizes = imageSizes): string {
   const idFor = slugger();
+  let imagesSeen = 0;
   const marked = new Marked({
     renderer: {
       code: ({ text, lang }) => codeBlock(highlight(text, lang)),
@@ -68,7 +69,9 @@ export function renderMarkdown(markdown: string, basePath: string, sizes: ImageS
         if (href === "") return escapeHtml(text);
         const size = href.startsWith(`${basePath}/images/`) ? sizes[href.slice(basePath.length + 1)] : undefined;
         const dims = size ? ` width="${size.width}" height="${size.height}"` : "";
-        return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""}${dims} loading="lazy">`;
+        // The first image is often near the top and the page's largest paint, so it loads right away.
+        const loading = imagesSeen++ === 0 ? ' fetchpriority="high"' : ' loading="lazy"';
+        return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${title ? ` title="${escapeHtml(title)}"` : ""}${dims}${loading} decoding="async">`;
       },
       // An image alone in its paragraph is a figure, captioned with its alt text.
       paragraph({ tokens }) {
