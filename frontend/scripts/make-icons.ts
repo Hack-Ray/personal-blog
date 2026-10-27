@@ -1,5 +1,5 @@
 // Usage: node scripts/make-icons.ts
-// Writes favicon.ico and apple-touch-icon.png from public/icon.svg. Edit the SVG, rerun, commit all three.
+// Writes favicon.ico, apple-touch-icon.png and og-default.png from public/icon.svg. Edit the SVG, rerun, commit them all.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -32,8 +32,11 @@ writeFileSync(join(publicDir, "favicon.ico"), Buffer.concat([header, ...images])
 // iOS rounds the corners itself and shows transparent ones as black, so the touch icon fills its
 // corners with the colour at the middle of the top edge, the icon's background.
 const { data } = await render(180).raw().toBuffer({ resolveWithObject: true });
-const top = 90 * 4;
-await render(180)
-  .flatten({ background: { r: data[top], g: data[top + 1], b: data[top + 2] } })
+const background = { r: data[90 * 4], g: data[90 * 4 + 1], b: data[90 * 4 + 2] };
+await render(180).flatten({ background }).png().toFile(join(publicDir, "apple-touch-icon.png"));
+
+// The share preview for pages without an image: the icon centred on its background, at Open Graph's 1200x630.
+await sharp({ create: { width: 1200, height: 630, channels: 3, background } })
+  .composite([{ input: await render(360).png().toBuffer() }])
   .png()
-  .toFile(join(publicDir, "apple-touch-icon.png"));
+  .toFile(join(publicDir, "og-default.png"));

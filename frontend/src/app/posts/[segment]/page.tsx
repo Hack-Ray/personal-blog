@@ -9,7 +9,7 @@ import { jsonLd, blogPosting } from "../../../content/structured-data.ts";
 import { readingMinutes } from "../../../content/reading.ts";
 import { coverOf, excerptOf } from "../../../content/card.ts";
 import { ArticleMeta } from "../../article-list.tsx";
-import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
+import { absoluteUrl, BASE_PATH, DEFAULT_OG_IMAGE, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { ArticleBody } from "../../article-body.tsx";
 import { ArticleToc } from "./article-toc.tsx";
@@ -38,7 +38,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (a.state === "archived") return { title, robots: { index: false } };
   const url = absoluteUrl(postPath(a));
   const image = coverOf(a);
-  const images = image ? [absoluteUrl(`/${image}`)] : undefined;
+  // Every article has an og:image, so share previews such as iOS's share sheet always have a picture.
+  const images = [image ? absoluteUrl(`/${image}`) : DEFAULT_OG_IMAGE];
   return {
     title: a.title,
     description: excerptOf(a),
@@ -54,7 +55,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       tags: a.tags.map((t) => t.name),
       images,
     },
-    twitter: { card: images ? "summary_large_image" : "summary", title: a.title, description: excerptOf(a), images },
+    twitter: { card: image ? "summary_large_image" : "summary", title: a.title, description: excerptOf(a), images },
   };
 }
 

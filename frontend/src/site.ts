@@ -5,6 +5,9 @@ export const SITE_ORIGIN = process.env.SITE_ORIGIN ?? "";
 /** Absolute URL of a site path such as "/posts/X/", basePath included. */
 export const absoluteUrl = (path: string): string => `${SITE_ORIGIN}${BASE_PATH}${path}`;
 
+// Pages without an image of their own share this one; make-icons.ts renders it from public/icon.svg.
+export const DEFAULT_OG_IMAGE = absoluteUrl("/og-default.png");
+
 // A page's own openGraph replaces the layout's instead of merging, so pages spread this in.
 // siteName is the profile's site title; this file is also imported by client components,
 // so it takes the title instead of loading the snapshot.
