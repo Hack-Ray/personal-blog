@@ -26,6 +26,8 @@ export class DraftSync {
   private readonly retryMs: number;
   private failures = 0;
   private closed = false;
+  /** A save whose answer never arrived (network or server error); the server may have stored it. */
+  private unanswered: DraftContent | undefined;
   status: SyncStatus = { kind: "saved" };
 
   constructor(
@@ -112,14 +114,40 @@ export class DraftSync {
         this.revision = (await this.api.save(this.docId, this.revision, sent)).revision;
       } catch (e) {
         this.dirty = true;
+        if (await this.storedBefore(e)) {
+          this.failures = 0;
+          this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
+          if (this.dirty) this.timer = setTimeout(() => void this.flush(), 0);
+          return;
+        }
+        if (!(e instanceof ApiError) || e.status >= 500) this.unanswered = sent;
         this.fail(e);
         this.retryLater(e);
         return;
       }
+      this.unanswered = undefined;
       this.failures = 0;
       this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
       if (this.dirty) this.timer = setTimeout(() => void this.flush(), this.debounceMs);
     });
+  }
+
+  /** A stale-revision answer after a save whose answer was lost is no
+   * conflict when the server holds exactly that save: carry on from its
+   * revision. */
+  private async storedBefore(e: unknown): Promise<boolean> {
+    if (!(e instanceof ApiError && e.status === 409) || this.unanswered === undefined) return false;
+    let server: Draft;
+    try {
+      server = await this.api.draft(this.docId);
+    } catch {
+      return false;
+    }
+    if (!sameContent(server, this.unanswered)) return false;
+    this.revision = server.revision;
+    this.unanswered = undefined;
+    this.dirty = !sameContent(server, this.content);
+    return true;
   }
 
   /** Publishes the latest content after any save already in flight. */
@@ -163,3 +191,8 @@ export class DraftSync {
     });
   }
 }
+
+const sameContent = (a: DraftContent, b: DraftContent): boolean => {
+  const pick = ({ title, topic, tags, markdown, excerpt, cover }: DraftContent) => ({ title, topic, tags, markdown, excerpt, cover });
+  return JSON.stringify(pick(a)) === JSON.stringify(pick(b));
+};
