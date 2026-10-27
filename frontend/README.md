@@ -61,7 +61,7 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 
 ## Icons
 
-`public/icon.svg` is the only source. `npm run icons` writes `favicon.ico`, `apple-touch-icon.png` and `og-default.png` (the share image for pages without one of their own) next to it. Commit all four; the build does not regenerate them.
+`public/icon.svg` is the only source. `npm run icons` writes `favicon.ico`, `apple-touch-icon.png` and `og-default.png` (the share image for pages without one of their own) next to it. Commit the SVG and the three generated files; the build does not regenerate them.
 
 ## Checking the built site
 
