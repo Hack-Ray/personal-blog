@@ -190,7 +190,7 @@ test("the meta CSP is enforced without violations and blocks unlisted inline scr
   await page.addInitScript(() => {
     const w = window as unknown as Probe;
     w.__violations = [];
-    document.addEventListener("securitypolicyviolation", (e) => w.__violations.push(e.violatedDirective));
+    document.addEventListener("securitypolicyviolation", (e) => w.__violations.push(`${e.violatedDirective} ${e.blockedURI} ${e.sourceFile}:${e.lineNumber} ${e.sample}`));
   });
   for (const path of ["", FASTAPI_POST]) {
     await page.goto(path);
