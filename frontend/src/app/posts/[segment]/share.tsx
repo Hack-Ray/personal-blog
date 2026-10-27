@@ -40,13 +40,17 @@ export function Share({ url, title }: { url: string; title: string }) {
     setTimeout(() => setCopy("idle"), COPIED_MS);
   };
 
+  // Only the URL: with a title, iOS's share sheet shows that title over Safari's compass
+  // instead of fetching the page's preview.
+  const openSheet = () => navigator.share({ url });
+
   // On phones the Facebook app claims facebook.com links and drops the sharer's URL,
   // so the Facebook button opens the share sheet there too.
   const onFacebook = (e: MouseEvent<HTMLAnchorElement>) => {
     if (extra !== "sheet") return;
     e.preventDefault();
     const sharer = e.currentTarget.href;
-    navigator.share({ url, title }).catch((err) => {
+    openSheet().catch((err) => {
       if (err.name !== "AbortError") open(sharer, "_blank", "noopener");
     });
   };
@@ -73,7 +77,7 @@ export function Share({ url, title }: { url: string; title: string }) {
         <button
           type="button"
           onClick={() =>
-            navigator.share({ url, title }).catch((err) => {
+            openSheet().catch((err) => {
               if (err.name !== "AbortError" && navigator.clipboard) onCopy();
             })
           }

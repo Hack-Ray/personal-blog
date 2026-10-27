@@ -210,6 +210,6 @@ test.describe("on a touch screen", () => {
     await expect(share.getByRole("button", { name: "複製連結" })).toHaveCount(0);
     await share.getByRole("button", { name: "更多分享方式" }).click();
     const shared = await page.evaluate(() => (window as unknown as { shared?: ShareData }).shared);
-    expect(shared).toEqual({ url: "https://example.com/personal-blog/posts/nextjs-static-export/", title: "Next.js Static Export 部署到 GitHub Pages" });
+    expect(shared).toEqual({ url: "https://example.com/personal-blog/posts/nextjs-static-export/" });
   });
 });
