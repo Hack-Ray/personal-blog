@@ -178,7 +178,7 @@ cd personal-blog/backend
 scripts/backup.sh
 ```
 
-每次備份會在 `backend/backups/` 產生兩個檔案。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
+每次備份會在 `backend/backups/` 產生兩個檔案。備份不會自動刪除；在 `.env` 設 `BACKUP_KEEP=30` 這類數字，就只保留資料夾中最新的幾份。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
 
 - `blog-<UTC 時間>.dump`：整個資料庫（PostgreSQL custom format）
 - `blog-<UTC 時間>.dump.sha256`：檢查碼，還原時用來確認檔案沒有損壞
@@ -209,7 +209,7 @@ scripts/backup.sh
 
 ## 11. 還原
 
-> ⚠️ 還原會**取代整個資料庫**，備份之後寫入的所有資料都會消失。不確定時先做一次 `scripts/backup.sh`。
+> ⚠️ 還原會**取代整個資料庫**，備份之後寫入的所有資料都會消失。腳本會先自動備份目前的資料，還原錯了可以再用那份還原回來。
 
 ```sh
 cd personal-blog/backend
@@ -222,10 +222,13 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 
 1. 用 `.sha256` 檢查備份檔沒有損壞（不符就停止）。
 2. 要求你輸入 `restore` 確認。
-3. 清空資料庫並還原備份。
-4. 執行 `alembic upgrade head`（連到 `.env` 的 `DATABASE_URL`），所以舊程式版本的備份也能還原到新版程式。
+3. 停掉這台電腦上執行中的 CMS，並用 `backup.sh` 先備份目前的資料。
+4. 清空資料庫並還原備份。這一步在同一個交易內完成，中途失敗時資料庫維持原狀。
+5. 執行 `alembic upgrade head`（連到 `.env` 的 `DATABASE_URL`），所以舊程式版本的備份也能還原到新版程式。
+6. 登出所有裝置。
+7. 讓網站跟著資料庫：下一次按「更新網站」，網站會變回備份當時的內容，備份之後才發布的文章會從網站上消失。使用 API 發布時，這一步要連到 GitHub；連不到時腳本會提示，之後再執行 `uv run --env-file .env python -m blog.content_repository after-restore` 即可。
 
-還原後重新啟動後端即可。管理員密碼與備份當時相同。
+還原後重新啟動後端（`scripts/start.sh`），用備份當時的密碼登入。
 
 ## 12. 搬到新電腦
 

@@ -9,10 +9,11 @@ from urllib.parse import unquote, urlsplit
 
 import pytest
 
-from blog import content_repository, exporter
+from blog import content_repository, exporter, release
 from blog.content_repository import GitHubRepository
+from blog.db import SessionLocal
 from blog.github import GitHubError
-from blog.models import Release
+from blog.models import Release, ReleaseStatus
 
 
 class LocalGitAPI:
@@ -240,13 +241,48 @@ def test_retry_refuses_a_different_destination(repository, snapshot):
 
 def test_prepare_refuses_unknown_head_and_changed_destination(repository, snapshot):
     repo, api = repository
-    wrong = SimpleNamespace(content_commit="0" * 40, content_target=repo.target)
+    wrong = SimpleNamespace(content_commit="0" * 40, content_parent=None, content_target=repo.target, status=ReleaseStatus.DEPLOYED)
     with pytest.raises(exporter.ExportError, match="another CMS"):
         repo.prepare(wrong)
-    wrong = SimpleNamespace(content_commit=api.head(), content_target="https://different/content#main")
+    wrong = SimpleNamespace(content_commit=api.head(), content_parent=None, content_target="https://different/content#main", status=ReleaseStatus.DEPLOYED)
     with pytest.raises(exporter.ExportError, match="destination changed"):
         repo.prepare(wrong)
     assert all(method == "GET" for method, _, _ in api.calls)
+
+
+def test_a_new_release_replaces_one_whose_push_failed(repository, snapshot):
+    repo, api = repository
+    failed = saved(repo.prepare(None))
+    failed.status = ReleaseStatus.PUSH_FAILED
+    snapshot["articles/article.json"] = b'{"title":"Edited"}'
+    assert repo.prepare(failed).parent_commit == api.head()
+    failed.status = ReleaseStatus.PUSHED
+    with pytest.raises(exporter.ExportError, match="another CMS"):
+        repo.prepare(failed)
+
+
+def test_after_a_restore_the_next_release_replaces_newer_remote_content(repository, snapshot):
+    repo, api = repository
+    backed_up = dict(snapshot)
+    with SessionLocal() as s:
+        first = saved(repo.prepare(None))
+        repo.publish(first)
+        first.status = ReleaseStatus.DEPLOYED
+        s.add(first)
+        s.commit()
+        # Released after the backup was taken, so the restored database does not know it.
+        snapshot["articles/article.json"] = b'{"title":"Written after the backup"}'
+        later = saved(repo.prepare(first))
+        repo.publish(later)
+        snapshot.update(backed_up)
+        with pytest.raises(exporter.ExportError, match="another CMS"):
+            repo.prepare(release.latest(s))
+
+        assert content_repository.record_remote_head(s, repo) == later.content_commit
+        assert content_repository.record_remote_head(s, repo) is None
+        rollback = repo.prepare(release.latest(s))
+        assert rollback.parent_commit == later.content_commit
+        assert api.contents(rollback.commit, "articles/article.json") == backed_up["articles/article.json"].decode()
 
 
 def test_missing_branch_has_actionable_initialization_error(repository):

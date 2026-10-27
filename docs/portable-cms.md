@@ -34,6 +34,8 @@ uv run --env-file .env python -m blog.content_repository adopt
 
 這個命令逐項比對資料庫匯出內容、版本與圖片。全部一致才記錄遠端 HEAD。它不寫入 GitHub，也不執行部署。不一致時先還原正確的資料庫，不要強制覆蓋遠端。
 
+用 `scripts/restore.sh` 還原較舊的備份時，遠端 HEAD 會比資料庫最後一次 release 新，原本會被當成「另一個 CMS」而拒絕發布。`restore.sh` 最後會執行 `python -m blog.content_repository after-restore`，把遠端 HEAD 記成最新 release。下一次「更新網站」以它為基礎，用資料庫的內容覆蓋遠端，網站因此回到備份當時的內容。這個命令同樣不寫入 GitHub。
+
 ## 使用 GitHub App
 
 在自己的 GitHub 帳號建立並安裝 GitHub App，只授權給程式 repo 與內容 repo。Repository permissions 設定 Contents 讀寫、Actions 讀寫。停用 Webhook，不需要登入回呼或 CMS 公開網址。

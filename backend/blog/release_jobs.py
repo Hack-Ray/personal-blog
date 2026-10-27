@@ -29,7 +29,7 @@ def submit(session: Session, action: str, requested_release_id: str | None = Non
         if action == "retry":
             previous = session.get(Release, requested_release_id)
             if previous is None or previous.status not in release.RETRYABLE:
-                raise release.ReleaseError("only an interrupted or failed release can be retried")
+                raise release.ReleaseError("only an interrupted, failed or superseded release can be retried")
             if release.latest(session).id != previous.id:
                 raise release.ReleaseError("a newer release exists; retry that one instead")
         job = ReleaseJob(id=str(ULID()), action=action, requested_release_id=requested_release_id, status="queued")
@@ -52,7 +52,8 @@ def _execute(session: Session, job: ReleaseJob) -> None:
         result = session.get(Release, target)
         if result is None:
             raise release.ReleaseError("the release for this job no longer exists")
-        if result.status in release.RETRYABLE:
+        # A create job resumed after a restart carries on an interrupted release; a superseded one has run its course.
+        if result.status in release.RETRYABLE and (job.action == "retry" or result.status != release.R.SUPERSEDED):
             result = release.retry(session, target, repo, deployer)
         job.release_id = result.id
     else:
@@ -64,6 +65,10 @@ def _execute(session: Session, job: ReleaseJob) -> None:
 
 
 def run_once() -> bool:
+    # Taking the lock only when there is work keeps submit from seeing a busy queue while idle.
+    with SessionLocal() as session:
+        if session.scalar(select(ReleaseJob.id).where(ReleaseJob.status.in_(ACTIVE)).limit(1)) is None:
+            return False
     with advisory_lock(LOCK_KEY) as acquired:
         if not acquired:
             return False

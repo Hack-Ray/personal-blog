@@ -28,8 +28,9 @@ from blog.models import Article, ArticleUrl, Release, ReleaseArticle, ReleaseSta
 R = ReleaseStatus
 TERMINAL = frozenset({R.DEPLOYED, R.SUPERSEDED, R.FAILED})
 # A release left at exported or pushed was cut off mid-way (the CMS stopped);
-# retrying carries on from there.
-RETRYABLE = frozenset({R.EXPORTED, R.PUSH_FAILED, R.PUSHED, R.DISPATCH_FAILED, R.FAILED})
+# retrying carries on from there. Only the latest release is retried, so a
+# superseded one there was replaced by a code deploy, which may have failed.
+RETRYABLE = frozenset({R.EXPORTED, R.PUSH_FAILED, R.PUSHED, R.DISPATCH_FAILED, R.FAILED, R.SUPERSEDED})
 IN_FLIGHT = (R.DISPATCHED, R.BUILDING)
 # GitHub lists a dispatched run within seconds; after this, stop looking.
 RUN_SEARCH_LIMIT = timedelta(minutes=30)
@@ -213,7 +214,7 @@ def _advance(session: Session, release: Release, repo: Path | GitHubRepository, 
         except subprocess.TimeoutExpired:
             _set(release, R.PUSH_FAILED, f"git push did not finish within {exporter.GIT_TIMEOUT} seconds")
         session.commit()
-    if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED):
+    if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED, R.SUPERSEDED):
         # run_id stays: it is now the earlier attempt's run, for refresh to skip.
         if deployer is None:
             _set(release, R.DISPATCH_FAILED, "CMS_GITHUB_TOKEN/GitHub App credentials or DEPLOY_REPO are not set; start the deploy workflow on GitHub instead")
@@ -305,7 +306,7 @@ def _retry(session: Session, release_id: str, repo: Path | GitHubRepository, dep
     if release is None:
         raise ReleaseError(f"release {release_id} not found")
     if release.status not in RETRYABLE:
-        raise ReleaseError(f"release is {release.status}; only failed releases can be retried")
+        raise ReleaseError(f"release is {release.status}; only failed, interrupted or superseded releases can be retried")
     if latest(session).id != release.id:
         raise ReleaseError("a newer release exists; retry that one instead")
     return _advance(session, release, repo, deployer)

@@ -8,11 +8,14 @@ from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from ulid import ULID
 
-from blog import exporter
+from blog import config, exporter
 from blog.db import SessionLocal, engine
 from blog.github import GitHubClient, GitHubError
-from blog.models import ImageData, Release
+from blog.models import ImageData, Release, ReleaseStatus
+
+UNPUSHED = (ReleaseStatus.EXPORTED, ReleaseStatus.PUSH_FAILED)
 
 
 def blob_sha(data: bytes) -> str:
@@ -53,8 +56,11 @@ class GitHubRepository:
     def prepare(self, last: Release | None, *, adopt: bool = False) -> exporter.ExportResult | None:
         parent = self.head()
         tree_sha, current = self.tree(parent)
-        if last is not None and (last.content_commit != parent or last.content_target not in (None, self.target)):
-            raise exporter.ExportError("content repository HEAD or destination changed; another CMS may be in use")
+        if last is not None:
+            # A release whose push failed left HEAD at its parent; the new release replaces it.
+            expected = {last.content_commit, last.content_parent} if last.status in UNPUSHED else {last.content_commit}
+            if parent not in expected or last.content_target not in (None, self.target):
+                raise exporter.ExportError("content repository HEAD or destination changed; another CMS may be in use")
         if last is None and "manifest.json" in current and not adopt:
             raise exporter.ExportError("existing remote Snapshot has no local release history; restore its database or run the verified adopt command")
         with tempfile.TemporaryDirectory(prefix="blog-snapshot-") as tmp:
@@ -125,17 +131,51 @@ class GitHubRepository:
         self.client.call("PATCH", f"{self.prefix}/refs/heads/{quote(self.branch, safe='/')}", {"sha": release.content_commit, "force": False})
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Verify and adopt a content HEAD after restoring a matching database. Does not write to GitHub.")
-    parser.add_argument("action", choices=["adopt"])
-    parser.parse_args()
+def record_remote_head(session: Session, repo: GitHubRepository) -> str | None:
+    """After a backup is restored, records the content repository's HEAD as
+    the latest release, so the next website update builds on it and replaces
+    the remote Snapshot with this database's content. None when the database
+    already ends at HEAD."""
     from blog import release
-    from blog.models import ReleaseStatus
 
+    head = repo.head()
+    last = release.latest(session)
+    if last is not None and last.content_commit == head:
+        return None
+    session.add(
+        Release(
+            id=str(ULID()),
+            content_commit=head,
+            content_target=repo.target,
+            status=ReleaseStatus.DEPLOYED,
+            detail="content repository HEAD recorded after restoring a backup; the next website update replaces it",
+        )
+    )
+    session.commit()
+    return head
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Reconcile this database with the content repository. Neither action writes to GitHub.")
+    parser.add_argument(
+        "action",
+        choices=["adopt", "after-restore"],
+        help="adopt: verify a matching remote Snapshot and record it; after-restore: record the remote HEAD so the next update replaces it",
+    )
+    args = parser.parse_args()
+    from blog import release
+
+    if args.action == "after-restore" and config.settings.content_transport != "api":
+        print("Git transport: nothing to record; the next website update publishes this database's content.")
+        return
     repo = release.repo_from_env()
     if not isinstance(repo, GitHubRepository):
         parser.error("adoption requires CONTENT_TRANSPORT=api")
     with release.exclusive(), SessionLocal() as session:
+        if args.action == "after-restore":
+            head = record_remote_head(session, repo)
+            print(f"Recorded {head}; the next website update replaces it with this database's content." if head else "Already at the content HEAD.")
+            return
         if release.latest(session) is not None:
             parser.error("database already has release history; restore the correct database instead")
         result = repo.prepare(None, adopt=True)

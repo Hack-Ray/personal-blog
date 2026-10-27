@@ -161,7 +161,7 @@ sequenceDiagram
   participant P as GitHub Pages
 
   A->>SPA: 按「更新網站」
-  SPA->>API: POST /api/releases
+  SPA->>API: POST /api/release-jobs（202，背景 worker 接手）
   API->>DB: pg_try_advisory_lock（拿不到回 409）
   API->>Git: unknown_remote_commit（ls-remote）
   API->>DB: REPEATABLE READ 讀已發布內容
@@ -171,7 +171,7 @@ sequenceDiagram
   API->>DB: PUSHED
   API->>GH: dispatch deploy.yml {content_sha}
   API->>DB: DISPATCHED
-  API-->>SPA: {release}
+  SPA->>API: GET /api/release-jobs/{id} 直到工作結束
   loop 頁面開著且有 DISPATCHED/BUILDING，每 15 秒
     SPA->>API: POST /api/releases/refresh
     API->>GH: 依 run-name 找 run，查 job 與 step
@@ -184,7 +184,7 @@ sequenceDiagram
 
 **步驟細節**：
 
-1. `create_release` 先用 `_content_repo()` 確認 `CONTENT_REPO_DIR` 是 git clone（否則 503），再呼叫 `release.create`。`deployer_from_env()` 在 `CMS_GITHUB_TOKEN` 與 `DEPLOY_REPO` 都設定時才回傳 `GitHubActions`，否則為 None。這是 sync 路由，push 時可能卡住一個 worker thread 最多 120 秒。
+1. `release_jobs.submit` 先用 `release.repo_from_env()` 確認發布設定（否則 409），建立 queued 工作並回 202。背景 worker（`release_jobs.run_once`，每秒查一次，有工作才取鎖）再呼叫 `release.create`。`deployer_from_env()` 在 `CMS_GITHUB_TOKEN` 與 `DEPLOY_REPO` 都設定時才回傳 `GitHubActions`，否則為 None。舊的同步路由 `POST /api/releases` 與 `/retry` 已移除。
 2. `_exclusive()` 用獨立連線取 `pg_try_advisory_lock`，拿不到丟 `ReleaseBusy`（409）。retry 用同一把鎖。
 3. `exporter.unknown_remote_commit` 對 upstream `ls-remote`。遠端的 tip 不是本地 HEAD 的祖先，代表別的 CMS 推過內容，丟 `ReleaseError`。git 出錯時放行。
 4. 冷卻：距離上一個 Release 不到 30 秒時拒絕。
@@ -236,11 +236,12 @@ stateDiagram-v2
 
 **重試與取代規則**（`release.py`）：
 
-- `TERMINAL = {deployed, superseded, failed}`。`RETRYABLE = {exported, push_failed, pushed, dispatch_failed, failed}`。failed 對取代邏輯而言是終結，但仍可重試。
-- `POST /api/releases/{id}/retry` 只接受 RETRYABLE 而且是**最新**（id 最大）的 Release。從失敗的那一步繼續。重試不做 remote 檢查也不受冷卻限制。
+- `TERMINAL = {deployed, superseded, failed}`。`RETRYABLE = {exported, push_failed, pushed, dispatch_failed, failed, superseded}`。failed 與 superseded 對取代邏輯而言是終結，但仍可重試。
+- 重試（`POST /api/release-jobs` 帶 `action: "retry"`）只接受 RETRYABLE 而且是**最新**（id 最大）的 Release。從失敗的那一步繼續。重試不做 remote 檢查也不受冷卻限制。最新的 Release 是 superseded，代表它的 run 被之後的程式碼 push 取代，而那次部署可能沒有成功，所以可以重新 dispatch 同一個 commit。
 - 建立新 Release 時，較舊的 exported／push_failed／pushed／dispatch_failed 直接改 superseded。較舊的 dispatched／building 不動，留給 refresh 從 GitHub 判斷。
 - `deploy.yml` 的 build job 用 `pages-build`、deploy job 用 `pages-deploy` 兩個 concurrency group，`cancel-in-progress: false`：同時只跑一個 build 與一個 deploy，新的 pending job 取消舊的 pending job，整個 run 因此是 cancelled（CMS 記為 superseded）。concurrency 設在 job 而不是整個 run，所以跳過 build 的 push run 不會取消排隊中的內容發布。
-- deploy job 在部署前 `ls-remote` 內容 repo HEAD。HEAD 已經不是這次建置的 commit 就 skip `Deploy to GitHub Pages`（CMS 記為 superseded）。所以只有最新的內容會上線。
+- deploy job 在部署前 `ls-remote` 內容 repo HEAD。HEAD 已經不是這次建置的 commit 就 skip `Deploy to GitHub Pages`（CMS 記為 superseded）。所以只有最新的內容會上線。`ls-remote` 失敗時整個 run 失敗（`pipefail`），不會被誤判成「有更新的內容」。
+- 部署後 `Check the live site` 以加了查詢字串的網址讀首頁，最多等 10 分鐘，確認回應含這次 build 的 Next build id（build job 的 `build_id` output）。網域、憑證或 CDN 有問題時 run 失敗，CMS 記為 failed，GitHub 也會寄失敗通知。
 - FAILED 重試會 dispatch 同一個 commit。保留的 `run_id` 當作「跳過 id 不大於它的 run」，避免又認到舊的失敗 run。
 
 **當機安全**有三處：export 後、建立 Release 列前當掉，下次 `head_release` 接手那個 commit；寫檔途中當掉，`_discard_interrupted_export` 清掉；push 或 dispatch 中斷，狀態停在可重試或被下一個 Release 取代，下一次 push 會一起帶上之前的 commit。
@@ -304,7 +305,7 @@ stateDiagram-v2
 | 快照面板 | `GET .../snapshots`、`POST .../snapshots/{id}/restore` |
 | 分類 `#/taxa` | `GET /api/taxa`、`PUT /api/taxa/{kind}/{slug}`、`POST .../merge`、`DELETE ...` |
 | 個人資料 `#/profile` | `GET /api/profile`、`PUT /api/profile` |
-| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/releases`、`POST /api/releases/{id}/retry` |
+| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/release-jobs`、`GET /api/release-jobs/{id}` |
 | 流量數據 `#/analytics` | `GET /api/analytics?days=7\|28\|90`、`POST /api/analytics/sync` |
 
 `GET /api/articles` 不帶 `state` 時回傳所有狀態，「文章」分頁在前端濾掉 pending_deletion。`GET /api/releases` 與 `/healthz` CMS 沒有用到。
@@ -347,7 +348,7 @@ stateDiagram-v2
 - **`retention.cleanup_versions`**：還沒有任何 DEPLOYED Release 時不做事。受保護的版本是最新一個 DEPLOYED Release 與所有 exported／pushed／dispatched／building Release 中的版本。一個版本在以下條件都成立時才刪除：在該文章中排名第 4 以後（`KEEP_LATEST = 3`）、文章不是 pending_deletion、有一個較新版本的 `published_at` 不晚於上線 Release 的 `created_at`、不在受保護集合中。
 - **`images.collect_garbage`**：以 `LOCK TABLE ... IN SHARE MODE` 鎖住草稿、快照、版本、profile，解析所有 Markdown（含 profile 的 intro），設定或清除 `unreferenced_since`，刪除未被引用滿 7 天的圖。從未被引用的上傳也會在 7 天後刪除。
 
-**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 會 `DROP SCHEMA public CASCADE`、`pg_restore`，再 `alembic upgrade head`。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
+**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 先停掉本機 CMS、用 `backup.sh` 備份目前資料，再把備份轉成 SQL，連同 `DROP SCHEMA public CASCADE` 在同一個交易內執行（失敗時舊資料不變），然後 `alembic upgrade head`、清空 `admin_sessions`，最後執行 `python -m blog.content_repository after-restore`。API 模式下它把內容 repo 目前的 HEAD 記成最新 Release，下一次「更新網站」就以它為 parent，用資料庫的內容覆蓋遠端（網站倒回備份時的內容）；git 模式下 clone 本身就是基準，不需要記錄。`backup.sh` 有 `BACKUP_KEEP` 時只保留資料夾中最新 N 份。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
 
 ### 3.7 CI 與部署 workflow
 

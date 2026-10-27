@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import analytics, articles, auth, config, exporter, images, profile, release, release_jobs, taxa
+from blog import analytics, articles, auth, config, images, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
@@ -416,17 +416,6 @@ class ReleaseOut(BaseModel):
         return cls(**{f: getattr(r, f) for f in cls.model_fields})
 
 
-class CreatedRelease(BaseModel):
-    release: ReleaseOut | None
-
-
-def _content_repo():
-    try:
-        return release.repo_from_env()
-    except release.ReleaseError as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
-
-
 @app.get("/api/releases")
 def list_releases(session: SessionDep) -> list[ReleaseOut]:
     return [ReleaseOut.of(r) for r in release.recent(session)]
@@ -437,17 +426,6 @@ def refresh_releases(session: SessionDep) -> list[ReleaseOut]:
     """Asks GitHub how the dispatched releases are doing, then lists them."""
     release.refresh_in_flight(session, release.deployer_from_env())
     return [ReleaseOut.of(r) for r in release.recent(session)]
-
-
-@app.post("/api/releases")
-def create_release(session: SessionDep) -> CreatedRelease:
-    """Exports the published content and starts the site deploy; `release`
-    is null when nothing changed since the last export."""
-    try:
-        created = release.create(session, _content_repo(), release.deployer_from_env())
-    except (exporter.ExportError, release.ReleaseError) as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
-    return CreatedRelease(release=ReleaseOut.of(created) if created else None)
 
 
 class ReleaseJobBody(BaseModel):
@@ -525,14 +503,6 @@ def github_status() -> GitHubStatusOut:
     except release.ReleaseError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
     return GitHubStatusOut(incidents=[IncidentOut(name=i.name, url=i.url) for i in incidents])
-
-
-@app.post("/api/releases/{release_id}/retry")
-def retry_release(release_id: str, session: SessionDep) -> ReleaseOut:
-    try:
-        return ReleaseOut.of(release.retry(session, release_id, _content_repo(), release.deployer_from_env()))
-    except release.ReleaseError as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
 
 
 class SourceStatusOut(BaseModel, from_attributes=True):
@@ -644,7 +614,10 @@ def get_profile(session: SessionDep) -> ProfileOut:
 
 @app.put("/api/profile", response_model_exclude_none=True)
 def save_profile(body: ProfileBody, session: SessionDep) -> ProfileOut:
-    return ProfileOut.of(profile.save(session, body.revision, body.content))
+    try:
+        return ProfileOut.of(profile.save(session, body.revision, body.content))
+    except profile.MissingImages as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
 
 
 class TaxonUsageOut(BaseModel):

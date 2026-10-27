@@ -16,7 +16,7 @@ const LABEL: Record<ReleaseStatus, string> = {
   failed: "建置或部署失敗",
 };
 // exported and pushed only last while 更新網站 runs; one left there was cut off.
-const RETRYABLE: ReleaseStatus[] = ["exported", "push_failed", "pushed", "dispatch_failed", "failed"];
+const RETRYABLE: ReleaseStatus[] = ["exported", "push_failed", "pushed", "dispatch_failed", "failed", "superseded"];
 const PENDING: ReleaseStatus[] = ["dispatched", "building"];
 const time = new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short" });
 

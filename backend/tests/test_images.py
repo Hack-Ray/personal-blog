@@ -235,6 +235,14 @@ def test_image_kept_while_the_profile_intro_references_it(client):
     assert gc(days_from_now=8) == [ref["id"]]
 
 
+def test_profile_intro_cannot_reference_a_missing_image(client):
+    missing = f"images/{'0' * 64}.webp"
+    r = client.put("/api/profile", json={"revision": 1, "content": {**client.get("/api/profile").json()["content"], "intro": f"![x]({missing})"}})
+    assert r.status_code == 422
+    assert missing.removeprefix("images/") in r.json()["detail"]
+    assert client.get("/api/profile").json()["revision"] == 1
+
+
 def test_pending_deletion_keeps_images_until_purge(client):
     ref = upload(client, PNG).json()
     doc_id = client.post("/api/articles", json=draft(ref["markdown"])).json()["doc_id"]

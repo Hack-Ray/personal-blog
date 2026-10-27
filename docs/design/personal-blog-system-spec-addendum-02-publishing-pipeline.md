@@ -131,6 +131,18 @@
   - 有事故時列出事故名稱與連結；沒有事故或查詢失敗時，提示可能是 GitHub Actions 延遲，並連到 GitHub Status。
 - **Consequences**：GitHub 端的延遲不必再靠作者自己去查；提示只是說明，不會自動重試或取消部署。
 
+### PUB-010：還原備份後以資料庫為準；部署後確認線上網站
+
+- **Date**：2026-10-27
+- **Status**：Confirmed（使用者 2026-10-27 指定）
+- **Decision**：
+  - 還原較舊的備份後，資料庫是內容的唯一來源。下一次「更新網站」把內容 repo 改成資料庫的內容，網站回到備份當時的狀態，不另外詢問。git 模式本來就這樣運作；API 模式由 `restore.sh` 最後執行的 `python -m blog.content_repository after-restore` 把遠端 HEAD 記成最新 release，讓下一次發布以它為 parent。這個命令不寫入 GitHub。
+  - `restore.sh` 先停本機 CMS 並備份目前資料，還原在單一交易內完成，還原後登出所有 session。
+  - 內容回滾不另做按鈕：在 CMS 把有問題的文章封存或改回，再「更新網站」。程式回滾用 revert PR。
+  - `deploy.yml` 的部署後步驟以首頁回應中的 Next build id 確認線上網站已是這次的 build，10 分鐘內看不到就讓 run 失敗。讀內容 repo HEAD 失敗時 run 也失敗，不再被當成「有更新的內容」而略過部署。
+  - 最新一次 release 被記為 superseded（run 被之後的程式碼 push 取代）時可以重試。
+- **Consequences**：還原舊備份後，備份之後才發布的文章會在下一次「更新網站」時從網站消失；要保留它們，應還原較新的備份。網站壞掉而 GitHub 沒有通知的情況縮小到部署之後才發生的故障，這部分由外部監控負責。
+
 ## Open Questions（尚未確認）
 
 - ~~本機 PostgreSQL 的備份方式、頻率與存放位置。~~ 已由 Addendum 03 BE-012 決定。
