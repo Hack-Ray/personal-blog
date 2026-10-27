@@ -256,6 +256,7 @@ stateDiagram-v2
 3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
 4. 產生 static params，server render 每一頁。
 5. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
+6. `scripts/create-cdn-config.ts`（`next build` 之後）：在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，script 只允許 `'self'`、giscus 與該頁 inline script 的 SHA-256（`content/cdn-headers.ts`），找不到插入點時建置失敗；再寫出 `out/cdn-headers.json`，列出每個檔案的快取標頭與 CDN 要加的固定安全標頭（`frame-ancestors 'none'` 等，meta 不支援）。見 Addendum 04 FE-018。
 
 `content/model.ts` 定義網站看到的模型：`PublishedArticle`（`state: "published"`）與 `ArchivedArticle`（只有 `docId`），兩者都可帶 `slug` 與 `redirectFrom`。文章連結一律用 `queries.ts` 的 `postPath`；client component 不能 import 它，所以 `search-metadata.json` 與 `latest-posts.json` 直接帶 `path`。RSS 的 `<guid>` 與 giscus 仍以 `docId` 為鍵，換網址不影響。草稿與待刪除文章不會出現在 Snapshot。
 
@@ -409,9 +410,10 @@ cms/src/
 frontend/
   next.config.ts    basePath、SITE_ORIGIN、GISCUS_*
   src/content/      parse.ts（Snapshot 契約）、model.ts、load.ts、queries.ts、markdown.ts、
-                    url-policy.ts、headings.ts、search.ts、search-assets.ts、feed.ts、sitemap.ts
+                    url-policy.ts、headings.ts、search.ts、search-assets.ts、feed.ts、sitemap.ts、
+                    cdn-headers.ts（CSP 與快取標頭）
   src/app/          路由與 client component
-  scripts/          copy-snapshot-images.ts、check-snapshot.ts、check-links.ts、verify-site.sh
+  scripts/          copy-snapshot-images.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
   sample-site-data/ 本機與 CI 用的範例 Snapshot（3 篇已發布、1 篇封存、2 張圖）
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright

@@ -51,21 +51,46 @@ RSS 的 GUID 使用 `urn:ulid:<docId>`，不再隨網域或 basePath 改變。�
 4. SSL/TLS → Edge Certificates 開啟 **Always Use HTTPS**。Caching → Configuration 的 **Browser Cache TTL** 設成 **Respect Existing Headers**，沿用 Pages 的 10 分鐘快取。
 5. 開啟 proxy 後，Pages 設定頁可能顯示 DNS 檢查未通過，網站仍正常。Pages 續約憑證時的 HTTP 驗證會經過 Cloudflare 轉送，應該能通過（**推測**，未實測）。若出現 Cloudflare 526 錯誤，代表 Pages 憑證失效：把紀錄暫時改回 DNS only，等 Pages 重新發出憑證再改回 Proxied。
 
-Cloudflare 預設只快取圖片、CSS、JS 等靜態副檔名，不快取 HTML 與 JSON，所以部署後不需要清除快取。`cdn-headers.json` 的標頭與 CSP 目前沒有套用到 Cloudflare，見 `docs/backlog.md` 的 D7。
+Cloudflare 預設只快取圖片、CSS、JS 等靜態副檔名，不快取 HTML 與 JSON，所以部署後不需要清除快取。安全標頭見下一節。
 
-## 在 CDN 套用快取與安全標頭
+## 安全標頭與 CSP
 
-`npm run build` 會根據最後產生的 HTML 與檔案清單，產生 `out/cdn-headers.json`。這是 CDN 設定的輸入資料，GitHub Pages 不會自動套用其中的標頭。未啟用 CDN 時，這個檔案不影響網站功能。
+CSP 分成兩部分（Addendum 04 FE-018）。
 
-1. 保留目前 Pages 的 origin 作為 CDN 來源。將 HTTPS 連線、Host header 和來源路徑設為 Pages 實際需要的值，再切換 DNS。
-2. 讓 CDN 設定工具讀取 `cdn-headers.json`。對 `entries` 中每個 `path` 套用對應的 `headers`。其餘路徑使用 `default_headers`。HTML 的 `index.html` 與目錄形式都已列出。
-3. 先用 `Content-Security-Policy-Report-Only` 測試各 HTML 的 CSP。確認主題切換、站內搜尋、程式碼複製、圖片放大與 giscus 都正常，再改用 `Content-Security-Policy`。
-4. 每次部署都更新這份設定。CSP 中的 SHA-256 hash 依該次 HTML 的 script 原文產生，包含 Next.js payload 與主題程式。不能沿用上一次的 hash，也不要讓 CDN 壓縮或改寫 inline script 的文字。
-5. 若 CDN 快取較久，部署後清除 HTML、RSS、sitemap、robots、搜尋資料與 `cdn-headers.json` 的快取。由於本專案支援不同 CDN，目前不會呼叫特定供應商的 purge API。Pages 部署成功只代表來源站完成，不代表 CDN 已經更新。
-6. 用 `curl -I https://<網域>/` 檢查回應標頭，再用瀏覽器開啟文章確認 Console 沒有 CSP 拒絕訊息。未知路徑的 404 回應也要套用該次 `404.html` 的安全標頭。
+- **寫在每個 HTML 裡的 CSP。** `npm run build` 在每個 HTML 的 `<head>` 開頭加上 `<meta http-equiv="Content-Security-Policy">`。script 只允許自己網站的檔案、`https://giscus.app`，以及該頁 inline script 的 SHA-256 hash，不允許 `unsafe-inline` 或 `unsafe-eval`。hash 依該次 build 的 HTML 產生，所以每次部署都自動正確，GitHub Pages 不需要設定標頭，CDN 也不需要逐頁規則。程式碼高亮與元件需要 inline style，所以 `style-src` 保留 `unsafe-inline`。圖片允許任何 `https:` 來源。
+- **只能放在回應標頭的部分。** `frame-ancestors`（禁止別的網站用 iframe 嵌入）在 meta 裡無效，要由 CDN 加上。下面三個標頭每個回應都一樣，`out/cdn-headers.json` 的 `entries` 也列了同樣的值。
 
-預設快取策略讓 HTML 與可變資料在瀏覽器每次重新驗證，CDN 最多快取 60 秒。`_next/static/` 以及檔名是 64 位 SHA-256 的 `images/`、`thumbs/` 可快取一年。一般名稱的圖片保持短快取，避免同名換圖後顯示舊檔。
+| 標頭 | 值 |
+| --- | --- |
+| `Content-Security-Policy` | `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
 
-CSP 的 script 不允許 `unsafe-inline` 或 `unsafe-eval`。程式碼高亮與元件需要 inline style，所以 `style-src` 保留 `unsafe-inline`。giscus 只授權 `https://giscus.app` 的 script 與 iframe。若之後加入分析服務，需在同一個產生器調整來源清單並重新驗證。
+瀏覽器同時套用 meta 與標頭裡的 CSP，兩者都要允許才會載入。
 
-這個步驟不會購買網域、建立 CDN、修改 DNS 或產生付費資源。啟用仍需選定供應商並完成上述實測。不要把 CDN API token 寫入文章或 `cdn-headers.json`。
+### 在 Cloudflare 加上標頭
+
+免費方案就能做，不需要 Worker。
+
+1. 進入網域 → **Rules** → **Overview** → **Create rule** → **Response Header Transform Rule**。
+2. 名稱填 `Security headers`，套用範圍選 **All incoming requests**。
+3. 在 **Modify response header** 加三列，動作都選 **Set static**，名稱與值照上表填。值的單引號要一起貼上。
+4. 按 **Deploy**。
+
+想先觀察再啟用時，第一列的名稱可以先用 `Content-Security-Policy-Report-Only`，確認沒有問題再改成 `Content-Security-Policy`。
+
+### 會被 CSP 擋下的 CDN 功能
+
+CDN 往 HTML 插入的 script 若不是來自同一個網域，或是沒有列在 hash 裡的 inline script，會被 CSP 擋下。Cloudflare 的 **Rocket Loader** 會改寫 script，必須關閉（預設關閉）。**Web Analytics** 的自動注入會被擋，本專案的流量數據改從 Cloudflare API 讀取（Addendum 03 BE-024），不需要開啟它。**Email Address Obfuscation** 的 script 在同一個網域下，不受影響。
+
+### 確認是否生效
+
+1. 用 `curl -sI https://<網域>/` 確認回應有上表三個標頭。
+2. 用電腦瀏覽器開首頁與一篇有留言區的文章，打開開發者工具的 Console，不應該出現 `Content Security Policy` 開頭的錯誤。
+3. 確認主題切換、站內搜尋、程式碼複製、圖片放大、分享按鈕與 giscus 留言都正常。
+
+之後若加入新的外部 script、iframe 或 API，要在 `frontend/src/content/cdn-headers.ts` 調整來源清單，CI 的 e2e 測試會在 CSP 擋住網站功能時失敗。
+
+### 快取標頭
+
+`out/cdn-headers.json` 也列出每個檔案建議的 `Cache-Control`，供可以逐路徑設定標頭的 CDN 使用。目前 Cloudflare 沿用 Pages 的快取時間（見上一節），不需要套用這份檔案。`_next/static/` 以及檔名是 64 位 SHA-256 的 `images/`、`thumbs/` 可以快取一年，其餘檔案每次重新驗證，CDN 最多快取 60 秒。若之後延長 HTML 的快取，部署後要清除 HTML、RSS、sitemap、robots 與搜尋資料的快取。不要把 CDN API token 寫入文章或 `cdn-headers.json`。

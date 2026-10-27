@@ -44,7 +44,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 
 ### 優勢
 
-- **讀者端快又安全。** 公開網站是預先產生的 HTML，沒有伺服器與資料庫可以被攻擊，也不需要主機費用。
+- **讀者端快又安全。** 公開網站是預先產生的 HTML，沒有伺服器與資料庫可以被攻擊，也不需要主機費用。每頁都帶 CSP，只執行網站自己的 script 與 giscus。
 - **CMS 只在你的電腦上。** 後端只綁定 `127.0.0.1`，以 scrypt 雜湊保存密碼，Session cookie 為 `HttpOnly`、`SameSite=Strict`，閒置 1 天或登入滿 3 天就要重新登入，也可以從介面登出所有裝置。同一個來源連續 5 次密碼錯誤後要等待，之後每錯一次等待時間加倍（最長 15 分鐘），其他來源不受影響。CMS 拒絕跨來源寫入與白名單以外的 Host，回應帶 CSP 等安全標頭。
 - **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。
 - **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。
@@ -197,7 +197,7 @@ The backend and the frontend talk only through the Snapshot. `frontend/src/conte
 
 ### Advantages
 
-- **Fast and safe for readers.** The public site is prebuilt HTML. There is no server or database to attack and no hosting bill.
+- **Fast and safe for readers.** The public site is prebuilt HTML. There is no server or database to attack and no hosting bill. Every page carries a CSP that runs only the site's own scripts and giscus.
 - **The CMS stays on your computer.** The backend binds only to `127.0.0.1` and stores the password as a scrypt hash. The session cookie is `HttpOnly` and `SameSite=Strict`; a session ends after a day idle or three days in total, and the CMS can sign out every device. After five wrong passwords, that client address must wait, and each further failure doubles the wait (up to 15 minutes) without locking out other addresses. Cross-origin writes and Host headers outside the allow list are refused, and responses carry a CSP and other security headers.
 - **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days.
 - **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it.
