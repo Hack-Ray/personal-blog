@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type SearchDoc, prepareIndex, search } from "./search.ts";
+import { type SearchDoc, type Segment, highlight, prepareIndex, search, snippet } from "./search.ts";
 
 const doc = (docId: string, overrides: Partial<SearchDoc> = {}): SearchDoc => ({
   docId,
@@ -41,4 +41,72 @@ test("equal scores list newer articles first", () => {
 
 test("an empty query returns nothing", () => {
   assert.deepEqual(search(prepareIndex([doc("a", { text: "x" })]), "   "), []);
+});
+
+const prepared = (text: string) => prepareIndex([doc("a", { text })])[0];
+const plain = (segments: Segment[]) => segments.map((s) => s.text).join("");
+const marks = (segments: Segment[]) => segments.filter((s) => s.mark).map((s) => s.text);
+
+test("highlight marks every term case-insensitively and merges overlapping and adjacent hits", () => {
+  assert.deepEqual(highlight("FastAPI and fastapi", ["fastapi"]), [
+    { text: "FastAPI", mark: true },
+    { text: " and ", mark: false },
+    { text: "fastapi", mark: true },
+  ]);
+  assert.deepEqual(marks(highlight("abcdef", ["abc", "cde", "ef"])), ["abcdef"]);
+  assert.deepEqual(marks(highlight("abcd", ["ab", "cd"])), ["abcd"]);
+  assert.deepEqual(highlight("none", ["x"]), [{ text: "none", mark: false }]);
+});
+
+test("highlight shows the lowercase text when lowercasing changes its length", () => {
+  assert.equal(plain(highlight("İstanbul", ["stan"])), "i̇stanbul");
+  assert.deepEqual(marks(highlight("İstanbul", ["stan"])), ["stan"]);
+  assert.equal(plain(highlight("Istanbul", ["stan"])), "Istanbul");
+});
+
+test("a snippet starts 30 units before the first match, is 120 units long, and marks the terms", () => {
+  const text = "a".repeat(100) + " needle " + "b".repeat(200);
+  const segments = snippet(prepared(text), ["needle"]);
+  assert.deepEqual(segments[0], { text: "…", mark: false });
+  assert.deepEqual(segments.at(-1), { text: "…", mark: false });
+  assert.equal(plain(segments).length, 122);
+  assert.equal(plain(segments).indexOf("needle"), 1 + 30);
+  assert.deepEqual(marks(segments), ["needle"]);
+});
+
+test("a snippet has no ellipsis on a side that is not cut", () => {
+  assert.deepEqual(snippet(prepared("short needle text"), ["needle"]).map((s) => s.text), ["short ", "needle", " text"]);
+  const tail = snippet(prepared("x".repeat(200) + "needle"), ["needle"]);
+  assert.equal(tail[0].text, "…");
+  assert.equal(plain(tail).endsWith("needle"), true);
+});
+
+test("a snippet keeps original case and marks the earliest hit of any term", () => {
+  const segments = snippet(prepared("Intro. Pydantic validates, FastAPI serves."), ["fastapi", "pydantic"]);
+  assert.deepEqual(marks(segments), ["Pydantic", "FastAPI"]);
+});
+
+test("a snippet falls back to the start of the body when no term hits it", () => {
+  const segments = snippet(prepared("c".repeat(300)), ["title"]);
+  assert.deepEqual(segments.map((s) => s.mark), [false, false]);
+  assert.equal(plain(segments), "c".repeat(120) + "…");
+  assert.deepEqual(snippet(prepared(""), ["x"]), []);
+});
+
+test("a snippet never cuts a surrogate pair", () => {
+  for (const text of ["😀".repeat(40) + "xneedle" + "😀".repeat(100), "y" + "😀".repeat(100), "😀".repeat(40) + "needle" + "😀".repeat(100), "x😀".repeat(100), "😀x".repeat(100), "😀".repeat(100)]) {
+    const cut = plain(snippet(prepared(text), ["needle", "x"])).replace(/^…|…$/g, "");
+    assert.doesNotMatch(cut, /^[\udc00-\udfff]|[\ud800-\udbff]$/, text.slice(0, 4));
+  }
+});
+
+test("a snippet is built from the lowercase text when lowercasing changes the length", () => {
+  const segments = snippet(prepared("İ needle"), ["needle"]);
+  assert.equal(plain(segments), "i̇ needle");
+  assert.deepEqual(marks(segments), ["needle"]);
+});
+
+test("hits carry the prepared document for snippets", () => {
+  const index = prepareIndex([doc("a", { text: "needle" })]);
+  assert.strictEqual(search(index, "needle")[0].prepared, index[0]);
 });

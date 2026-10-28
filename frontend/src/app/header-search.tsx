@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { search } from "../content/search.ts";
+import { highlight, search, terms } from "../content/search.ts";
 import { BASE_PATH } from "../site.ts";
 import { subscribeSearch, getSearchSnapshot, getServerSearchSnapshot, startSearch } from "./search/load-index.ts";
+import { Highlight } from "./search/highlight.tsx";
 import { SearchStatus } from "./search/search-status.tsx";
 import { onQueryChange, readQuery, writeQuery } from "./search/query.ts";
 
@@ -40,6 +41,7 @@ export function HeaderSearch() {
   }, [open]);
 
   const hits = useMemo(() => search(snapshot.docs, query), [snapshot.docs, query]);
+  const wanted = terms(query);
   const showPreview = open && !onSearchPage && query.trim() !== "";
 
   return (
@@ -77,7 +79,7 @@ export function HeaderSearch() {
             <ul>
               {hits.slice(0, PREVIEW_LIMIT).map(({ doc }) => (
                 <li key={doc.docId}>
-                  <Link href={doc.path}>{doc.title}</Link>
+                  <Link href={doc.path}><Highlight segments={highlight(doc.title, wanted)} /></Link>
                   <span className="meta">
                     {doc.topic}
                     {doc.tags.map((t) => ` · #${t}`).join("")}

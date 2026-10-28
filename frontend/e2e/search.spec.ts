@@ -161,3 +161,23 @@ test("metadata failures can retry and the reload control navigates without start
   await expect(preview.getByRole("status")).toHaveText("0 篇符合");
   expect(attempts).toBe(3);
 });
+
+test("the search page shows a snippet around the match, and the header dropdown highlights titles only", async ({ page }) => {
+  const assets = buildSearchAssets(content(
+    article("hit", 2026, { title: "Needle recipes", markdown: "x".repeat(200) + " Needle in the Body " + "y".repeat(200) }),
+  ));
+  await mockSearch(page, assets, (route, json) => route.fulfill({ contentType: "application/json", body: json }));
+  await page.goto("search/?q=needle");
+  const item = page.locator("main .article-list li");
+  await expect(item).toHaveCount(1);
+  await expect(item.locator("a mark")).toHaveText("Needle");
+  await expect(item.locator(".snippet")).toContainText("…");
+  await expect(item.locator(".snippet mark")).toHaveText("Needle");
+  await expect(item.locator(".snippet")).toContainText("in the Body");
+
+  await page.goto("");
+  await page.getByRole("searchbox").first().fill("needle");
+  const preview = page.locator(".search-preview");
+  await expect(preview.locator("li a mark")).toHaveText("Needle");
+  await expect(preview.locator(".snippet")).toHaveCount(0);
+});

@@ -13,21 +13,20 @@ const yearFormat = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, year:
 
 export function buildSearchAssets(content: SiteContent): SearchAssets {
   const index = buildIndex(content);
-  const groups = new Map<number, { docId: string; textKey: string }[]>();
+  const groups = new Map<number, { docId: string; text: string }[]>();
   const docs = index.map(({ text, ...doc }) => {
     const year = Number(yearFormat.format(new Date(doc.publishedAt)));
-    const textKey = text.toLowerCase();
     const group = groups.get(year) ?? [];
-    group.push({ docId: doc.docId, textKey });
+    group.push({ docId: doc.docId, text });
     groups.set(year, group);
-    return { ...doc, textKey: textKey.slice(0, 160) };
+    return { ...doc, text: text.slice(0, 160) };
   });
   const chunks = new Map<string, string>();
   const years = [...groups].map(([year, docs]) => {
-    const json = JSON.stringify({ version: 1, year, docs });
+    const json = JSON.stringify({ version: 2, year, docs });
     const asset = `${String(year).padStart(4, "0")}-${hash(json)}`;
     chunks.set(asset, json);
     return { year, asset };
   });
-  return { metadataJson: JSON.stringify({ version: 1, docs, years }), chunks };
+  return { metadataJson: JSON.stringify({ version: 2, docs, years }), chunks };
 }

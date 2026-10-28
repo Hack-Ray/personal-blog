@@ -7,6 +7,7 @@
   --border: #d1d9e0;
   --code-bg: #f6f8fa;
   --link: #0969da;
+  --mark: #fff1a8;
 }
 
 /* Dark applies to the system preference unless light is forced, or when dark is forced. */
@@ -18,6 +19,7 @@
     --border: #3d444d;
     --code-bg: #151b23;
     --link: #4493f8;
+    --mark: #5c4a00;
   }
 }
 
@@ -33,6 +35,7 @@
   --border: #3d444d;
   --code-bg: #151b23;
   --link: #4493f8;
+  --mark: #5c4a00;
 }
 
 body {
@@ -388,6 +391,23 @@ input:focus-visible {
 
 .article-list .meta {
   margin: 4px 0;
+}
+
+mark {
+  color: inherit;
+  background: var(--mark);
+  border-radius: 2px;
+}
+
+.article-list .snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 0.9em;
 }
 
 .excerpt {
