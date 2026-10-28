@@ -36,6 +36,7 @@ const WEIGHT = { title: 10, taxon: 5, text: 1 };
 const SNIPPET_LENGTH = 120;
 const SNIPPET_LEAD = 30;
 const PHRASE_BREAK = /([\s，。、；：！？「」『』（）《》〈〉…—]+)/u;
+const LEADING_BREAK = /^[\s，。、；：！？」』）》〉…—]+/u;
 
 // Body text keeps each phrase once, with the separator that followed it, so a snippet reads
 // like the original minus repeats.
@@ -142,7 +143,7 @@ export function snippet({ text, textKey }: PreparedSearchDoc, wanted: readonly s
   let end = Math.min(shown.length, start + SNIPPET_LENGTH);
   if (start > 0 && isLow(shown.charCodeAt(start))) start++;
   if (end < shown.length && isHigh(shown.charCodeAt(end - 1))) end--;
-  const cut = shown.slice(start, end);
+  const cut = shown.slice(start, end).replace(start > 0 ? LEADING_BREAK : /^$/, "");
   return [
     ...(start > 0 ? [{ text: "…", mark: false }] : []),
     ...highlight(cut, wanted),

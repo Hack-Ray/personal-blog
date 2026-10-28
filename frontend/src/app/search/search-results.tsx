@@ -32,12 +32,14 @@ export function SearchResults() {
       <ul className="article-list">
         {hits.map(({ doc, prepared }) => (
           <li key={doc.docId}>
-            <Link href={doc.path}><Highlight segments={highlight(doc.title, wanted)} /></Link>
-            <p className="meta">
-              {dateFormat.format(new Date(doc.publishedAt))} · {doc.topic}
-              {doc.tags.map((t) => ` · #${t}`).join("")}
-            </p>
-            <p className="snippet"><Highlight segments={snippet(prepared, wanted)} /></p>
+            <div>
+              <Link href={doc.path}><Highlight segments={highlight(doc.title, wanted)} /></Link>
+              <p className="meta">
+                {dateFormat.format(new Date(doc.publishedAt))} · {doc.topic}
+                {doc.tags.map((t) => ` · #${t}`).join("")}
+              </p>
+              <p className="snippet"><Highlight segments={snippet(prepared, wanted)} /></p>
+            </div>
           </li>
         ))}
       </ul>

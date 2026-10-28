@@ -110,3 +110,8 @@ test("hits carry the prepared document for snippets", () => {
   const index = prepareIndex([doc("a", { text: "needle" })]);
   assert.strictEqual(search(index, "needle")[0].prepared, index[0]);
 });
+
+test("a cut snippet does not start with the punctuation that ended the previous phrase", () => {
+  const segments = snippet(prepared("a".repeat(5) + "。 " + "b".repeat(28) + "needle"), ["needle"]);
+  assert.deepEqual(segments.map((s) => s.text), ["…", "b".repeat(28), "needle"]);
+});
