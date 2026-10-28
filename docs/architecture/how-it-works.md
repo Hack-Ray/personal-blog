@@ -253,11 +253,12 @@ stateDiagram-v2
 **建置流程**：
 
 1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。
-2. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
-3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
-4. 產生 static params，server render 每一頁。
-5. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
-6. `scripts/create-cdn-config.ts`（`next build` 之後）：在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，script 只允許 `'self'`、giscus 與該頁 inline script 的 SHA-256（`content/cdn-headers.ts`），找不到插入點時建置失敗；再寫出 `out/cdn-headers.json`，列出每個檔案的快取標頭與 CDN 要加的固定安全標頭（`frame-ancestors 'none'` 等，meta 不支援）。見 Addendum 04 FE-018。
+2. `scripts/generate-share-images.ts`：刪除並重建 `public/og`，替沒有封面也沒有上傳圖片的已發布文章，依標題畫 1200×630 的 `og/<docId>.png`（見下方「分享圖」）。
+3. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
+4. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
+5. 產生 static params，server render 每一頁。
+6. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
+7. `scripts/create-cdn-config.ts`（`next build` 之後）：在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，script 只允許 `'self'`、giscus 與該頁 inline script 的 SHA-256（`content/cdn-headers.ts`），找不到插入點時建置失敗；再寫出 `out/cdn-headers.json`，列出每個檔案的快取標頭與 CDN 要加的固定安全標頭（`frame-ancestors 'none'` 等，meta 不支援）。見 Addendum 04 FE-018。
 
 `content/model.ts` 定義網站看到的模型：`PublishedArticle`（`state: "published"`）與 `ArchivedArticle`（只有 `docId`），兩者都可帶 `slug` 與 `redirectFrom`。文章連結一律用 `queries.ts` 的 `postPath`；client component 不能 import 它，所以 `search-metadata.json` 與 `latest-posts.json` 直接帶 `path`。RSS 的 `<guid>` 與 giscus 仍以 `docId` 為鍵，換網址不影響。草稿與待刪除文章不會出現在 Snapshot。
 
@@ -285,7 +286,9 @@ stateDiagram-v2
 
 **其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；圖示是內嵌的 Simple Icons（CC0）SVG；手機上 Facebook App 會攔下 facebook.com 連結而丟掉要分享的網址，所以觸控裝置有 Web Share API 時，Facebook 按鈕與最後一顆「更多分享方式」都開系統分享選單；其他情況（電腦）最後一顆是「複製連結」，瀏覽器有 clipboard 才顯示）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
 
-**圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；沒有封面或上傳圖片的文章與非文章頁，`og:image` 都是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
+**圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；非文章頁的 `og:image` 是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
+
+**分享圖**：文章的 `og:image` 由 `content/share-image.ts` 的 `shareImageOf()` 決定，文章頁的 meta 與 JSON-LD 共用：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`。後者由 `scripts/generate-share-images.ts` 在 build 時用 `shareImageSvg()`（純函式，自己斷行：中文逐字、英文在空格，最多 3 行，過長以「…」結尾）產生 SVG，再由 sharp 轉 PNG 並疊上 `icon.svg`。字型來自系統的 fontconfig（Noto Sans CJK TC，CI 以 apt 安裝 `fonts-noto-cjk`），標題有中文卻沒有中文字型時 build 失敗。這類文章的 `twitter:card` 是 `summary_large_image`。見 Addendum 04 FE-020。
 
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
@@ -414,7 +417,7 @@ frontend/
                     url-policy.ts、headings.ts、search.ts、search-assets.ts、feed.ts、sitemap.ts、
                     cdn-headers.ts（CSP 與快取標頭）
   src/app/          路由與 client component
-  scripts/          copy-snapshot-images.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
+  scripts/          copy-snapshot-images.ts、generate-share-images.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
   sample-site-data/ 本機與 CI 用的範例 Snapshot（3 篇已發布、1 篇封存、2 張圖）
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright
