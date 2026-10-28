@@ -40,8 +40,8 @@ stop_cms() {
   command -v lsof > /dev/null || return 0
   pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2> /dev/null)" || return 0
   for pid in $pids; do
-    if ! ps -o command= -p "$pid" | grep -q 'blog\.api:app'; then
-      echo "error: port $port is used by another program (pid $pid): $(ps -o command= -p "$pid")" >&2
+    if ! ps -ww -o command= -p "$pid" | grep -q 'blog\.api:app'; then
+      echo "error: port $port is used by another program (pid $pid): $(ps -ww -o command= -p "$pid")" >&2
       return 1
     fi
   done
