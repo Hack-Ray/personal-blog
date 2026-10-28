@@ -5,6 +5,17 @@ on:
   # through deploy.yml, so it has no push trigger of its own.
   pull_request:
   workflow_call:
+    inputs:
+      run_lighthouse:
+        description: Force the Lighthouse check
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      run_lighthouse:
+        description: Run Lighthouse even without performance-related changes
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -24,6 +35,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Test Lighthouse selection policy
+        run: node --test ../.github/scripts/lighthouse-needed.test.mjs
+      - name: Select Lighthouse check
+        id: lighthouse
+        env:
+          FORCE_LIGHTHOUSE: ${{ inputs.run_lighthouse || false }}
+        run: node ../.github/scripts/lighthouse-needed.mjs
       # The share images' CJK titles need a font; the runner image's fonts vary, so install Noto once.
       - name: Install a CJK font
         run: fc-list | grep -q 'Noto Sans CJK' || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
@@ -65,8 +83,9 @@ jobs:
       - name: Browser tests
         run: npx playwright test
       - name: Lighthouse scores against quality-budget.json
+        if: steps.lighthouse.outputs.run == 'true'
         run: npm run lighthouse
-      - if: always()
+      - if: always() && steps.lighthouse.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-reports
