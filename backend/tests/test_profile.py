@@ -1,9 +1,11 @@
+import io
 import json
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+from PIL import Image as Pillow
 
 from blog import articles
 from blog.db import SessionLocal
@@ -95,7 +97,10 @@ def test_urls_must_be_https_or_mailto(client, url):
 def test_intro_urls_follow_the_article_policy(client, intro):
     assert put(client, {**SEED, "intro": intro}).status_code == 422
     assert client.get("/api/profile").json()["revision"] == 1
-    assert put(client, {**SEED, "intro": "[x](https://example.com) ![y](images/a.webp)"}).status_code == 200
+    png = io.BytesIO()
+    Pillow.new("RGB", (2, 2)).save(png, "PNG")
+    image = client.post("/api/images", files={"file": ("x.png", png.getvalue(), "image/png")}).json()["markdown"]
+    assert put(client, {**SEED, "intro": f"[x](https://example.com) {image}"}).status_code == 200
 
 
 @pytest.mark.parametrize(

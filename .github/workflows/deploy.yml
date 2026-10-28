@@ -62,7 +62,8 @@ jobs:
     needs: site-changes
     # Builds unless site-changes found no change, so a failed check still builds.
     if: ${{ !cancelled() && needs.site-changes.outputs.changed != 'false' }}
-    runs-on: ubuntu-latest
+    # The image ci.yml builds and tests the site on; sharp is a native dependency.
+    runs-on: ubuntu-24.04
     # One build and one deploy at a time; a newer queued job replaces an older
     # queued one and a running job finishes (Baseline 9.2). Set per job, not
     # per run, so a run that skips them never cancels a queued release.
@@ -75,6 +76,7 @@ jobs:
       pages: read
     outputs:
       content_sha: ${{ steps.content.outputs.sha }}
+      build_id: ${{ steps.build-id.outputs.id }}
     steps:
       - uses: actions/checkout@v7
 
@@ -134,6 +136,10 @@ jobs:
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           LEGACY_SITE_URLS: ${{ vars.LEGACY_SITE_URLS }}
 
+      # Every page of this build carries the id, so the deploy job can tell it is live.
+      - id: build-id
+        run: echo "id=$(cat frontend/.next/BUILD_ID)" >> "$GITHUB_OUTPUT"
+
       # A link in an article to a page or image the build does not have fails
       # here, like a missing image does above.
       - run: node scripts/check-links.ts
@@ -183,10 +189,15 @@ jobs:
         env:
           TOKEN: ${{ steps.content-token.outputs.token || secrets.CONTENT_REPO_TOKEN }}
           BUILT: ${{ needs.build.outputs.content_sha }}
+        # A failed lookup must fail the run: an empty HEAD would read as newer
+        # content and skip the deploy, and the CMS would record the release as
+        # superseded.
         run: |
+          set -o pipefail
           ref=HEAD
           if [ -n "$CONTENT_BRANCH" ]; then ref="refs/heads/$CONTENT_BRANCH"; fi
           head=$(git ls-remote "https://x-access-token:${TOKEN}@github.com/${CONTENT_REPO}.git" "$ref" | cut -f1)
+          [ -n "$head" ] || { echo "::error::Could not read the content repository HEAD."; exit 1; }
           if [ "$head" = "$BUILT" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else
@@ -198,3 +209,22 @@ jobs:
         name: Deploy to GitHub Pages
         if: steps.latest.outputs.current == 'true'
         uses: actions/deploy-pages@v5
+
+      # Pages accepting the artifact does not prove visitors get it. A broken
+      # domain, certificate or CDN setting fails the run here, so GitHub sends
+      # the usual failure email. The query string bypasses cached copies.
+      - name: Check the live site
+        if: steps.deployment.outcome == 'success'
+        env:
+          URL: ${{ steps.deployment.outputs.page_url }}
+          BUILD_ID: ${{ needs.build.outputs.build_id }}
+        run: |
+          for attempt in $(seq 60); do
+            if curl -fsSL --max-time 20 "${URL%/}/?deploy=${GITHUB_RUN_ID}-${attempt}" | grep -qF "$BUILD_ID"; then
+              echo "The live site serves build $BUILD_ID."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${URL} did not serve build $BUILD_ID within 10 minutes."
+          exit 1

@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from sqlalchemy import func, select, text
 
-from blog import articles, exporter, release
+from blog import articles, exporter, release, release_jobs
 from blog.db import SessionLocal, engine
 from blog.github import GitHubClient
 from blog.models import PublishedVersion, Release, ReleaseArticle, ReleaseStatus
@@ -69,6 +69,14 @@ class FakeDeployer:
         self.runs = [(c, done if r.id == run.id else r) for c, r in self.runs]
         self.deploy_steps[run.id] = deploy_step
         return done
+
+
+def update_site(client):
+    """Asks for a website update the way the CMS does, lets the worker run it, and returns the job."""
+    job = client.post("/api/release-jobs", json={"action": "create"})
+    assert job.status_code == 202, job.text
+    assert release_jobs.run_once()
+    return client.get(f"/api/release-jobs/{job.json()['id']}").json()
 
 
 def refresh(session, r, deployer):
@@ -172,8 +180,21 @@ def test_failed_build_can_be_retried_only_while_latest(repos):
         second = release.create(s, clone, deployer)
         with pytest.raises(release.ReleaseError, match="newer release"):
             release.retry(s, first.id, clone, deployer)
-        with pytest.raises(release.ReleaseError, match="only failed releases"):
+        with pytest.raises(release.ReleaseError, match="only failed, interrupted or superseded"):
             release.retry(s, second.id, clone, deployer)
+
+
+def test_the_latest_release_replaced_by_a_code_deploy_can_be_retried(repos):
+    _, clone = repos
+    deployer = FakeDeployer()
+    with SessionLocal() as s:
+        publish(s)
+        r = release.create(s, clone, deployer)
+        # A code push queued after this release cancels its run; that push's own deploy may then fail CI.
+        deployer.finish(r.content_commit, "cancelled")
+        assert refresh(s, r, deployer).status == R.SUPERSEDED
+        assert release.retry(s, r.id, clone, deployer).status == R.DISPATCHED
+        assert deployer.dispatched == [r.content_commit, r.content_commit]
 
 
 def test_a_new_release_supersedes_older_unfinished_failures(repos):
@@ -190,15 +211,16 @@ def test_a_new_release_supersedes_older_unfinished_failures(repos):
 def test_release_api_needs_a_content_repo(client, configure, repos):
     _, clone = repos
     configure(content_repo_dir=None, github_token=None)
-    assert client.post("/api/releases").status_code == 503
+    assert client.post("/api/release-jobs", json={"action": "create"}).status_code == 409
     configure(content_repo_dir=clone)
-    empty_site = client.post("/api/releases").json()["release"]
-    assert client.post("/api/releases").json() == {"release": None}
+    empty_site = update_site(client)["release_id"]
+    assert update_site(client)["release_id"] is None
     doc_id = client.post("/api/articles", json={"title": "T", "topic": {"slug": "b", "name": "B"}, "markdown": "m"}).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json={"title": "T", "topic": {"slug": "b", "name": "B"}, "markdown": "m", "base_revision": 1})
-    created = client.post("/api/releases").json()["release"]
-    assert created["status"] == "dispatch_failed"
-    assert [r["id"] for r in client.get("/api/releases").json()] == [created["id"], empty_site["id"]]
+    created = update_site(client)["release_id"]
+    listed = client.get("/api/releases").json()
+    assert [r["id"] for r in listed] == [created, empty_site]
+    assert listed[0]["status"] == "dispatch_failed"
 
 
 def test_a_retried_release_is_not_judged_by_the_failed_run(repos):
@@ -293,10 +315,10 @@ def test_only_one_release_runs_at_a_time(client, configure, repos):
         other.scalar(select(func.pg_advisory_lock(release.LOCK_KEY)))
         with SessionLocal() as s, pytest.raises(release.ReleaseBusy):
             release.create(s, clone, None)
-        r = client.post("/api/releases")
-        assert (r.status_code, r.json()["detail"]) == (409, "another release is in progress; try again when it finishes")
+        job = update_site(client)
+        assert (job["status"], job["detail"]) == ("failed", "another release is in progress; try again when it finishes")
         other.scalar(select(func.pg_advisory_unlock(release.LOCK_KEY)))
-    assert client.post("/api/releases").status_code == 200
+    assert update_site(client)["release_id"] is not None
 
 
 def test_push_errors_do_not_show_credentials(repos):
@@ -330,7 +352,8 @@ def test_listing_releases_does_not_call_github_and_refreshing_does(client, confi
     configure(content_repo_dir=clone)
     deployer = FakeDeployer()
     monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
-    created = client.post("/api/releases").json()["release"]
+    update_site(client)
+    created = client.get("/api/releases").json()[0]
     deployer.finish(created["content_commit"])
     listed = client.get("/api/releases").json()[0]
     assert listed["status"] == "dispatched"
@@ -604,10 +627,10 @@ def test_a_new_release_waits_for_the_cooldown(client, configure, monkeypatch, re
     configure(content_repo_dir=clone)
     monkeypatch.setattr(release, "COOLDOWN", timedelta(seconds=30))
     monkeypatch.setattr(release, "deployer_from_env", FakeDeployer)
-    assert client.post("/api/releases").json()["release"] is not None
-    r = client.post("/api/releases")
-    assert r.status_code == 409
-    assert r.json()["detail"].startswith("a release was just started; try again in ")
+    assert update_site(client)["release_id"] is not None
+    second = update_site(client)
+    assert second["status"] == "failed"
+    assert second["detail"].startswith("a release was just started; try again in ")
 
 
 def test_api_dispatch_includes_nondefault_content_branch(github):

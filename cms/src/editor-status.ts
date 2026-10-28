@@ -17,7 +17,7 @@ export function unsavedReason(content: DraftContent): string | undefined {
 
 const sameTaxon = (a: Taxon, b: Taxon) => a.slug === b.slug && a.name === b.name;
 
-const sameContent = (a: DraftContent, b: DraftContent) =>
+export const sameContent = (a: DraftContent, b: DraftContent) =>
   a.title === b.title &&
   a.markdown === b.markdown &&
   sameTaxon(a.topic, b.topic) &&

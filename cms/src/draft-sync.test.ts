@@ -3,6 +3,9 @@ import { test } from "node:test";
 import { ApiError, EMPTY_METADATA, type DraftApi, type DraftContent } from "./api.ts";
 import { DraftSync } from "./draft-sync.ts";
 
+/** What the editor holds: the loaded draft with the author's edits spread over it. */
+const edited = (c: DraftContent): DraftContent => ({ doc_id: "D", slug: null, state: "draft", revision: 1, updated_at: "loaded", ...c }) as DraftContent;
+
 const content = (markdown: string): DraftContent => ({
   title: "T",
   topic: { slug: "backend", name: "Backend" },
@@ -23,13 +26,22 @@ function fakeServer() {
   const check = (base: number) => {
     if (base !== revision) throw new ApiError(409, { detail: "stale", current_revision: revision });
   };
+  let loseNextAnswer = false;
   const api: DraftApi = {
+    async draft() {
+      calls.push("draft");
+      return { ...stored, doc_id: "D", slug: null, state: "draft", revision, updated_at: "" };
+    },
     async save(_docId, base, c) {
       calls.push(`save@${base}:${c.markdown}`);
       await gate();
       check(base);
       stored = c;
       revision += 1;
+      if (loseNextAnswer) {
+        loseNextAnswer = false;
+        throw new TypeError("Failed to fetch");
+      }
       return { ...c, doc_id: "D", slug: null, state: "draft", revision, updated_at: "" };
     },
     async publish(_docId, base, c) {
@@ -57,6 +69,12 @@ function fakeServer() {
     published,
     stored: () => stored.markdown,
     bump: () => void (revision += 1),
+    /** Another tab's save. */
+    overwrite: (c: DraftContent) => {
+      stored = c;
+      revision += 1;
+    },
+    loseNextAnswer: () => void (loseNextAnswer = true),
     async releaseAll() {
       for (let i = 0; i < 20; i++) {
         await tick();
@@ -115,6 +133,40 @@ test("a save rejected as stale stops autosave and reports the conflict", async (
   sync.edit(content("more"));
   await sync.flush();
   assert.equal(server.calls.length, 1);
+});
+
+test("a save stored by the server whose answer was lost is no conflict", async () => {
+  const server = fakeServer();
+  const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
+  server.loseNextAnswer();
+  sync.edit(edited(content("stored, answer lost")));
+  let saving = sync.flush();
+  await server.releaseAll();
+  await saving;
+  assert.equal(sync.status.kind, "error");
+  sync.edit(edited(content("typed afterwards")));
+  saving = sync.flush();
+  await server.releaseAll();
+  await saving;
+  // The save after the recovery runs on a timer.
+  for (let i = 0; i < 500 && !server.calls.includes("save@2:typed afterwards"); i++) await new Promise((r) => setTimeout(r, 1));
+  await server.releaseAll();
+  await sync.close();
+  assert.deepEqual(server.calls, ["save@1:stored, answer lost", "save@1:typed afterwards", "draft", "save@2:typed afterwards"]);
+  assert.equal(server.stored(), "typed afterwards");
+  assert.equal(sync.status.kind, "saved");
+});
+
+test("a lost answer is a conflict when the server then holds another series", async () => {
+  const server = fakeServer();
+  const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
+  server.loseNextAnswer();
+  sync.edit(edited({ ...content("same text"), series: { slug: "s", name: "S" } }));
+  await Promise.all([sync.flush(), server.releaseAll()]);
+  server.overwrite(content("same text"));
+  sync.edit(content("typed afterwards"));
+  await Promise.all([sync.flush(), server.releaseAll()]);
+  assert.deepEqual(sync.status, { kind: "conflict", currentRevision: 3 });
 });
 
 test("edits made while a save is in flight are saved afterwards", async () => {

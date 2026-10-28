@@ -201,8 +201,6 @@ export const api = {
   releaseJobs: () => request<ReleaseJob[]>("GET", "/release-jobs"),
   submitRelease: (releaseId?: string) => request<ReleaseJob>("POST", "/release-jobs", releaseId ? { action: "retry", release_id: releaseId } : { action: "create" }),
   githubStatus: () => request<{ incidents: { name: string; url: string }[] }>("GET", "/github-status"),
-  createRelease: () => request<{ release: Release | null }>("POST", "/releases"),
-  retryRelease: (id: string) => request<Release>("POST", `/releases/${id}/retry`),
   profile: () => request<SavedProfile>("GET", "/profile"),
   saveProfile: (revision: number, content: Profile) => request<SavedProfile>("PUT", "/profile", { revision, content }),
   taxa: () => request<Record<TaxonKind, TaxonUsage[]>>("GET", "/taxa"),
@@ -219,4 +217,4 @@ export const api = {
   },
 };
 
-export type DraftApi = Pick<typeof api, "save" | "publish" | "restoreSnapshot">;
+export type DraftApi = Pick<typeof api, "draft" | "save" | "publish" | "restoreSnapshot">;

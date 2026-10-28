@@ -204,11 +204,11 @@ docker run --rm --log-driver awslogs --log-opt awslogs-group=<log group> \
 
 ## 7. 演練還原
 
-先在獨立的測試資料庫演練。正式還原前停止 CMS，保留目前資料庫的另一份備份。`restore.sh` 會取代目標資料庫全部內容。
+先在獨立的測試資料庫演練。正式還原前停止 CMS。`restore.sh` 會取代目標資料庫全部內容，動手前先把目前的資料備份到 `BACKUP_TARGET`；容器跑完就刪除，所以下面把它指到掛載的 `/backup`。
 
 ```sh
 docker stop blog-cms
-docker run --rm --network host --env-file /srv/blog/cms.env \
+docker run --rm --network host --env-file /srv/blog/cms.env -e BACKUP_TARGET=/backup \
   --mount type=bind,source=/srv/blog/backups,target=/backup \
   --mount type=bind,source=/srv/blog/secrets,target=/run/secrets,readonly \
   ghcr.io/<owner>/<repo>-cms:cms-v1.0.0 \

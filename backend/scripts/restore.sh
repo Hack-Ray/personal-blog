@@ -8,7 +8,12 @@
 #   scripts/restore.sh <file> --url <URL>   # into any PostgreSQL, e.g. on AWS
 #   scripts/restore.sh <file> --yes         # skip the confirmation prompt
 #
-# Afterwards it runs the migrations, so an older backup works with newer code.
+# It first stops the CMS on this machine and backs up the current data next to
+# the backup being restored (or to BACKUP_TARGET). The restore runs in one
+# transaction. Afterwards it runs the migrations, so an
+# older backup works with newer code, signs everyone out, and records the
+# content repository's HEAD so the next website update rolls the site back to
+# this backup's content.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/lib.sh
@@ -19,7 +24,7 @@ while [ $# -gt 0 ]; do
     --env) url="$(env_value DATABASE_URL)"; [ -n "$url" ] || { echo "DATABASE_URL is not set" >&2; exit 2; }; shift ;;
     --url) url="$2"; shift 2 ;;
     --yes) yes=1; shift ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) file="$1"; shift ;;
   esac
@@ -48,20 +53,51 @@ if [ -z "$yes" ]; then
   [ "$answer" = "restore" ] || { echo "Cancelled."; exit 1; }
 fi
 
+# Nothing may write while the data is replaced.
+stop_cms 8000
+
+# The dump becomes one SQL script, read before the safety backup below can
+# land beside it, and is applied with the schema reset in a single
+# transaction: a failure anywhere leaves the old data in place.
+sql="$(mktemp)"
+trap 'rm -f "$sql"; [ -z "${dir:-}" ] || rm -rf "$dir"' EXIT
 if [ -n "$url" ]; then
   use_url "$url"
-  psql --dbname="$libpq" --quiet --set ON_ERROR_STOP=1 -c "SET client_min_messages TO warning; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-  pg_restore --no-owner --exit-on-error --dbname="$libpq" "$file"
   export DATABASE_URL="$url"
+  pg_restore --no-owner --file="$sql" "$file"
+  target_psql() { psql --dbname="$libpq" "$@"; }
 else
-  docker compose exec -T db psql -U blog -d blog --quiet --set ON_ERROR_STOP=1 -c "SET client_min_messages TO warning; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-  docker compose exec -T db pg_restore --no-owner --exit-on-error -U blog -d blog < "$file"
+  docker compose exec -T db pg_restore --no-owner --file=- < "$file" > "$sql"
+  target_psql() { docker compose exec -T db psql -U blog -d blog "$@"; }
 fi
 
-# The migrations read DATABASE_URL from .env unless --url set it above.
-if [ -f .env ]; then
-  uv run --env-file .env alembic upgrade head
+echo "==> Backing up the current data first"
+# Beside the backup being restored unless BACKUP_TARGET says otherwise, so it
+# outlives a throwaway container. BACKUP_KEEP is off: pruning could delete the
+# file this script is about to restore.
+out="$(env_value BACKUP_TARGET)"
+out="${out:-$(dirname "$source")}"
+if [ -n "$url" ]; then
+  DATABASE_URL="$url" BACKUP_KEEP= scripts/backup.sh --env --out "$out"
 else
-  uv run alembic upgrade head
+  BACKUP_KEEP= scripts/backup.sh --out "$out"
 fi
+
+{
+  echo "SET client_min_messages TO warning; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+  # pg_restore 17+ writes this setting, which an older server rejects.
+  sed '/^SET transaction_timeout = 0;$/d' "$sql"
+} | target_psql --quiet --single-transaction --set ON_ERROR_STOP=1 > /dev/null
+
+# The migrations read DATABASE_URL from .env unless --url set it above.
+run() { if [ -f .env ]; then uv run --env-file .env "$@"; else uv run "$@"; fi; }
+run alembic upgrade head
+# Sign-ins saved in the backup are not carried over, and website updates that
+# were waiting when the backup was made do not run on their own.
+target_psql --quiet --set ON_ERROR_STOP=1 -c "DELETE FROM admin_sessions;
+  UPDATE release_jobs SET status = 'failed', detail = 'interrupted by a restore' WHERE status IN ('queued', 'running');" > /dev/null
+# The database now decides what the site shows: the next website update
+# replaces whatever the content repository holds with this backup's content.
+run python -m blog.content_repository after-restore ||
+  echo "warning: could not reach the content repository; run 'uv run --env-file .env python -m blog.content_repository after-restore' before the next website update" >&2
 echo "Restored $source into $target."

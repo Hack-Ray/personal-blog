@@ -75,6 +75,10 @@ class ProfileConflict(Exception):
         self.current_revision = current_revision
 
 
+class MissingImages(Exception):
+    pass
+
+
 def get(session: Session) -> Profile:
     return session.get_one(Profile, 1)
 
@@ -84,6 +88,9 @@ def save(session: Session, revision: int, content: ProfileContent) -> Profile:
     row = session.scalars(select(Profile).where(Profile.id == 1).with_for_update()).one()
     if row.revision != revision:
         raise ProfileConflict(row.revision)
+    # Every release exports the profile, so a missing image would fail them all.
+    if gone := images.missing(session, content.intro):
+        raise MissingImages(f"images not found: {', '.join(sorted(gone))}")
     row.content = content.public()
     row.revision += 1
     row.updated_at = func.now()

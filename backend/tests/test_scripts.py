@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine, make_url, text
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -140,3 +141,69 @@ def test_check_release_stays_quiet_when_unreachable_or_turned_off(tmp_path):
     assert bash("check_release", GITHUB_API_URL=tmp_path.as_uri(), UPDATE_CHECK_REPO="owner/none") == ""
     assert bash("set -euo pipefail; check_release; echo started", GITHUB_API_URL=tmp_path.as_uri()) == "started"
     assert bash("check_release", **{**release_api(tmp_path, "v99.0.0"), "UPDATE_CHECK_REPO": "off"}) == ""
+
+
+@pytest.fixture
+def scratch_database():
+    """A migrated database of its own, since a restore replaces everything in it."""
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    name = f"{base.database}_restore"
+    server = create_engine(base, isolation_level="AUTOCOMMIT")
+    with server.connect() as conn:
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        conn.execute(text(f'CREATE DATABASE "{name}"'))
+    url = base.set(database=name).render_as_string(hide_password=False)
+    subprocess.run(["uv", "run", "alembic", "upgrade", "head"], cwd=BACKEND, check=True, capture_output=True, env={**os.environ, "DATABASE_URL": url})
+    yield url
+    with server.connect() as conn:
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    server.dispose()
+
+
+def run_sql(url, statement):
+    engine = create_engine(url)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text(statement))
+            return result.scalars().all() if result.returns_rows else None
+    finally:
+        engine.dispose()
+
+
+def script(*args, **env):
+    return subprocess.run(args, cwd=BACKEND, capture_output=True, text=True, env={**os.environ, **env})
+
+
+def test_restore_backs_up_first_replaces_everything_at_once_and_signs_everyone_out(scratch_database, tmp_path):
+    url = scratch_database
+    run_sql(url, "INSERT INTO retired_doc_ids VALUES ('01K00000000000000000000000')")
+    run_sql(url, "INSERT INTO admin_sessions (token_hash, expires_at) VALUES ('t', now() + interval '1 day')")
+    run_sql(url, "INSERT INTO release_jobs (id, action, status) VALUES ('01K00000000000000000000000', 'create', 'queued')")
+    assert script("scripts/backup.sh", "--url", url, "--out", str(tmp_path / "b")).returncode == 0
+    (dump,) = (tmp_path / "b").glob("*.dump")
+    run_sql(url, "INSERT INTO retired_doc_ids VALUES ('01K00000000000000000000001')")
+
+    broken = tmp_path / "broken.dump"
+    broken.write_bytes(dump.read_bytes()[: dump.stat().st_size // 2])
+    failed = script("scripts/restore.sh", str(broken), "--url", url, "--yes", BACKUP_TARGET=str(tmp_path / "safety"))
+    assert failed.returncode != 0
+    assert len(run_sql(url, "SELECT doc_id FROM retired_doc_ids")) == 2, "a failed restore keeps the old data"
+
+    # BACKUP_KEEP=1 must not let the safety backup delete the file being restored.
+    restored = script("scripts/restore.sh", str(dump), "--url", url, "--yes", BACKUP_KEEP="1")
+    assert restored.returncode == 0, restored.stderr
+    assert run_sql(url, "SELECT doc_id FROM retired_doc_ids") == ["01K00000000000000000000000"]
+    assert run_sql(url, "SELECT token_hash FROM admin_sessions") == []
+    assert run_sql(url, "SELECT status FROM release_jobs") == ["failed"], "a restored queued update does not publish on its own"
+    assert dump.exists() and len(list((tmp_path / "b").glob("*.dump"))) == 2, "the safety backup lands beside the restored one"
+
+
+def test_backup_keep_removes_the_oldest_backups_in_a_folder(scratch_database, tmp_path):
+    for stamp in ("20260101T000000Z", "20260102T000000Z"):
+        (tmp_path / f"blog-{stamp}.dump").write_text("old")
+        (tmp_path / f"blog-{stamp}.dump.sha256").write_text("old")
+    (tmp_path / "notes.txt").write_text("not a backup")
+    assert script("scripts/backup.sh", "--url", scratch_database, "--out", str(tmp_path), BACKUP_KEEP="2").returncode == 0
+    names = sorted(p.name for p in tmp_path.iterdir())
+    assert names[:2] == ["blog-20260102T000000Z.dump", "blog-20260102T000000Z.dump.sha256"]
+    assert len(names) == 5 and names[-1] == "notes.txt"
