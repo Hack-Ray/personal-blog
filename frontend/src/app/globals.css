@@ -13,6 +13,7 @@
   --callout-important: #8250df;
   --callout-warning: #9a6700;
   --callout-caution: #d1242f;
+  --mark: #fff1a8;
 }
 
 /* Dark applies to the system preference unless light is forced, or when dark is forced. */
@@ -29,6 +30,7 @@
     --callout-important: #ab7df8;
     --callout-warning: #d29922;
     --callout-caution: #f85149;
+    --mark: #5c4a00;
   }
 }
 
@@ -49,6 +51,7 @@
   --callout-important: #ab7df8;
   --callout-warning: #d29922;
   --callout-caution: #f85149;
+  --mark: #5c4a00;
 }
 
 body {
@@ -524,6 +527,23 @@ main:has(> article) > .github-pinned {
 
 .article-list .meta {
   margin: 4px 0;
+}
+
+mark {
+  color: var(--fg);
+  background: var(--mark);
+  border-radius: 2px;
+}
+
+.article-list .snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 0.9em;
 }
 
 .excerpt {

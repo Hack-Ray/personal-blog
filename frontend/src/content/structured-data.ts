@@ -1,7 +1,8 @@
-import { absoluteUrl, DEFAULT_OG_IMAGE } from "../site.ts";
-import { coverOf, excerptOf } from "./card.ts";
+import { absoluteUrl } from "../site.ts";
+import { excerptOf } from "./card.ts";
 import type { Profile, PublishedArticle } from "./model.ts";
 import { postPath } from "./queries.ts";
+import { shareImageOf } from "./share-image.ts";
 
 /** schema.org Person for the site's author, described by the About page. */
 export function person(profile: Pick<Profile, "name" | "links">) {
@@ -18,7 +19,6 @@ export function profilePage(profile: Pick<Profile, "name" | "links">) {
 /** schema.org BlogPosting; the fields agree with the article page's openGraph. */
 export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" | "links">) {
   const url = absoluteUrl(postPath(a));
-  const cover = coverOf(a);
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -28,8 +28,8 @@ export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" |
     dateModified: (a.updatedAt ?? a.publishedAt).toISOString(),
     url,
     mainEntityOfPage: url,
-    // The same image the page's og:image falls back to; Google asks Article results for one.
-    image: cover ? absoluteUrl(`/${cover}`) : DEFAULT_OG_IMAGE,
+    // The page's og:image; Google asks Article results for one.
+    image: absoluteUrl(`/${shareImageOf(a)}`),
     author: person(profile),
     ...(a.tags.length > 0 && { keywords: a.tags.map((t) => t.name) }),
     articleSection: a.topic.name,

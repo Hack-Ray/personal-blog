@@ -252,12 +252,13 @@ stateDiagram-v2
 
 **建置流程**：
 
-1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。接著 `scripts/render-diagrams.ts` 用 headless Chromium 把 Mermaid 區塊算繪成淺色與深色 SVG，寫入 `.generated/diagrams.json`；沒有圖表時不啟動瀏覽器（FE-022）。
-2. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
-3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
-4. 產生 static params，server render 每一頁。
-5. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
-6. `scripts/create-cdn-config.ts`（`next build` 之後）：在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，script 只允許 `'self'`、giscus 與該頁 inline script 的 SHA-256（`content/cdn-headers.ts`），找不到插入點時建置失敗；再寫出 `out/cdn-headers.json`，列出每個檔案的快取標頭與 CDN 要加的固定安全標頭（`frame-ancestors 'none'` 等，meta 不支援）。見 Addendum 04 FE-018。
+1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。接著 `scripts/render-diagrams.ts` 用 headless Chromium 把 Mermaid 區塊算繪成淺色與深色 SVG，寫入 `.generated/diagrams.json`；沒有圖表時不啟動瀏覽器（FE-023）。
+2. `scripts/generate-share-images.ts`：刪除並重建 `public/og`，替沒有封面也沒有上傳圖片的已發布文章，依標題畫 1200×630 的 `og/<docId>.png`（見下方「分享圖」）。
+3. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
+4. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
+5. 產生 static params，server render 每一頁。
+6. route handler 產生 `feed.xml`、`sitemap.xml`、`latest-posts.json`、`search-metadata.json`、`search-data/<YYYY-hash>/chunk.json`，以及 `404.html`。
+7. `scripts/create-cdn-config.ts`（`next build` 之後）：在每個 HTML 的 charset 之後插入 `<meta http-equiv="Content-Security-Policy">`，script 只允許 `'self'`、giscus 與該頁 inline script 的 SHA-256（`content/cdn-headers.ts`），找不到插入點時建置失敗；再寫出 `out/cdn-headers.json`，列出每個檔案的快取標頭與 CDN 要加的固定安全標頭（`frame-ancestors 'none'` 等，meta 不支援）。見 Addendum 04 FE-018。
 
 `content/model.ts` 定義網站看到的模型：`PublishedArticle`（`state: "published"`）與 `ArchivedArticle`（只有 `docId`），兩者都可帶 `slug` 與 `redirectFrom`。文章連結一律用 `queries.ts` 的 `postPath`；client component 不能 import 它，所以 `search-metadata.json` 與 `latest-posts.json` 直接帶 `path`。RSS 的 `<guid>` 與 giscus 仍以 `docId` 為鍵，換網址不影響。草稿與待刪除文章不會出現在 Snapshot。
 
@@ -279,13 +280,17 @@ stateDiagram-v2
 
 **Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。註腳、提示框與 `mermaid` 區塊來自 `content/article-syntax.ts`（CMS 有逐字複本）；圖表從 `diagrams.json` 取 SVG，找不到就丟錯。
 
-**搜尋**：`content/search.ts` 的 `buildIndex` 由 server 與瀏覽器共用。內文取摘要加純文字最多 5000 個 UTF-16 單位，切詞後去重，所以沒有詞頻排序。權重：標題 10、Topic／Tag 5、內文 1，同分較新的優先。`search-assets.ts` 把它拆成 `search-metadata.json`（`version: 1`，每篇 metadata 與內文前 160 字）與依台北年份切的內文 chunk（檔名含內容雜湊，可長期快取）。
+**搜尋**：`content/search.ts` 的 `buildIndex` 由 server 與瀏覽器共用。內文取摘要加純文字最多 5000 個 UTF-16 單位，在空白與全形標點處切成片語，每個片語只留第一次出現（連同它後面的分隔符號），保留原本的大小寫與標點，所以沒有詞頻排序。權重：標題 10、Topic／Tag 5、內文 1，同分較新的優先。`search-assets.ts` 把它拆成 `search-metadata.json`（`version: 2`，每篇 metadata 與內文前 160 字）與依台北年份切的內文 chunk（也是 version 2，檔名含內容雜湊，可長期快取）。瀏覽器端 `prepareDoc` 才把 `text` 轉成小寫的 `textKey` 比對。
+
+`/search/` 的每筆結果顯示內文片段（`snippet`：第一個命中前約 30 個單位起、共約 120 個單位，沒命中內文時取開頭），標題與片段中的關鍵字用 `highlight` 切成 `<mark>` 片段（`app/search/highlight.tsx`）；header 下拉選單只標標題。小寫後長度改變（`İ`）時，片段直接取自小寫文字。見 Addendum 04 FE-020。
 
 瀏覽器端（`app/search/load-index.ts`）是一個 `useSyncExternalStore` store：先以 `no-store` 抓 metadata 並檢查 version，接著從最新年份開始逐年抓 chunk，每年抓完就更新結果。某年失敗時保留已載入的文章，`retry` 從失敗的年份繼續。header 的搜尋框 focus 時才開始載入。
 
 **其他執行期**：`theme.ts`（system／light／dark 存在 localStorage，`<head>` 內嵌 script 避免閃爍，切換時通知 giscus iframe）；`comments.tsx`（`GISCUS_*` 兩個 id 都有才 render，以 `docId` 對應 discussion）；`share.tsx`（Facebook、X、Threads、LINE 的分享網址由 `content/share.ts` 產生，只是一般連結，不載入任何平台的 SDK；分享的是 canonical 網址；圖示是內嵌的 Simple Icons（CC0）SVG；手機上 Facebook App 會攔下 facebook.com 連結而丟掉要分享的網址，所以觸控裝置有 Web Share API 時，Facebook 按鈕與最後一顆「更多分享方式」都開系統分享選單；其他情況（電腦）最後一顆是「複製連結」，瀏覽器有 clipboard 才顯示）。`src/site.ts` 給 client component 用，不能 import `load.ts` 或 `node:` 模組。
 
-**圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；沒有封面或上傳圖片的文章與非文章頁，`og:image` 都是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
+**圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；非文章頁的 `og:image` 是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
+
+**分享圖**：文章的 `og:image` 由 `content/share-image.ts` 的 `shareImageOf()` 決定，文章頁的 meta 與 JSON-LD 共用：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`。後者由 `scripts/generate-share-images.ts` 在 build 時用 `shareImageSvg()`（純函式，自己斷行：中文逐字、英文在空格，最多 3 行，過長以「…」結尾）產生 SVG，再由 sharp 轉 PNG 並疊上 `icon.svg`。字型來自系統的 fontconfig（Noto Sans CJK TC，CI 以 apt 安裝 `fonts-noto-cjk`），標題有中文卻沒有中文字型時 build 失敗。這類文章的 `twitter:card` 是 `summary_large_image`。見 Addendum 04 FE-021。
 
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
@@ -354,7 +359,7 @@ stateDiagram-v2
 
 | Workflow | 觸發 | 內容 |
 |---|---|---|
-| `ci.yml` | pull_request、`workflow_call`（push 到 main 時由 `deploy.yml` 呼叫） | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、Playwright、空 Snapshot build。**cms**：測試、build。**backend**：Postgres 16 service、`ruff check`、`ruff format --check`、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
+| `ci.yml` | pull_request、`workflow_call`（push 到 main 時由 `deploy.yml` 呼叫） | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、`check-budget`（頁面位元組預算）、Playwright（含 axe 無障礙檢查）、Lighthouse（報告以 artifact 上傳）、空 Snapshot build。門檻都在 `frontend/quality-budget.json`（FE-020）。**cms**：測試、build。**backend**：Postgres 16 service、`ruff check`、`ruff format --check`、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
 | `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**site-changes**：只在 push 時執行，比對 `github.event.before` 與這次 commit，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才輸出 `changed=true`；找不到前一個 commit 時也視為有改。**build**：push 時只在 site-changes 不是 `false` 時執行，`workflow_dispatch` 一律執行；checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
 | `token-expiry.yml` | 每週一 01:00 UTC | 讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
 | `cms-image.yml` | 獨立 | 建 Docker image、跑 migration、測 backup／restore、探測 `/healthz` |
@@ -414,7 +419,7 @@ frontend/
                     url-policy.ts、headings.ts、search.ts、search-assets.ts、feed.ts、sitemap.ts、
                     cdn-headers.ts（CSP 與快取標頭）
   src/app/          路由與 client component
-  scripts/          copy-snapshot-images.ts、render-diagrams.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
+  scripts/          copy-snapshot-images.ts、render-diagrams.ts、generate-share-images.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、check-budget.ts、lighthouse.ts、quality-budget.ts、verify-site.sh
   sample-site-data/ 本機與 CI 用的範例 Snapshot（3 篇已發布、1 篇封存、2 張圖）
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright
@@ -471,7 +476,7 @@ Dockerfile          CMS image（尚不能「更新網站」）
 10. **remote 檢查只在建立時做，而且失敗時放行。** 另一台電腦推過內容時會擋下（訊息指向 `local-setup.md` 第 12 節）；解法是在 clone 裡 `git pull`（第 14 節）。CMS 從不 fetch 或 pull。
 11. **`/admin` 只在 import 時掛載。** 第一次 `npm run build` 之後要重啟後端。
 12. **設定與 engine 在 import 時讀取。** 測試的 `conftest.py` 先把 `TEST_DATABASE_URL` 複製到 `DATABASE_URL` 才 import `blog`。程式在呼叫時讀 `config.settings.X`，所以 monkeypatch 有效。
-13. **測試是破壞性的。** `conftest.py` 會對 `TEST_DATABASE_URL` 做 `alembic downgrade base` 再 upgrade，每個測試後 truncate。不要指向真正的資料庫。
+13. **測試是破壞性的。** `conftest.py` 會對 `TEST_DATABASE_URL` 做 `alembic downgrade base` 再 upgrade，每個測試後 truncate。不要指向真正的資料庫。`pytest -n auto`（CI 用這個）讓每個 worker 另建 `<名稱>_gw0`、`<名稱>_gw1`… 資料庫來用。
 14. **反向代理之後**：要設定 `CMS_ORIGIN`（否則 Origin 檢查用到 http://），登入節流依 `request.client.host`，需要 uvicorn 的 `FORWARDED_ALLOW_IPS` 才會是真實 IP。
 15. **CSRF 依賴 `SameSite=Strict` 加 Origin 檢查。** 沒帶 `Origin` 的請求會通過 Origin 檢查。
 16. **編輯器靜默行為**：Topic 不合法時完全不自動儲存；不合法的 tag／series 會被丟掉後才送出。

@@ -29,7 +29,7 @@ test("a bare article gets the required fields and none of the optional ones", ()
   assert.equal(d.inLanguage, "zh-Hant");
   assert.equal(d.author.name, "Ray");
   assert.ok(d.author.url.endsWith("/about/"));
-  assert.ok(d.image.endsWith("/og-default.png"), "without a cover the image is the og:image fallback");
+  assert.ok(d.image.endsWith(`/og/${base.docId}.png`), "without a cover the image is the one drawn from the title");
   assert.ok(!("keywords" in d));
   assert.ok(!("sameAs" in d.author));
 });

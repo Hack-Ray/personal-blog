@@ -24,6 +24,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # The share images' CJK titles need a font; the runner image's fonts vary, so install Noto once.
+      - name: Install a CJK font
+        run: fc-list | grep -q 'Noto Sans CJK' || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
@@ -31,7 +34,7 @@ jobs:
       # no `--with-deps`: its apt download added only fonts and upgrades, and on
       # a slow mirror it took up to 10 minutes. A missing library fails the
       # browser tests with Playwright's list of what to install. The build needs
-      # Chromium too, for the sample post's Mermaid diagram (FE-022).
+      # Chromium too, for the sample post's Mermaid diagram (FE-023).
       - id: playwright-cache
         uses: actions/cache@v6
         with:
@@ -57,8 +60,18 @@ jobs:
           sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
       - name: Check links in the built site
         run: node scripts/check-links.ts
+      - name: Check page weight against quality-budget.json
+        run: npm run check-budget
       - name: Browser tests
         run: npx playwright test
+      - name: Lighthouse scores against quality-budget.json
+        run: npm run lighthouse
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          if-no-files-found: ignore
       - name: Build a site with nothing published yet
         run: npm run build
         env:
@@ -121,4 +134,4 @@ jobs:
       - run: python scripts/test-cloud-deploy.py
       - run: uv run ruff check
       - run: uv run ruff format --check
-      - run: uv run pytest
+      - run: uv run pytest -n auto

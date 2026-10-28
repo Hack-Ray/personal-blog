@@ -1,7 +1,7 @@
 import { Marked, marked, type MarkedExtension, type Token, type Tokens } from "marked";
 
 // Footnotes, callouts and Mermaid diagrams, the Markdown articles add to
-// CommonMark (FE-022). cms/src/article-syntax.ts is a copy, so the preview
+// CommonMark (FE-023). cms/src/article-syntax.ts is a copy, so the preview
 // renders them like the site.
 
 export const escapeHtml = (s: string) =>

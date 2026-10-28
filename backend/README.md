@@ -46,6 +46,8 @@ docker compose exec db createdb -U blog blog_test
 TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
 ```
 
+`-n auto` runs them on every CPU core, as CI does; each worker creates and uses `blog_test_gw0`, `blog_test_gw1`, and so on, so the user needs permission to create databases.
+
 CI also runs `uv run ruff check` and `uv run ruff format --check`; `uv run ruff format` fixes the formatting.
 
 ## Sign-in

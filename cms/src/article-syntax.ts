@@ -1,6 +1,6 @@
 import { Marked, marked, type MarkedExtension, type Token, type Tokens } from "marked";
 
-// Copy of frontend/src/content/article-syntax.ts (FE-022), so the preview
+// Copy of frontend/src/content/article-syntax.ts (FE-023), so the preview
 // renders footnotes, callouts and diagrams like the site.
 
 export const escapeHtml = (s: string) =>

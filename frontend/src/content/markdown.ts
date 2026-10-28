@@ -17,7 +17,7 @@ const LANGS = [
 ];
 
 // Created once so renderMarkdown stays synchronous.
-const highlighter = await createHighlighter({ themes: ["github-light", "github-dark"], langs: LANGS });
+const highlighter = await createHighlighter({ themes: ["github-light-high-contrast", "github-dark-default"], langs: LANGS });
 const loaded = new Set(highlighter.getLoadedLanguages());
 
 const escapeHtml = (s: string) =>
@@ -29,7 +29,7 @@ function highlight(code: string, info: string | undefined): string {
   // defaultColor false emits only --shiki-light/--shiki-dark; globals.css picks one.
   return highlighter.codeToHtml(code, {
     lang,
-    themes: { light: "github-light", dark: "github-dark" },
+    themes: { light: "github-light-high-contrast", dark: "github-dark-default" },
     defaultColor: false,
   });
 }

@@ -118,10 +118,14 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # The share images' CJK titles need a font; the runner image's fonts vary, so install Noto once.
+      - name: Install a CJK font
+        run: fc-list | grep -q 'Noto Sans CJK' || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
+
       - run: npm ci
         working-directory: frontend
 
-      # The build renders Mermaid diagrams in Chromium (FE-022). The same parser
+      # The build renders Mermaid diagrams in Chromium (FE-023). The same parser
       # the build uses says whether this content has any, so a release without
       # diagrams skips the browser. The cache key matches ci.yml's, whose runs
       # on main fill it.

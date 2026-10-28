@@ -16,22 +16,22 @@ export type SearchSnapshot =
 
 type Year = { year: number; asset: string };
 type Metadata = { docs: PreparedSearchDoc[]; years: Year[]; positions: Map<string, number> };
-type MetadataJson = { version: number; docs: (SearchMetadata & { textKey: string })[]; years: Year[] };
-type ChunkJson = { docs: { docId: string; textKey: string }[] };
+type MetadataJson = { version: number; docs: (SearchMetadata & { text: string })[]; years: Year[] };
+type ChunkJson = { docs: { docId: string; text: string }[] };
 const IDLE: SearchSnapshot = { phase: "idle", docs: [] };
 
 // The metadata is fetched fresh, so a tab opened before a deploy can meet a newer format.
 function readMetadata(data: MetadataJson): Metadata {
-  if (data.version !== 1) throw new Error("搜尋資料格式不符，請重新載入頁面。");
-  const docs = data.docs.map(({ textKey, ...doc }) => prepareDoc(doc, textKey));
+  if (data.version !== 2) throw new Error("搜尋資料格式不符，請重新載入頁面。");
+  const docs = data.docs.map(({ text, ...doc }) => prepareDoc(doc, text));
   return { docs, years: data.years, positions: new Map(docs.map((d, i) => [d.doc.docId, i])) };
 }
 
 function readChunk(data: ChunkJson, docs: readonly PreparedSearchDoc[], positions: Map<string, number>): PreparedSearchDoc[] {
   const next = docs.slice();
-  for (const { docId, textKey } of data.docs) {
+  for (const { docId, text } of data.docs) {
     const position = positions.get(docId)!;
-    next[position] = { ...next[position], textKey };
+    next[position] = { ...next[position], text, textKey: text.toLowerCase() };
   }
   return next;
 }

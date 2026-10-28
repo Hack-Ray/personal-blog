@@ -1,0 +1,14 @@
+{
+  "pages": [
+    { "name": "home", "path": "", "size": { "bytes": 704512, "gzip": 218112 } },
+    { "name": "article", "path": "posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/", "size": { "bytes": 734208, "gzip": 228352 }, "minScores": { "performance": 0.7 } },
+    { "name": "posts", "path": "posts/", "size": { "bytes": 704512, "gzip": 218112 } },
+    { "name": "search", "path": "search/?q=FastAPI", "size": { "bytes": 700416, "gzip": 218112 }, "minScores": { "seo": 0.6 } },
+    { "name": "about", "path": "about/", "size": { "bytes": 704512, "gzip": 219136 } },
+    { "name": "tags", "path": "tags/", "size": { "bytes": 700416, "gzip": 217088 } }
+  ],
+  "lighthouse": {
+    "runs": 3,
+    "minScores": { "performance": 0.85, "accessibility": 1, "best-practices": 1, "seo": 1 }
+  }
+}

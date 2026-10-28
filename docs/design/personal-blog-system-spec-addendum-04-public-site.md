@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-018，2026-10-28 補上 FE-019
+> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-018，2026-10-28 補上 FE-019–FE-020
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -30,6 +30,7 @@
   - `/search/` 頁在瀏覽器中搜尋：所有關鍵字都必須出現；不分大小寫的子字串比對，中文不需斷詞；標題命中 > Topic／Tag 命中 > 內文命中，同分時較新的在前。`?q=` 與輸入同步。
   - 不需要後端，不新增套件。
 - **Consequences**：第一次搜尋只需要等小索引，舊文章的內文命中會晚一點出現。總下載量仍隨文章數成長；若要再縮小，可改用只下載相關片段的搜尋套件。含全形標點的關鍵字搜不到內文。
+- **Amended by**：FE-020（搜尋文字保留原本的大小寫與標點，索引格式升到 version 2；結果顯示內文片段並標出關鍵字）。
 
 ### FE-003：個人介紹／作品集以程式碼維護
 
@@ -216,6 +217,7 @@
   - 沒有封面也沒有上傳圖片的文章，以及首頁、列表等非文章頁，`og:image` 都是 `og-default.png`。有圖片的文章仍用 FE-008 與 FE-011 的規則。`twitter:card` 只有文章自己有圖時是 `summary_large_image`，其餘為 `summary`。
 - **Consequences**：fork 的人換掉 `icon.svg` 並執行 `npm run icons`，就能換成自己的圖示與預設分享圖。
 - **Supersedes**：FE-008 中「沒圖時不輸出 `og:image`」。
+- **Amended by**：FE-021（沒有封面也沒有上傳圖片的文章改用依標題畫的分享圖，`twitter:card` 一律 `summary_large_image`；非文章頁仍是 `og-default.png`）。
 
 ### FE-018：CSP 寫在每個 HTML 的 meta，CDN 只加固定標頭
 
@@ -240,7 +242,52 @@
   - 文章頁不顯示，因為左側空白處是目錄；用 CSS `main:has(> article)` 隱藏，不用 JS。其他頁面在寬螢幕（至少 1240px）時放在主內容左側的空白處，與文章頁的目錄同一個位置；較窄時接在頁面內容下方、頁尾之上。
 - **Consequences**：釘選專案只在部署時更新。在 GitHub 上改釘選後要等下一次部署才會反映。
 
-### FE-022：文章的註腳、提示框與 Mermaid 圖表
+### FE-020：搜尋結果顯示內文片段，並標出關鍵字
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：搜尋結果只有標題與 metadata，看不出為什麼命中。FE-002 的搜尋文字已去重、以空白連接並轉成小寫，標點全部變成空白，直接截取會是全小寫、沒有標點的片段。
+- **Decision**：
+  - `/search/` 每筆結果在 metadata 下方顯示一段內文片段，所有關鍵字以 `<mark>` 標出。片段約 120 個 UTF-16 單位，從第一個命中前約 30 個單位開始，被截斷的那一側加 `…`，不會切在代理對中間。沒有任何關鍵字落在內文（只命中標題或 Topic／Tag）時，片段是內文開頭（內文以摘要開頭）。最多顯示三行。
+  - 標題在 `/search/` 與 header 下拉選單都標出關鍵字；下拉選單只標標題，不顯示片段，因為它要保持精簡，手機上尤其如此。
+  - 搜尋文字仍在全形標點與空白處切成片語、每個片語只留一次，但保留片語後面的分隔符號與原本的大小寫（空白連續出現時合成一個空格），讀起來像原文刪掉重複的部分。比對語意不變；關鍵字現在可以跨過標點命中。
+  - `search-metadata.json` 與年份 chunk 的 `version` 升為 2。文件欄位由 `textKey`（小寫）改為 `text`（原文大小寫），瀏覽器端再轉小寫比對。metadata 的 `text` 仍是前 160 個單位，是 chunk 文字的前綴。`version` 不是 2 的 metadata 會被拒絕並要求重新載入頁面。
+  - 片語位置在小寫文字中尋找；小寫後長度與原文相同時對應回原文，否則（例如 `İ` 變成兩個單位）片段直接取自小寫文字。片段只為畫面上的結果計算。
+- **Consequences**：索引變大。在 26 篇中文文章上測量：相對 FE-002 的格式，原始大小增加約 8%、gzip 後約 12.5%；仍比完全不去重小約 10%（gzip）。metadata 只含前 160 個單位時小寫的結果可能與完整文字不同（結尾的希臘字母 Σ 會變成 ς），所以這種字尾的比對要等該年份的內文載入後才出現。
+
+### FE-021：CI 的無障礙與效能門檻
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：無障礙與效能退步只有人工看才會發現。
+- **Decision**：
+  - `frontend/quality-budget.json` 是唯一來源：要檢查的頁面（首頁、文章、文章列表、搜尋、關於、標籤）、每頁的 HTML＋JS＋CSS 位元組預算（原始與 gzip），以及 Lighthouse 的次數與各類別最低分。頁面可用 `minScores` 覆寫最低分。
+  - `e2e/a11y.spec.ts` 用 `@axe-core/playwright`（固定版本）對每頁以 WCAG 2 A/AA 規則檢查，淺色與深色主題各跑手機（390px）與電腦（1280px）寬度，違規數必須為 0，沒有停用任何規則。主題以 localStorage 的 `theme` 設定。
+  - `scripts/check-budget.ts` 讀 `out/`，加總每頁 HTML 與它引用的 JS、CSS 的位元組，超過預算就失敗並印出表格。預算是 2026-10-28 實測值加約 15%（進位到 KB）。
+  - `scripts/lighthouse.ts` 啟動 `serve-out.sh`，用 Playwright 的 Chromium 對每頁以 Lighthouse 預設的手機設定跑 3 次，取各類別中位數，低於最低分就失敗；中位數那次的 HTML／JSON 報告寫到 `frontend/lighthouse-reports/`，CI 以 artifact 上傳。accessibility、best-practices、seo 要求 100，performance 要求 85。
+  - 兩者在 `ci.yml` 中接在第一次 build（範例資料）之後，空 Snapshot 重建之前。
+  - 為了通過 axe，程式碼高亮改用 `github-light-high-contrast`／`github-dark-default`：原本的 `github-light` 關鍵字、字串、參數顏色與 `github-dark` 的註解顏色在 `--code-bg` 上低於 4.5:1。`src/content/code-contrast.test.ts` 檢查各語言範例的所有 token 顏色。CMS 預覽（`cms/src/preview.ts`）用同一組主題。
+- **Consequences**：
+  - 搜尋頁刻意 `noindex`，Lighthouse 的 `is-crawlable` 必然失敗，所以該頁 seo 最低分是 60。
+  - 文章頁的 LCP 是內文圖片，performance 較低（本機 80 至 85），最低分 70。
+  - Lighthouse 執行時封鎖 `giscus.app`：它是第三方、需要網路，結果不屬於本站，且在沙箱中會造成 console 錯誤。
+  - 分數在 GitHub runner 上會有雜訊，所以 performance 的門檻低於本機量測值約 10 到 15 分。
+- **Supersedes**：Addendum 04 中程式碼高亮的雙主題 `github-light`／`github-dark`。
+
+
+### FE-022：沒有封面的文章，build 依標題畫分享圖
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：FE-017 讓沒有圖片的文章都分享同一張 `og-default.png`，貼到社群或聊天軟體時彼此看不出差別。
+- **Decision**：
+  - `npm run build`／`dev` 在 `copy-snapshot-images.ts` 之後執行 `scripts/generate-share-images.ts`，替每篇已發布、沒有封面也沒有上傳圖片的文章（`coverOf()` 為空）畫一張 1200×630 的 PNG，寫到 `public/og/<docId>.png`。檔名用 `docId`，換 slug 不會讓舊的分享連結失效。每次先刪除整個 `public/og` 再重畫，所以重跑結果相同；輸出與 `public/thumbs` 一樣不 commit。
+  - 圖的內容是 SVG 字串（`content/share-image.ts` 的 `shareImageSvg()`，純函式，輸入標題、網站名稱、主題與日期），再由 sharp 轉成 PNG，不新增 satori 等依賴。配色取自網站的深色主題，左上角是 `public/icon.svg` 的 R 圖示與 `profile.json` 的網站名稱，標題用大字置中，左下角是主題與發布日期（`Asia/Taipei`）。
+  - sharp 沒有排版引擎，所以標題自己斷行：全形字佔 1 em、半形約 0.55 em；中文逐字斷，英文在空格斷，過長的單字逐字元斷；`，。、！？）」』` 等不放在行首、`（「『` 不放在行尾；最多 3 行，字級從 88、72、60 px 取放得下的最大者，仍放不下時最後一行以「…」結尾。字元以 XML 跳脫。
+  - 字型是 sharp 內的 librsvg 透過 fontconfig 找的系統字型，`font-family` 依序為 Noto Sans CJK TC、Noto Sans TC、PingFang TC、Microsoft JhengHei、sans-serif，所以 Mac 本機也能 build。只要有標題、網站名稱或主題含中日韓字元，腳本就用 `fc-list :lang=zh-tw` 檢查，沒有任何中文字型就讓 build 失敗，而不是輸出方框；沒有 `fc-list` 時只警告。`ci.yml` 的 frontend job 與 `deploy.yml` 的 build job 在 build 前檢查是否已有 Noto Sans CJK，沒有才 `apt-get install fonts-noto-cjk`。
+  - 文章頁的 `og:image`、`twitter:image` 與 JSON-LD `BlogPosting.image` 都由 `shareImageOf()` 決定：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`，三處一致；因為規則是確定的，不另存清單。畫出來的圖輸出 `og:image:width`／`height`（1200、630）與 `og:image:alt`。`twitter:card` 一律 `summary_large_image`。RSS 沒有圖片欄位，不變。首頁、列表等非文章頁、導向頁與封存頁維持 `og-default.png` 或不輸出。
+  - 以 4 個並行的 worker 畫圖。本機（4 核心）範例資料 2 張約 0.1 秒；1000 篇（壓力測試資料）約 24 秒、31 MB。PNG 用調色盤與低壓縮等級，因為最高壓縮要 2.3 倍時間，只省 2% 的檔案大小。
+- **Consequences**：build 多了一個耗時隨文章數線性成長的步驟，以及對系統中文字型的依賴；fork 的人在本機 build 含中文標題的內容時需要先裝中文字型。圖的外觀改在 `share-image.ts`，不需要動 CMS。分享平台會快取圖片，標題改了以後平台上的預覽要等它重抓。
+- **Supersedes**：FE-017 中沒有圖片的文章用 `og-default.png`，以及該類文章的 `twitter:card` 為 `summary`。
+
+### FE-023：文章的註腳、提示框與 Mermaid 圖表
 
 - **Status**：Confirmed（使用者 2026-10-28 指定）
 - **Context**：文章需要註腳、提示框與流程圖。FE-013 不允許原始 HTML，所以照它的做法為每一種需求加專用語法，由 renderer 產生固定的 HTML。

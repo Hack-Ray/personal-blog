@@ -1,6 +1,6 @@
 // Usage: node scripts/render-diagrams.ts [--needs-browser]
 // Renders the snapshot's Mermaid blocks to SVG in headless Chromium, so pages
-// ship no Mermaid script (FE-022). --needs-browser only prints whether the
+// ship no Mermaid script (FE-023). --needs-browser only prints whether the
 // snapshot has any, for the deploy workflow to skip installing Chromium.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

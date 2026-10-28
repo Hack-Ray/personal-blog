@@ -7,9 +7,10 @@ import { renderMarkdown } from "../../../content/markdown.ts";
 import { findArticle, inSeries, neighbors, postPath, postSegments, related } from "../../../content/queries.ts";
 import { jsonLd, blogPosting, breadcrumbList } from "../../../content/structured-data.ts";
 import { readingMinutes } from "../../../content/reading.ts";
-import { coverOf, excerptOf } from "../../../content/card.ts";
+import { excerptOf } from "../../../content/card.ts";
+import { hasGeneratedShareImage, SHARE_IMAGE_HEIGHT, SHARE_IMAGE_WIDTH, shareImageOf } from "../../../content/share-image.ts";
 import { ArticleMeta } from "../../article-list.tsx";
-import { absoluteUrl, BASE_PATH, DEFAULT_OG_IMAGE, siteOg } from "../../../site.ts";
+import { absoluteUrl, BASE_PATH, siteOg } from "../../../site.ts";
 import { staticParams } from "../../static-params.ts";
 import { ArticleBody } from "../../article-body.tsx";
 import { ArticleToc } from "./article-toc.tsx";
@@ -37,9 +38,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (redirect) return { title, robots: { index: false }, alternates: { canonical: absoluteUrl(postPath(a)) } };
   if (a.state === "archived") return { title, robots: { index: false } };
   const url = absoluteUrl(postPath(a));
-  const image = coverOf(a);
   // Every article has an og:image, so share previews such as iOS's share sheet always have a picture.
-  const images = [image ? absoluteUrl(`/${image}`) : DEFAULT_OG_IMAGE];
+  const image = absoluteUrl(`/${shareImageOf(a)}`);
+  const drawn = hasGeneratedShareImage(a);
+  const images = drawn ? [{ url: image, width: SHARE_IMAGE_WIDTH, height: SHARE_IMAGE_HEIGHT, alt: a.title }] : [image];
   return {
     title: a.title,
     description: excerptOf(a),
@@ -55,7 +57,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       tags: a.tags.map((t) => t.name),
       images,
     },
-    twitter: { card: image ? "summary_large_image" : "summary", title: a.title, description: excerptOf(a), images },
+    twitter: { card: "summary_large_image", title: a.title, description: excerptOf(a), images: [image] },
   };
 }
 

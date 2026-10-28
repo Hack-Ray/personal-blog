@@ -11,9 +11,15 @@ npm run typecheck
 npx playwright install chromium   # once; the build renders Mermaid diagrams with it
 npm run build       # copies snapshot images, makes list thumbnails, renders diagrams, writes out/
 npm run check-links # every site path a built page links to exists in out/
-npm run test:e2e    # browser tests against out/ (sample data)
+npm run test:e2e    # browser tests against out/ (sample data), including axe accessibility checks
+npm run check-budget # bytes of each page's HTML, JS and CSS against quality-budget.json
+npm run lighthouse  # Lighthouse scores per page (about 2.5 minutes); reports in lighthouse-reports/
 SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 ```
+
+## Quality gate
+
+`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-020 has the reasoning.
 
 ## Snapshot format (schema_version 1, draft)
 
@@ -42,7 +48,7 @@ images/{contentHash}.{ext}
 
 Articles and the profile intro may not contain raw HTML or arbitrary URLs. Raw HTML is shown as text. Links may use `https:`, `http:`, `mailto:`, `#` anchors or relative paths, and images `images/…` or `https:`. Any other URL fails the build (`src/content/url-policy.ts`). The CMS preview and publish check use a copy of the same rule, and both are tested against `test-fixtures/url-policy.json`.
 
-Articles may use GitHub footnotes (`[^1]`), alert callouts (`> [!NOTE]`) and `mermaid` code blocks (`src/content/article-syntax.ts`, Addendum 04 FE-022). `scripts/render-diagrams.ts` renders the diagrams to SVG in headless Chromium before `next build`, launching it only when the snapshot has one; a diagram with a syntax error fails the build.
+Articles may use GitHub footnotes (`[^1]`), alert callouts (`> [!NOTE]`) and `mermaid` code blocks (`src/content/article-syntax.ts`, Addendum 04 FE-023). `scripts/render-diagrams.ts` renders the diagrams to SVG in headless Chromium before `next build`, launching it only when the snapshot has one; a diagram with a syntax error fails the build.
 
 `profile.json` is the About page: `name`, `headline`, `intro` (Markdown), `links` (`label`, `url`), `experience` (`role`, `organization`, `period`, `description`) and `projects` (`name`, optional `url`, `description`, `tags`). Links and project URLs must start with `https://` or `mailto:`. A snapshot without it gets the placeholder profile in `src/content/parse.ts`, which matches what the backend seeds.
 
@@ -66,6 +72,8 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 ## Icons
 
 `public/icon.svg` is the only source. `npm run icons` writes `favicon.ico`, `apple-touch-icon.png` and `og-default.png` (the share image for pages without one of their own) next to it. Commit the SVG and the three generated files; the build does not regenerate them.
+
+Articles without a cover or uploaded image get their own share image: the build draws `public/og/<docId>.png` (1200x630, the title on the site's dark theme with the icon and site name) with `scripts/generate-share-images.ts`. It is not committed. Titles with Chinese need a CJK font known to fontconfig, such as `fonts-noto-cjk` on Debian/Ubuntu; the build fails when there is none. CI installs it.
 
 ## Checking the built site
 
