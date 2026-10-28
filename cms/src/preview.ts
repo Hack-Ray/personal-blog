@@ -29,14 +29,14 @@ export async function loadHighlighter(): Promise<Highlight> {
     import("shiki/engine/javascript"),
   ]);
   const highlighter = await createHighlighterCore({
-    themes: [import("shiki/dist/themes/github-light.mjs"), import("shiki/dist/themes/github-dark.mjs")],
+    themes: [import("shiki/dist/themes/github-light-high-contrast.mjs"), import("shiki/dist/themes/github-dark-default.mjs")],
     langs: LANGS(),
     engine: createJavaScriptRegexEngine(),
   });
   const loaded = new Set(highlighter.getLoadedLanguages());
   return (code, lang) =>
     loaded.has(lang)
-      ? highlighter.codeToHtml(code, { lang, themes: { light: "github-light", dark: "github-dark" }, defaultColor: false })
+      ? highlighter.codeToHtml(code, { lang, themes: { light: "github-light-high-contrast", dark: "github-dark-default" }, defaultColor: false })
       : undefined;
 }
 

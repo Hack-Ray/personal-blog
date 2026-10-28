@@ -45,6 +45,8 @@ jobs:
           sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
       - name: Check links in the built site
         run: node scripts/check-links.ts
+      - name: Check page weight against quality-budget.json
+        run: npm run check-budget
       # The runner image already has the libraries Chromium needs, so there is
       # no `--with-deps`: its apt download added only fonts and upgrades, and on
       # a slow mirror it took up to 10 minutes. A missing library fails the
@@ -58,6 +60,14 @@ jobs:
         run: npx playwright install chromium
       - name: Browser tests
         run: npx playwright test
+      - name: Lighthouse scores against quality-budget.json
+        run: npm run lighthouse
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          if-no-files-found: ignore
       - name: Build a site with nothing published yet
         run: npm run build
         env:
