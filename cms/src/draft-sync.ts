@@ -192,7 +192,6 @@ export class DraftSync {
   }
 }
 
-const sameContent = (a: DraftContent, b: DraftContent): boolean => {
-  const pick = ({ title, topic, tags, markdown, excerpt, cover }: DraftContent) => ({ title, topic, tags, markdown, excerpt, cover });
-  return JSON.stringify(pick(a)) === JSON.stringify(pick(b));
-};
+/** Compares the fields the author edits; `a` may be a whole Draft. */
+const sameContent = (a: DraftContent, b: DraftContent): boolean =>
+  (Object.keys(b) as (keyof DraftContent)[]).every((key) => JSON.stringify(a[key]) === JSON.stringify(b[key]));

@@ -8,8 +8,9 @@
 #   scripts/restore.sh <file> --url <URL>   # into any PostgreSQL, e.g. on AWS
 #   scripts/restore.sh <file> --yes         # skip the confirmation prompt
 #
-# It first stops the CMS on this machine and backs up the current data. The
-# restore runs in one transaction. Afterwards it runs the migrations, so an
+# It first stops the CMS on this machine and backs up the current data next to
+# the backup being restored (or to BACKUP_TARGET). The restore runs in one
+# transaction. Afterwards it runs the migrations, so an
 # older backup works with newer code, signs everyone out, and records the
 # content repository's HEAD so the next website update rolls the site back to
 # this backup's content.
@@ -55,10 +56,8 @@ fi
 # Nothing may write while the data is replaced.
 stop_cms 8000
 
-echo "==> Backing up the current data first"
-if [ -n "$url" ]; then DATABASE_URL="$url" scripts/backup.sh --env; else scripts/backup.sh; fi
-
-# The dump becomes one SQL script, applied with the schema reset in a single
+# The dump becomes one SQL script, read before the safety backup below can
+# land beside it, and is applied with the schema reset in a single
 # transaction: a failure anywhere leaves the old data in place.
 sql="$(mktemp)"
 trap 'rm -f "$sql"; [ -z "${dir:-}" ] || rm -rf "$dir"' EXIT
@@ -71,16 +70,32 @@ else
   docker compose exec -T db pg_restore --no-owner --file=- < "$file" > "$sql"
   target_psql() { docker compose exec -T db psql -U blog -d blog "$@"; }
 fi
+
+echo "==> Backing up the current data first"
+# Beside the backup being restored unless BACKUP_TARGET says otherwise, so it
+# outlives a throwaway container. BACKUP_KEEP is off: pruning could delete the
+# file this script is about to restore.
+out="$(env_value BACKUP_TARGET)"
+out="${out:-$(dirname "$source")}"
+if [ -n "$url" ]; then
+  DATABASE_URL="$url" BACKUP_KEEP= scripts/backup.sh --env --out "$out"
+else
+  BACKUP_KEEP= scripts/backup.sh --out "$out"
+fi
+
 {
   echo "SET client_min_messages TO warning; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-  cat "$sql"
+  # pg_restore 17+ writes this setting, which an older server rejects.
+  sed '/^SET transaction_timeout = 0;$/d' "$sql"
 } | target_psql --quiet --single-transaction --set ON_ERROR_STOP=1 > /dev/null
 
 # The migrations read DATABASE_URL from .env unless --url set it above.
 run() { if [ -f .env ]; then uv run --env-file .env "$@"; else uv run "$@"; fi; }
 run alembic upgrade head
-# Sign-ins saved in the backup are not carried over.
-target_psql --quiet --set ON_ERROR_STOP=1 -c "DELETE FROM admin_sessions;" > /dev/null
+# Sign-ins saved in the backup are not carried over, and website updates that
+# were waiting when the backup was made do not run on their own.
+target_psql --quiet --set ON_ERROR_STOP=1 -c "DELETE FROM admin_sessions;
+  UPDATE release_jobs SET status = 'failed', detail = 'interrupted by a restore' WHERE status IN ('queued', 'running');" > /dev/null
 # The database now decides what the site shows: the next website update
 # replaces whatever the content repository holds with this backup's content.
 run python -m blog.content_repository after-restore ||

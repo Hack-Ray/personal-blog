@@ -348,7 +348,7 @@ stateDiagram-v2
 - **`retention.cleanup_versions`**：還沒有任何 DEPLOYED Release 時不做事。受保護的版本是最新一個 DEPLOYED Release 與所有 exported／pushed／dispatched／building Release 中的版本。一個版本在以下條件都成立時才刪除：在該文章中排名第 4 以後（`KEEP_LATEST = 3`）、文章不是 pending_deletion、有一個較新版本的 `published_at` 不晚於上線 Release 的 `created_at`、不在受保護集合中。
 - **`images.collect_garbage`**：以 `LOCK TABLE ... IN SHARE MODE` 鎖住草稿、快照、版本、profile，解析所有 Markdown（含 profile 的 intro），設定或清除 `unreferenced_since`，刪除未被引用滿 7 天的圖。從未被引用的上傳也會在 7 天後刪除。
 
-**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 先停掉本機 CMS、用 `backup.sh` 備份目前資料，再把備份轉成 SQL，連同 `DROP SCHEMA public CASCADE` 在同一個交易內執行（失敗時舊資料不變），然後 `alembic upgrade head`、清空 `admin_sessions`，最後執行 `python -m blog.content_repository after-restore`。API 模式下它把內容 repo 目前的 HEAD 記成最新 Release，下一次「更新網站」就以它為 parent，用資料庫的內容覆蓋遠端（網站倒回備份時的內容）；git 模式下 clone 本身就是基準，不需要記錄。`backup.sh` 有 `BACKUP_KEEP` 時只保留資料夾中最新 N 份。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
+**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 先停掉本機 CMS、把備份轉成 SQL，再用 `backup.sh` 備份目前資料（放到 `BACKUP_TARGET`，沒設定時放在備份檔旁；不套用 `BACKUP_KEEP`），然後把 SQL 連同 `DROP SCHEMA public CASCADE` 在同一個交易內執行（失敗時舊資料不變；`pg_restore` 17 以上寫出的 `SET transaction_timeout` 會先拿掉），接著 `alembic upgrade head`、清空 `admin_sessions`、把排隊或執行中的 `release_jobs` 標為 failed，最後執行 `python -m blog.content_repository after-restore`。API 模式下它把內容 repo 目前的 HEAD 記成最新 Release，下一次「更新網站」就以它為 parent，用資料庫的內容覆蓋遠端（網站倒回備份時的內容）；git 模式下 clone 本身就是基準，不需要記錄。`backup.sh` 有 `BACKUP_KEEP` 時只保留資料夾中最新 N 份。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
 
 ### 3.7 CI 與部署 workflow
 

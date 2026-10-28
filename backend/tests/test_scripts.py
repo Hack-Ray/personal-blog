@@ -178,6 +178,7 @@ def test_restore_backs_up_first_replaces_everything_at_once_and_signs_everyone_o
     url = scratch_database
     run_sql(url, "INSERT INTO retired_doc_ids VALUES ('01K00000000000000000000000')")
     run_sql(url, "INSERT INTO admin_sessions (token_hash, expires_at) VALUES ('t', now() + interval '1 day')")
+    run_sql(url, "INSERT INTO release_jobs (id, action, status) VALUES ('01K00000000000000000000000', 'create', 'queued')")
     assert script("scripts/backup.sh", "--url", url, "--out", str(tmp_path / "b")).returncode == 0
     (dump,) = (tmp_path / "b").glob("*.dump")
     run_sql(url, "INSERT INTO retired_doc_ids VALUES ('01K00000000000000000000001')")
@@ -188,11 +189,13 @@ def test_restore_backs_up_first_replaces_everything_at_once_and_signs_everyone_o
     assert failed.returncode != 0
     assert len(run_sql(url, "SELECT doc_id FROM retired_doc_ids")) == 2, "a failed restore keeps the old data"
 
-    restored = script("scripts/restore.sh", str(dump), "--url", url, "--yes", BACKUP_TARGET=str(tmp_path / "safety"))
+    # BACKUP_KEEP=1 must not let the safety backup delete the file being restored.
+    restored = script("scripts/restore.sh", str(dump), "--url", url, "--yes", BACKUP_KEEP="1")
     assert restored.returncode == 0, restored.stderr
     assert run_sql(url, "SELECT doc_id FROM retired_doc_ids") == ["01K00000000000000000000000"]
     assert run_sql(url, "SELECT token_hash FROM admin_sessions") == []
-    assert len(list((tmp_path / "safety").glob("*.dump"))) == 2, "each restore attempt backed up the data it was about to replace"
+    assert run_sql(url, "SELECT status FROM release_jobs") == ["failed"], "a restored queued update does not publish on its own"
+    assert dump.exists() and len(list((tmp_path / "b").glob("*.dump"))) == 2, "the safety backup lands beside the restored one"
 
 
 def test_backup_keep_removes_the_oldest_backups_in_a_folder(scratch_database, tmp_path):

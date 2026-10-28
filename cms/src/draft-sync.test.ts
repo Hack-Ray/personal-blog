@@ -66,6 +66,11 @@ function fakeServer() {
     published,
     stored: () => stored.markdown,
     bump: () => void (revision += 1),
+    /** Another tab's save. */
+    overwrite: (c: DraftContent) => {
+      stored = c;
+      revision += 1;
+    },
     loseNextAnswer: () => void (loseNextAnswer = true),
     async releaseAll() {
       for (let i = 0; i < 20; i++) {
@@ -147,6 +152,18 @@ test("a save stored by the server whose answer was lost is no conflict", async (
   assert.deepEqual(server.calls, ["save@1:stored, answer lost", "save@1:typed afterwards", "draft", "save@2:typed afterwards"]);
   assert.equal(server.stored(), "typed afterwards");
   assert.equal(sync.status.kind, "saved");
+});
+
+test("a lost answer is a conflict when the server then holds another series", async () => {
+  const server = fakeServer();
+  const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
+  server.loseNextAnswer();
+  sync.edit({ ...content("same text"), series: { slug: "s", name: "S" } });
+  await Promise.all([sync.flush(), server.releaseAll()]);
+  server.overwrite(content("same text"));
+  sync.edit(content("typed afterwards"));
+  await Promise.all([sync.flush(), server.releaseAll()]);
+  assert.deepEqual(sync.status, { kind: "conflict", currentRevision: 3 });
 });
 
 test("edits made while a save is in flight are saved afterwards", async () => {

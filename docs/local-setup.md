@@ -222,10 +222,10 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 
 1. 用 `.sha256` 檢查備份檔沒有損壞（不符就停止）。
 2. 要求你輸入 `restore` 確認。
-3. 停掉這台電腦上執行中的 CMS，並用 `backup.sh` 先備份目前的資料。
+3. 停掉這台電腦上執行中的 CMS，並用 `backup.sh` 先備份目前的資料。這份備份放在 `BACKUP_TARGET`，沒設定時放在要還原的備份檔旁邊；這一次不套用 `BACKUP_KEEP`，不會刪到正要還原的檔案。
 4. 清空資料庫並還原備份。這一步在同一個交易內完成，中途失敗時資料庫維持原狀。
 5. 執行 `alembic upgrade head`（連到 `.env` 的 `DATABASE_URL`），所以舊程式版本的備份也能還原到新版程式。
-6. 登出所有裝置。
+6. 登出所有裝置，並把備份當時還在排隊或執行中的「更新網站」標為失敗，不會自己發布。
 7. 讓網站跟著資料庫：下一次按「更新網站」，網站會變回備份當時的內容，備份之後才發布的文章會從網站上消失。使用 API 發布時，這一步要連到 GitHub；連不到時腳本會提示，之後再執行 `uv run --env-file .env python -m blog.content_repository after-restore` 即可。
 
 還原後重新啟動後端（`scripts/start.sh`），用備份當時的密碼登入。
@@ -252,7 +252,7 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 2. 把備份還原到新的 CMS（上面的步驟，或第 13 節的 `--url`）。
 3. 停用原本的 CMS，之後只用新的。
 
-切回來時反向進行。「更新網站」會先檢查內容 repo：如果遠端有這個 CMS 沒有的 commit，就拒絕發布，並顯示「another CMS may be in use」。
+切回來時反向進行。「更新網站」會先檢查內容 repo：如果遠端有這個 CMS 沒有的 commit，就拒絕發布，並顯示「another CMS may be in use」。`restore.sh` 還原後會記下內容 repo 當下的 HEAD（第 11 節第 7 步），所以剛還原的 CMS 不會被擋，下一次發布以資料庫為準。
 
 ## 13. 之後搬到 AWS
 
