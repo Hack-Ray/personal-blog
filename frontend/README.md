@@ -8,9 +8,9 @@ The build reads a Content Snapshot from `SITE_DATA_DIR` (default: `sample-site-d
 npm ci
 npm test            # snapshot contract and content queries
 npm run typecheck
-npm run build       # copies snapshot images, makes list thumbnails, writes out/
+npx playwright install chromium   # once; the build renders Mermaid diagrams with it
+npm run build       # copies snapshot images, makes list thumbnails, renders diagrams, writes out/
 npm run check-links # every site path a built page links to exists in out/
-npx playwright install chromium   # once
 npm run test:e2e    # browser tests against out/ (sample data), including axe accessibility checks
 npm run check-budget # bytes of each page's HTML, JS and CSS against quality-budget.json
 npm run lighthouse  # Lighthouse scores per page (about 2.5 minutes); reports in lighthouse-reports/
@@ -47,6 +47,8 @@ images/{contentHash}.{ext}
 `articles/{docId}.json` holds `doc_id`, `version`, `title`, `topic` (`slug`, `name`), `tags` (list of `slug`, `name`), `published_at` and `markdown`. Optional keys appear only when set: `updated_at` (from the second version on), `excerpt`, `cover` (an `images/<file>` path the article itself contains), `series` (`slug`, `name`) and `pinned_at`. Markdown references images as `images/<file>` with image syntax (inline or reference-style); text in code, plain links and raw HTML `<img>` are not references. The backend uses the same rule, checked by `test-fixtures/image-refs.json`. Archived articles have no article file.
 
 Articles and the profile intro may not contain raw HTML or arbitrary URLs. Raw HTML is shown as text. Links may use `https:`, `http:`, `mailto:`, `#` anchors or relative paths, and images `images/…` or `https:`. Any other URL fails the build (`src/content/url-policy.ts`). The CMS preview and publish check use a copy of the same rule, and both are tested against `test-fixtures/url-policy.json`.
+
+Articles may use GitHub footnotes (`[^1]`), alert callouts (`> [!NOTE]`) and `mermaid` code blocks (`src/content/article-syntax.ts`, Addendum 04 FE-023). `scripts/render-diagrams.ts` renders the diagrams to SVG in headless Chromium before `next build`, launching it only when the snapshot has one; a diagram with a syntax error fails the build.
 
 `profile.json` is the About page: `name`, `headline`, `intro` (Markdown), `links` (`label`, `url`), `experience` (`role`, `organization`, `period`, `description`) and `projects` (`name`, optional `url`, `description`, `tags`). Links and project URLs must start with `https://` or `mailto:`. A snapshot without it gets the placeholder profile in `src/content/parse.ts`, which matches what the backend seeds.
 

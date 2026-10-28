@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, type SavedProfile } from "./api.ts";
 import { useLeaveGuard } from "./leave-guard.ts";
-import { renderPreview } from "./preview.ts";
+import { renderPreview, scrollToAnchor } from "./preview.ts";
 import { EMPTY_ROW, describeError, fromForm, move, sameForm, toForm, validate, type ProfileForm } from "./profile-form.ts";
 
 type Status = { kind: "idle" } | { kind: "saving" } | { kind: "conflict" } | { kind: "error"; message: string };
@@ -173,7 +173,7 @@ export function ProfilePage() {
           aria-invalid={"intro" in errors}
           spellCheck={false}
         />
-        <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
+        <div className="preview article-body" onClick={scrollToAnchor} dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
       {errors.intro && <p className="hint">{errors.intro}</p>}
       <Rows

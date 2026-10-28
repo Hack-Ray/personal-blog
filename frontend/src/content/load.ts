@@ -9,6 +9,9 @@ export const SITE_DATA_DIR = resolve(process.env.SITE_DATA_DIR ?? "sample-site-d
 /** Intrinsic sizes of the snapshot images, keyed by images/<file>; written by scripts/copy-snapshot-images.ts, outside public/ so it is not deployed. */
 export const IMAGE_SIZES_FILE = resolve(".generated/image-sizes.json");
 
+/** The snapshot's Mermaid diagrams as SVG, keyed by diagramKey; written by scripts/render-diagrams.ts. */
+export const DIAGRAMS_FILE = resolve(".generated/diagrams.json");
+
 function readJson(path: string): unknown {
   if (!existsSync(path)) throw new ContentError(`${path}: file not found`);
   try {

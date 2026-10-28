@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 // Runs against the build of sample-site-data.
 const FASTAPI_POST = "posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/";
+// Has a Mermaid diagram, callouts and footnotes.
+const SYNTAX_POST = "posts/nextjs-static-export/";
 
 test("the header search previews matches and opens the search page", async ({ page }) => {
   await page.goto("");
@@ -122,7 +124,7 @@ test("the 404 page lists the latest posts", async ({ page }) => {
   await expect(page.locator("main li")).toHaveCount(3);
 });
 
-for (const path of ["", FASTAPI_POST, "archive/"]) {
+for (const path of ["", FASTAPI_POST, SYNTAX_POST, "archive/"]) {
   test(`no horizontal scrolling at phone width: /${path}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto(path);
@@ -205,7 +207,7 @@ test("the meta CSP is enforced without violations and blocks unlisted inline scr
     w.__violations = [];
     document.addEventListener("securitypolicyviolation", (e) => w.__violations.push(`${e.violatedDirective} ${e.blockedURI} ${e.sourceFile}:${e.lineNumber} ${e.sample}`));
   });
-  for (const path of ["", FASTAPI_POST]) {
+  for (const path of ["", FASTAPI_POST, SYNTAX_POST]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);

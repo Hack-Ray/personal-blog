@@ -3,7 +3,9 @@ import { createHighlighter } from "shiki";
 import { existsSync, readFileSync } from "node:fs";
 import { SITE_ORIGIN } from "../site.ts";
 import { inlineText, slugger } from "./headings.ts";
-import { IMAGE_SIZES_FILE } from "./load.ts";
+import { DIAGRAMS_FILE, IMAGE_SIZES_FILE } from "./load.ts";
+import { articleSyntax, diagramHtml, isMermaid } from "./article-syntax.ts";
+import { type Diagrams, diagramKey } from "./diagrams.ts";
 import { allowedImage, allowedLink } from "./url-policy.ts";
 import { legacySiteUrls, migrateSiteLink } from "./site-links.ts";
 
@@ -40,17 +42,34 @@ type ImageSizes = Record<string, { width: number; height: number }>;
 
 // Written by the build; without it (unit tests, a fresh checkout) images get no size attributes.
 const imageSizes: ImageSizes = existsSync(IMAGE_SIZES_FILE) ? JSON.parse(readFileSync(IMAGE_SIZES_FILE, "utf8")) : {};
+const renderedDiagrams: Diagrams = existsSync(DIAGRAMS_FILE) ? JSON.parse(readFileSync(DIAGRAMS_FILE, "utf8")) : {};
 
 const isExternal = (href: string) => /^https?:\/\//i.test(href) && !(SITE_ORIGIN && href.startsWith(`${SITE_ORIGIN}/`));
 
 // Snapshot Markdown references images as images/<file>; the build copies them
 // to public/images, which is served under the site's basePath.
-export function renderMarkdown(markdown: string, basePath: string, sizes: ImageSizes = imageSizes): string {
+export function renderMarkdown(
+  markdown: string,
+  basePath: string,
+  sizes: ImageSizes = imageSizes,
+  diagrams: Diagrams = renderedDiagrams,
+): string {
   const idFor = slugger();
   let imagesSeen = 0;
-  const marked = new Marked({
+  const diagramsSeen = new Map<string, number>();
+  const diagram = (source: string) => {
+    const key = diagramKey(source);
+    const svg = diagrams[key];
+    if (!svg) throw new Error(`Mermaid diagram ${key} has no rendered SVG; npm run build renders the snapshot's diagrams first (scripts/render-diagrams.ts)`);
+    const seen = (diagramsSeen.get(key) ?? 0) + 1;
+    diagramsSeen.set(key, seen);
+    // A repeat of the same diagram on one page needs its own ids.
+    const own = (s: string) => (seen === 1 ? s : s.replaceAll(`mermaid-${key}-`, `mermaid-${key}-${seen}-`));
+    return diagramHtml(own(svg.light), own(svg.dark));
+  };
+  const marked = new Marked(articleSyntax(), {
     renderer: {
-      code: ({ text, lang }) => codeBlock(highlight(text, lang)),
+      code: ({ text, lang }) => (isMermaid(lang) ? diagram(text) : codeBlock(highlight(text, lang))),
       // Raw HTML is shown as text (articles may not run code on the page).
       html: ({ text, block }) => (block ? `<p>${escapeHtml(text.trim())}</p>\n` : escapeHtml(text)),
       // Links to other sites open in a new tab; a link around an image gets no marker.

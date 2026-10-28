@@ -6,6 +6,8 @@ export function plainText(markdown: string): string {
   return markdown
     .replace(CODE_BLOCK, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/^[ \t]*>[ \t]*\[![a-z]+\][ \t]*$/gim, " ")
+    .replace(/\[\^[^\]\s]+\]:?/g, "")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     // Autolinks keep their address; anything else shaped like a tag is dropped.
     .replace(/<((?:[a-z][a-z0-9+.-]*:|[^\s<>@]+@)[^\s<>]*)>/gi, "$1")

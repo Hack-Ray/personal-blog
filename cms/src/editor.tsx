@@ -1,15 +1,44 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
 import { useLeaveGuard } from "./leave-guard.ts";
-import { type Highlight, loadHighlighter, renderPreview } from "./preview.ts";
+import { mermaidSources } from "./article-syntax.ts";
+import { type Diagram, type Highlight, loadHighlighter, loadMermaid, renderPreview, scrollToAnchor } from "./preview.ts";
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
 import { URL_POLICY, prePublishWarnings, urlProblems } from "./publish-checks.ts";
 import { formatTags, isSlug, parseTags } from "./taxa.ts";
 import { onSlugBlur, publicPath, slugSaveFailed, type SlugStatus } from "./slug.ts";
+
+// Waits for a pause in typing, so a diagram is not re-rendered on every keystroke.
+const DIAGRAM_DELAY_MS = 400;
+
+function useDiagrams(markdown: string): Diagram {
+  const [rendered, setRendered] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    if (!/mermaid/i.test(markdown)) return;
+    const sources = mermaidSources(markdown);
+    const missing = [...new Set(sources)].filter((s) => !rendered.has(s));
+    if (missing.length === 0) return;
+    let stale = false;
+    const timer = setTimeout(async () => {
+      const render = await loadMermaid().catch(() => undefined);
+      const next = new Map([...rendered].filter(([s]) => sources.includes(s)));
+      for (const s of missing) {
+        if (stale || !render) return;
+        next.set(s, await render(s));
+      }
+      if (!stale) setRendered(next);
+    }, DIAGRAM_DELAY_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [markdown, rendered]);
+  return useCallback((source) => rendered.get(source), [rendered]);
+}
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
@@ -172,7 +201,8 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   useEffect(() => {
     loadHighlighter().then((h) => setHighlight(() => h), () => {});
   }, []);
-  const preview = useMemo(() => renderPreview(content.markdown, highlight), [content.markdown, highlight]);
+  const diagram = useDiagrams(content.markdown);
+  const preview = useMemo(() => renderPreview(content.markdown, highlight, diagram), [content.markdown, highlight, diagram]);
 
   return (
     <div className="editor">
@@ -315,7 +345,7 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           spellCheck={false}
         />
         {/* Preview of the author's own Markdown, same renderer as the public site. */}
-        <div className="preview article-body" dangerouslySetInnerHTML={{ __html: preview }} />
+        <div className="preview article-body" onClick={scrollToAnchor} dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
     </div>
   );
