@@ -265,6 +265,7 @@
   - `scripts/lighthouse.ts` 啟動 `serve-out.sh`，用 Playwright 的 Chromium 對每頁以 Lighthouse 預設的手機設定跑 3 次，取各類別中位數，低於最低分就失敗；中位數那次的 HTML／JSON 報告寫到 `frontend/lighthouse-reports/`，CI 以 artifact 上傳。accessibility、best-practices、seo 要求 100，performance 要求 85。
   - 兩者在 `ci.yml` 中接在第一次 build（範例資料）之後，空 Snapshot 重建之前。
   - 為了通過 axe，程式碼高亮改用 `github-light-high-contrast`／`github-dark-default`：原本的 `github-light` 關鍵字、字串、參數顏色與 `github-dark` 的註解顏色在 `--code-bg` 上低於 4.5:1。`src/content/code-contrast.test.ts` 檢查各語言範例的所有 token 顏色。CMS 預覽（`cms/src/preview.ts`）用同一組主題。
+  - 2026-10-28 調整：Lighthouse 僅在前端程式（單元測試除外）、靜態資產、範例內容、build script、相依套件、Next／TypeScript 設定、品質預算、Node 版本或 CI／部署 workflow 異動時執行。只有文件、後端、CMS 或測試的 PR 略過此步；單元測試、型別、build、axe 與大小預算照常。無法判斷差異時保守執行。Actions 的 CI 可手動執行並勾選 `run_lighthouse`，不會觸發部署。
 - **Consequences**：
   - 搜尋頁刻意 `noindex`，Lighthouse 的 `is-crawlable` 必然失敗，所以該頁 seo 最低分是 60。
   - 文章頁的 LCP 是內文圖片，performance 較低（本機 80 至 85），最低分 70。

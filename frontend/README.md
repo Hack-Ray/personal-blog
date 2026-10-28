@@ -19,7 +19,11 @@ SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 
 ## Quality gate
 
-`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-020 has the reasoning.
+`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-021 has the reasoning.
+
+Lighthouse runs in CI only when performance-related files change: frontend source (except unit tests), public assets, sample content, build scripts, dependencies, Next/TypeScript configuration, the budget, Node version, or the CI/deploy workflow. Docs, backend, CMS and test-only PRs skip it; all other frontend checks still run. If the commit comparison fails, Lighthouse runs conservatively. A step summary says whether it ran and why.
+
+To force it, open Actions → CI → Run workflow and leave **run_lighthouse** checked. This runs CI only and does not publish the site. A reusable-workflow caller can also pass `run_lighthouse: true`.
 
 ## Snapshot format (schema_version 1, draft)
 
