@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import analytics, articles, auth, config, images, profile, release, release_jobs, taxa
+from blog import analytics, articles, auth, backups, config, images, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
@@ -27,9 +27,12 @@ docs = {} if config.settings.enable_docs else {"docs_url": None, "redoc_url": No
 async def lifespan(_app: FastAPI):
     worker = release_jobs.Worker()
     worker.start()
+    backup = backups.Scheduler(config.settings.backup_every_hours)
+    backup.start()
     try:
         yield
     finally:
+        await run_in_threadpool(backup.close)
         await run_in_threadpool(worker.close)
 
 

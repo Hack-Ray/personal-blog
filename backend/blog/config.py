@@ -56,6 +56,7 @@ class Settings:
     gsc_site_url: str | None = None
     gsc_credentials_file: Path | None = field(default=None, repr=False)
     gsc_api_url: str = "https://www.googleapis.com"
+    backup_every_hours: int = 0
 
     @property
     def session_cookie(self) -> str:
@@ -222,6 +223,10 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds")
     cloudflare_token, zone_id = _pair(env, "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID")
     site_url, credentials = _pair(env, "GSC_SITE_URL", "GSC_CREDENTIALS_FILE")
+    # A cloud host schedules backups itself (docs/cms-deployment.md), outside the container.
+    backup_every = _optional(env, "BACKUP_EVERY_HOURS") or ("0" if cloud else "24")
+    if not re.fullmatch(r"[0-9]+", backup_every):
+        raise ConfigError("BACKUP_EVERY_HOURS must be a whole number of hours; 0 turns scheduled backups off")
 
     return Settings(
         env=cms_env,
@@ -252,6 +257,7 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         gsc_site_url=_site_url(site_url),
         gsc_credentials_file=_credentials_file(credentials),
         gsc_api_url=_api_url(_optional(env, "GSC_API_URL") or "https://www.googleapis.com", cloud, "GSC_API_URL"),
+        backup_every_hours=int(backup_every),
     )
 
 

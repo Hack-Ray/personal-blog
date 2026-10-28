@@ -169,16 +169,18 @@ scripts/start.sh
 
 ## 10. 備份
 
-### 10.1 每次啟動自動備份，也可以手動備份
+### 10.1 自動備份，也可以手動備份
 
-用 `scripts/start.sh` 啟動時會自動備份一次。想在其他時候備份（例如大量修改之前），手動執行：
+用 `scripts/start.sh` 啟動時會自動備份一次。CMS 開著的期間，每 24 小時再自動備份一次（從啟動時算起；電腦睡眠的時間也算在內，醒來後 10 分鐘內補上）。間隔可以在 `.env` 用 `BACKUP_EVERY_HOURS` 調整，設 `0` 關閉。排程備份失敗時，`backend/logs/cms.log` 會有 `scheduled backup failed`，之後每 10 分鐘重試。
+
+想在其他時候備份（例如大量修改之前），手動執行：
 
 ```sh
 cd personal-blog/backend
 scripts/backup.sh
 ```
 
-每次備份會在 `backend/backups/` 產生兩個檔案。備份不會自動刪除；在 `.env` 設 `BACKUP_KEEP=30` 這類數字，就只保留資料夾中最新的幾份。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
+每次備份會在 `backend/backups/` 產生兩個檔案。沒有設定時備份不會自動刪除；在 `.env` 設 `BACKUP_KEEP=30` 這類數字，每次備份後就只保留資料夾中最新的幾份（啟動、排程與手動的備份一起算，S3 目標改用 bucket 的保存規則）。想存到別的地方，在 `.env` 設 `BACKUP_TARGET`（`start.sh` 與手動執行都會讀）（另一個資料夾，例如同步到雲端硬碟的資料夾，或 `s3://bucket/prefix`，後者需要 aws CLI），或執行時加 `--out <位置>`：
 
 - `blog-<UTC 時間>.dump`：整個資料庫（PostgreSQL custom format）
 - `blog-<UTC 時間>.dump.sha256`：檢查碼，還原時用來確認檔案沒有損壞
@@ -198,14 +200,14 @@ scripts/backup.sh
 
 - `backend/backups/` 已被 `.gitignore` 排除，**不會進 git**。
 - **請定期把 `backend/backups/` 裡的檔案複製到雲端硬碟**。只放在同一台電腦上無法防止硬碟損壞或遺失。`.dump` 與 `.sha256` 要一起複製。
-- 舊備份不會自動刪除。確認已存到雲端後，可以手動刪除本機較舊的檔案。
-- （選用）如果 CMS 很久才開一次，也可以用 cron 另外排程每天備份（`crontab -e` 加入一行，路徑改成你的）：
+- 沒設 `BACKUP_KEEP` 時舊備份不會自動刪除。確認已存到雲端後，可以手動刪除本機較舊的檔案。
+- （選用）CMS 關著的時候沒有排程備份。資料只在 CMS 開著時改變，所以通常不需要；若仍想在 CMS 關著時每天備份，可以用 cron（`crontab -e` 加入一行，路徑改成你的）：
 
   ```cron
   0 3 * * * cd /Users/<你>/personal-blog/backend && PATH=$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH ./scripts/backup.sh >> backups/backup.log 2>&1
   ```
 
-  cron 的 PATH 很短，所以要把 `docker` 和 `uv` 所在的目錄加進去（`which docker uv` 可查）。
+  cron 的 PATH 很短，所以要把 `docker` 和 `uv` 所在的目錄加進去（`which docker uv` 可查）。macOS 上 cron 寫入雲端硬碟同步的資料夾時，可能要在「系統設定 → 隱私權與安全性 → 完整取用磁碟」加入 `/usr/sbin/cron`。
 
 ## 11. 還原
 
