@@ -12,6 +12,8 @@ for (const [device, width] of Object.entries(WIDTHS)) {
     for (const theme of THEMES) {
       for (const { name, path } of loadBudget().pages) {
         test(`${name} has no WCAG 2 A/AA violations in the ${theme} theme`, async ({ page }) => {
+          // giscus is a third-party iframe the site cannot fix, and CI may or may not reach it.
+          await page.route("https://giscus.app/**", (route) => route.abort());
           await page.addInitScript((t) => localStorage.setItem("theme", t), theme);
           await page.goto(path, { waitUntil: "networkidle" });
           await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
