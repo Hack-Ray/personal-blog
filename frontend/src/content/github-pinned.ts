@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-export type PinnedRepo = { name: string; url: string; description: string | null; language: string | null; stars: number };
+export type PinnedRepo = { name: string; url: string; description: string | null; language: string | null; languageColor: string | null; stars: number };
 export type GitHubPinned = { login: string; repos: PinnedRepo[] };
 
 export const PINNED_REPOS_FILE = resolve(".generated/github-pinned.json");
@@ -16,6 +16,10 @@ function nullableString(value: unknown, what: string): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") throw new Error(`pinned repository ${what} is not a string`);
   return value;
+}
+
+function colorOrNull(value: unknown): string | null {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null;
 }
 
 function parseNode(node: unknown, login: string): PinnedRepo {
@@ -35,6 +39,7 @@ function parseNode(node: unknown, login: string): PinnedRepo {
     url,
     description: nullableString(node.description, "description"),
     language: primaryLanguage ? nullableString(primaryLanguage.name, "language") : null,
+    languageColor: primaryLanguage ? colorOrNull(primaryLanguage.color) : null,
     stars: stargazerCount,
   };
 }

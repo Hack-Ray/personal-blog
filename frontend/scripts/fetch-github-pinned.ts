@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { PINNED_REPOS_FILE, parsePinnedResponse, type GitHubPinned } from "../src/content/github-pinned.ts";
 
-const QUERY = `query($login: String!) { user(login: $login) { pinnedItems(first: 6, types: REPOSITORY) { nodes { ... on Repository { name owner { login } url description stargazerCount primaryLanguage { name } } } } } }`;
+const QUERY = `query($login: String!) { user(login: $login) { pinnedItems(first: 6, types: REPOSITORY) { nodes { ... on Repository { name owner { login } url description stargazerCount primaryLanguage { name color } } } } } }`;
 
 rmSync(PINNED_REPOS_FILE, { force: true });
 

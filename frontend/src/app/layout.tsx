@@ -5,6 +5,7 @@ import { loadSiteContent } from "../content/load.ts";
 import { absoluteUrl, BASE_PATH, DEFAULT_OG_IMAGE, siteOg } from "../site.ts";
 import "./globals.css";
 import { THEME_SCRIPT } from "../theme.ts";
+import { GitHubPinned } from "./github-pinned.tsx";
 import { HeaderSearch } from "./header-search.tsx";
 import { ThemeToggle } from "./theme-toggle.tsx";
 
@@ -57,7 +58,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </nav>
         </header>
-        <main id="main">{children}</main>
+        <main id="main">
+          {children}
+          <GitHubPinned />
+        </main>
         <footer>
           <p>
             <span>{site.footer || `© ${new Date().getFullYear()} ${name}`}</span>

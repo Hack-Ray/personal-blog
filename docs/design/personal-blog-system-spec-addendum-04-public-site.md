@@ -228,16 +228,16 @@
 - **Consequences**：CSP 在沒有 CDN 的 fork 上也生效，部署不需要同步 CDN 設定。meta 版 CSP 沒有 Report-Only 模式，政策錯誤會在部署後直接擋住功能，所以靠 e2e 在合併前發現。CDN 若往 HTML 插入其他網域的 script（例如 Cloudflare Web Analytics 的自動注入）會被擋下，Rocket Loader 必須關閉。
 - **Supersedes**：`cdn-headers.json` 原本帶逐頁 CSP 標頭、由 CDN 逐頁套用的做法；檔案只保留快取標頭與上述固定標頭。
 
-### FE-019：首頁顯示 GitHub 釘選專案
+### FE-019：顯示 GitHub 釘選專案
 
 - **Status**：Confirmed（使用者 2026-10-28 指定）
 - **Context**：首頁只有文章列表，看不到作者的開源專案。這個 repo 是公開的，會被 fork，所以帳號名稱不能寫進程式碼。
 - **Decision**：
-  - 設定 `PINNED_GITHUB_USER`（Actions variable；名稱不以 `GITHUB_` 開頭，因為 GitHub 不允許）後，build 在 `frontend/scripts/fetch-github-pinned.ts` 以 GitHub GraphQL API 取得該帳號最多 6 個釘選的 repo，寫入 `.generated/github-pinned.json`，首頁在文章列表之後顯示。沒設定時什麼都不做，首頁不變。
+  - 設定 `PINNED_GITHUB_USER`（Actions variable；名稱不以 `GITHUB_` 開頭，因為 GitHub 不允許）後，build 在 `frontend/scripts/fetch-github-pinned.ts` 以 GitHub GraphQL API 取得該帳號最多 6 個釘選的 repo，寫入 `.generated/github-pinned.json`，除文章頁外的每一頁都顯示。沒設定時什麼都不做，頁面不變。每個專案是一張卡片，整張可點，有主要語言的色點（GraphQL 的 `primaryLanguage.color`，只接受 `#rrggbb`）。
   - 在 build 時取得，不在訪客的瀏覽器取得。GraphQL API 一定要 token，token 不能放進前端；build 時取得也讓 CSP 的 `connect-src` 維持 `'self'`，訪客不會對第三方發出請求。`deploy.yml` 傳入 `github.token`。
   - 顯示釘選專案，不顯示最近的 PR。這個 repo 自己的 PR 會觸發部署，「最近的 PR」永遠是網站本身。
   - 帳號格式不合法是設定錯誤，build 直接失敗。網路、HTTP 或回應格式錯誤、缺少 token 時，build 印出 `::warning::` 並省略這個區塊，不讓 GitHub API 的暫時問題擋住內容發布。每次 build 先刪除舊檔，所以不會部署過期的結果。
-  - 寬螢幕（至少 1240px）時，區塊放在文章列表左側的空白處，與文章頁的目錄同一個位置；較窄時接在列表下方。
+  - 文章頁不顯示，因為左側空白處是目錄；用 CSS `main:has(> article)` 隱藏，不用 JS。其他頁面在寬螢幕（至少 1240px）時放在主內容左側的空白處，與文章頁的目錄同一個位置；較窄時接在頁面內容下方、頁尾之上。
 - **Consequences**：釘選專案只在部署時更新。在 GitHub 上改釘選後要等下一次部署才會反映。
 
 ## Open Questions
