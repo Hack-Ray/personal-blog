@@ -42,7 +42,10 @@ class Scheduler:
     def _run(self) -> None:
         while not self.stop.wait(self.check_every):
             if self.clock() - self.last >= self.every:
-                self.run_once()
+                try:
+                    self.run_once()
+                except Exception:
+                    log.exception("scheduled backup failed")
 
     def run_once(self) -> bool:
         with self.lock:
@@ -56,6 +59,8 @@ class Scheduler:
         if code == 0:
             self.last = self.clock()
             return True
+        if self.stop.is_set():
+            return False
         # Retried at the next check; the last good backup stays in place.
         log.error("scheduled backup failed exit_code=%d", code)
         return False

@@ -330,7 +330,7 @@
   - 排程在 CMS 程序裡，不用 cron 或 launchd。備份以 CMS 的子程序執行，沿用它的環境變數、PATH 與 macOS 的資料夾權限，寫入雲端硬碟同步的資料夾不需要另外設定「完整取用磁碟」。
   - 用牆上時間比較，每 10 分鐘檢查一次，所以睡眠的時間也算在間隔內。失敗只記 log，下次檢查再試。
   - 清舊檔沿用 `BACKUP_KEEP`，預設仍保留全部，升級不會刪掉任何人的備份。
-  - CMS 關閉時，對備份的 process group 送 SIGTERM。`restore.sh` 會先停 CMS，所以還原與排程備份的清理不會同時進行。
+  - CMS 關閉時，對備份的 process group 送 SIGTERM。`stop_cms` 等 CMS 程序結束而不只等 port 關閉，所以先停 CMS 的 `restore.sh` 不會與排程備份的清理同時進行。強制結束 CMS 時沒有這個保證，正在跑的備份會自己跑完。
 - **Consequences**：CMS 關著時沒有每日備份；資料只在 CMS 開著時改變，所以沒有遺漏。直接執行 `uvicorn` 而不經 `start.sh` 時，第一份排程備份在啟動滿一個間隔後才出現。
 - **Supersedes**：無。
 

@@ -47,11 +47,14 @@ stop_cms() {
   done
   echo "==> Stopping the CMS already running on port $port (pid $(echo $pids))"
   kill $pids 2> /dev/null || true
-  for _ in $(seq 50); do
-    lsof -t -iTCP:"$port" -sTCP:LISTEN > /dev/null 2>&1 || return 0
+  # Wait for the process, not the port: uvicorn closes the port first and
+  # stops a scheduled backup (blog/backups.py) only after that.
+  for _ in $(seq 150); do
+    # A zombie has exited; only its parent can reap it.
+    ps -o stat= -p "$(echo $pids | tr ' ' ,)" 2> /dev/null | grep -qv '^Z' || return 0
     sleep 0.2
   done
-  echo "error: the old CMS (pid $(echo $pids)) did not stop within 10 seconds" >&2
+  echo "error: the old CMS (pid $(echo $pids)) did not stop within 30 seconds" >&2
   return 1
 }
 

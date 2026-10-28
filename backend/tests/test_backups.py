@@ -47,7 +47,8 @@ def test_backs_up_once_the_interval_has_passed_and_not_before(tmp_path):
         time.sleep(0.1)
         assert runs(tmp_path) == 0, "start.sh has just backed up"
         clock.now += 24 * 3600
-        wait_for(lambda: runs(tmp_path) == 1)
+        wait_for(lambda: scheduler.last == clock.now)
+        assert runs(tmp_path) == 1
         time.sleep(0.1)
         assert runs(tmp_path) == 1, "the next one waits a full interval"
         clock.now += 24 * 3600
@@ -75,6 +76,20 @@ def test_zero_hours_never_backs_up(tmp_path):
     time.sleep(0.1)
     scheduler.close()
     assert runs(tmp_path) == 0
+
+
+def test_an_error_starting_the_backup_does_not_stop_the_schedule(tmp_path):
+    clock = Clock()
+    scheduler = Scheduler(24, [str(tmp_path / "missing")], check_every=0.01, clock=clock)
+    clock.now += 24 * 3600
+    scheduler.start()
+    try:
+        time.sleep(0.1)
+        assert scheduler.thread.is_alive()
+        scheduler.command = fake(tmp_path, "0")
+        wait_for(lambda: runs(tmp_path) == 1)
+    finally:
+        scheduler.close()
 
 
 def test_closing_stops_a_backup_in_progress(tmp_path):
