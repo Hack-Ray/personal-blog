@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/copy-snapshot-images.ts && next dev",
-    "build": "node scripts/copy-snapshot-images.ts && next build && node scripts/create-cdn-config.ts",
+    "dev": "node scripts/copy-snapshot-images.ts && node scripts/generate-share-images.ts && next dev",
+    "build": "node scripts/copy-snapshot-images.ts && node scripts/generate-share-images.ts && next build && node scripts/create-cdn-config.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
     "test:e2e": "playwright test",
