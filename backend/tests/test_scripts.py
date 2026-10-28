@@ -47,18 +47,24 @@ def test_env_value_reads_plain_lines_without_uv(tmp_path):
 
 
 LISTENER = """
-import socket, sys, time
+import signal, socket, sys, time
 s = socket.socket()
 s.bind(("127.0.0.1", 0))
 s.listen()
+def stop(*_):
+    # Like uvicorn: close the port first, then finish shutting down.
+    s.close()
+    time.sleep(float(sys.argv[2]))
+    sys.exit(0)
+signal.signal(signal.SIGTERM, stop)
 print(s.getsockname()[1], flush=True)
 time.sleep(60)
 """
 
 
-def listen(label):
+def listen(label, shutdown_seconds=0):
     """A process listening on a free port whose command line contains `label`, like the CMS's does."""
-    proc = subprocess.Popen([sys.executable, "-c", LISTENER, label], stdout=subprocess.PIPE, text=True)
+    proc = subprocess.Popen([sys.executable, "-c", LISTENER, label, str(shutdown_seconds)], stdout=subprocess.PIPE, text=True)
     return proc, int(proc.stdout.readline())
 
 
@@ -68,6 +74,13 @@ def test_stop_cms_stops_a_running_cms_and_frees_its_port():
     assert "Stopping the CMS" in bash(f"stop_cms {port}")
     assert proc.wait(timeout=5) is not None
     assert bash(f"stop_cms {port}") == ""
+
+
+@pytest.mark.skipif(shutil.which("lsof") is None, reason="stop_cms needs lsof")
+def test_stop_cms_waits_for_the_cms_to_exit_not_just_its_port():
+    proc, port = listen("blog.api:app", shutdown_seconds=1)
+    bash(f"stop_cms {port}")
+    assert proc.poll() is not None, "a scheduled backup is stopped after the port closes"
 
 
 @pytest.mark.skipif(shutil.which("lsof") is None, reason="stop_cms needs lsof")
