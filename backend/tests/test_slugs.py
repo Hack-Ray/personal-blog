@@ -72,8 +72,6 @@ def test_a_slug_is_shown_in_the_draft_and_the_article_list_and_can_be_cleared(cl
 def test_rejects_a_malformed_or_reserved_slug(client, slug):
     doc_id = create(client)
     assert set_slug(client, doc_id, slug).status_code == 422
-    body = client.get(f"/api/slugs/{slug or '%20'}", params={"doc_id": doc_id}).json()
-    assert body["available"] is False and "reason" in body
 
 
 def test_another_articles_current_slug_is_taken_and_a_free_variant_suggested(client):
@@ -84,8 +82,7 @@ def test_another_articles_current_slug_is_taken_and_a_free_variant_suggested(cli
     r = set_slug(client, third, "hello")
     assert r.status_code == 409
     assert r.json()["suggestion"] == "hello-3"
-    assert client.get("/api/slugs/hello", params={"doc_id": third}).json() == {"available": False, "suggestion": "hello-3"}
-    assert client.get("/api/slugs/hello", params={"doc_id": first}).json() == {"available": True}
+    assert set_slug(client, first, "hello").status_code == 200
 
 
 def test_a_suggestion_stays_within_the_length_limit(client):
@@ -96,8 +93,7 @@ def test_a_suggestion_stays_within_the_length_limit(client):
     assert suggestion == "a" * 78 + "-2"
 
 
-def test_checking_a_slug_for_an_unknown_article_is_404(client):
-    assert client.get("/api/slugs/hello", params={"doc_id": "01K7M4Y7P65BDCF8AHRTQY7ZQA"}).status_code == 404
+def test_setting_a_slug_on_an_unknown_article_is_404(client):
     assert set_slug(client, "01K7M4Y7P65BDCF8AHRTQY7ZQA", "hello").status_code == 404
 
 

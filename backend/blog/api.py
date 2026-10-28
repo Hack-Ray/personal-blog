@@ -347,18 +347,6 @@ def set_slug(doc_id: str, body: SlugBody, session: SessionDep) -> ArticleOut:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
 
 
-class SlugStatusOut(BaseModel):
-    available: bool
-    suggestion: str | None = None
-    reason: str | None = None
-
-
-@app.get("/api/slugs/{slug}", response_model_exclude_none=True)
-def check_slug(slug: str, doc_id: str, session: SessionDep) -> SlugStatusOut:
-    """Whether the article `doc_id` may take `slug`; PUT .../slug checks again."""
-    return SlugStatusOut(**vars(articles.slug_status(session, doc_id, slug)))
-
-
 @app.post("/api/articles/{doc_id}/archive")
 def archive(doc_id: str, session: SessionDep) -> ArticleOut:
     return ArticleOut.of(articles.archive(session, doc_id))
@@ -419,11 +407,6 @@ class ReleaseOut(BaseModel):
         return cls(**{f: getattr(r, f) for f in cls.model_fields})
 
 
-@app.get("/api/releases")
-def list_releases(session: SessionDep) -> list[ReleaseOut]:
-    return [ReleaseOut.of(r) for r in release.recent(session)]
-
-
 @app.post("/api/releases/refresh")
 def refresh_releases(session: SessionDep) -> list[ReleaseOut]:
     """Asks GitHub how the dispatched releases are doing, then lists them."""
@@ -462,14 +445,6 @@ def create_release_job(body: ReleaseJobBody, session: SessionDep) -> ReleaseJobO
 @app.get("/api/release-jobs")
 def list_release_jobs(session: SessionDep) -> list[ReleaseJobOut]:
     return [ReleaseJobOut.of(job) for job in release_jobs.recent(session)]
-
-
-@app.get("/api/release-jobs/{job_id}")
-def get_release_job(job_id: str, session: SessionDep) -> ReleaseJobOut:
-    job = session.get(ReleaseJob, job_id)
-    if job is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "website update request not found")
-    return ReleaseJobOut.of(job)
 
 
 class TokenOut(BaseModel):

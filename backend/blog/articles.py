@@ -315,24 +315,6 @@ def _suggest(session: Session, slug: str, article_id: int) -> str:
         n += 1
 
 
-@dataclass(frozen=True)
-class SlugStatus:
-    available: bool
-    suggestion: str | None = None
-    reason: str | None = None
-
-
-def slug_status(session: Session, doc_id: str, slug: str) -> SlugStatus:
-    article = get_article(session, doc_id)
-    try:
-        _check_slug(slug)
-    except InvalidSlug as e:
-        return SlugStatus(False, reason=str(e))
-    if _taken(session, slug, article.id):
-        return SlugStatus(False, suggestion=_suggest(session, slug, article.id))
-    return SlugStatus(True)
-
-
 def set_slug(session: Session, doc_id: str, slug: str | None) -> Article:
     """None returns the article to its doc_id URL. Takes effect on the site at
     the next export, where every URL it was exported under becomes a redirect."""

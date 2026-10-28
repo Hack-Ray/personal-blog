@@ -296,6 +296,7 @@ repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映�
 | 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |
 | 更新網站回「another CMS may be in use」 | 內容 repo 有不是這個 CMS 推送的 commit。若另一個 CMS 還在用，照第 12 節「同一時間只用一個 CMS」切換；若是你手動改了內容 repo，在 `CONTENT_REPO_DIR` 執行 `git pull` 後再按一次 |
 | 更新網站回「another release is in progress」 | 另一次「更新網站」或「重試」還在執行，等它結束再按 |
+| 文章發錯，要讓網站退回去 | 沒有一鍵回到上一版網站的按鈕。在 CMS 修改文章，或在編輯器的快照面板還原較早的內容後再發布；要整篇下架就封存它。之後按「更新網站」，約 3 分鐘生效 |
 
 ## 15. （選用）執行後端測試
 

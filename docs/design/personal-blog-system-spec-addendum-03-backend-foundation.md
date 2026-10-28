@@ -300,7 +300,7 @@
 - **Context**：Addendum 04 FE-015 讓文章可以用英文 slug 當網址。網址換過之後，舊網址要能轉到新網址，而且不能被另一篇文章拿去用。
 - **Decision**：
   - `articles.slug` 可為空，格式是小寫英數字與單一 `-`，最多 80 字。`page` 是保留字，因為 `/posts/page/<n>/` 是文章列表的分頁。
-  - `PUT /api/articles/{id}/slug` 設定或清除 slug，不建立新版本，下一次「更新網站」生效。格式不符回 422。被占用時回 409，並建議第一個可用的 `<slug>-2`、`-3`。編輯器在欄位失焦時先在本機檢查格式，再直接送出 `PUT`，衝突由 409 處理。`GET /api/slugs/{slug}?doc_id=` 只檢查、不寫入。
+  - `PUT /api/articles/{id}/slug` 設定或清除 slug，不建立新版本，下一次「更新網站」生效。格式不符回 422。被占用時回 409，並建議第一個可用的 `<slug>-2`、`-3`。編輯器在欄位失焦時先在本機檢查格式，再直接送出 `PUT`，衝突由 409 處理。
   - `article_urls`（migration 0016）記錄每篇文章實際匯出過的網址片段，包括 `doc_id` 與 slug，在建立 release 時寫入。migration 0016 替已經發布過的文章補上 `doc_id`。
   - 另一篇文章目前使用的 slug，以及另一篇文章匯出過的片段，都不能使用。只在 CMS 打錯、還沒匯出過的 slug 可以再給別篇用。
   - 匯出時，manifest 的每篇文章帶目前的 `slug`，以及 `redirect_from`，也就是 `article_urls` 裡目前網址以外的片段。沒有時兩個 key 都省略，`schema_version` 維持 1。

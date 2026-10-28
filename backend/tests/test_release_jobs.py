@@ -15,7 +15,7 @@ def test_job_submission_returns_202_without_exporting(client, monkeypatch, tmp_p
     assert response.status_code == 202
     job = response.json()
     assert job["status"] == "queued"
-    assert client.get(f"/api/release-jobs/{job['id']}").json()["id"] == job["id"]
+    assert [j["id"] for j in client.get("/api/release-jobs").json()] == [job["id"]]
     create.assert_not_called()
 
 
@@ -30,7 +30,6 @@ def test_invalid_jobs_do_not_enter_the_queue(client, monkeypatch, tmp_path):
     for body in ({"action": "retry"}, {"action": "create", "release_id": "x"}, {"action": "other"}):
         assert client.post("/api/release-jobs", json=body).status_code == 409
     assert client.get("/api/release-jobs").json() == []
-    assert client.get("/api/release-jobs/missing").status_code == 404
 
 
 def test_worker_marks_unchanged_content_completed(monkeypatch, tmp_path):
