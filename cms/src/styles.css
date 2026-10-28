@@ -10,6 +10,11 @@
   /* Chart series, checked for colour-blind separation against --bg. */
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --callout-note: #0969da;
+  --callout-tip: #1a7f37;
+  --callout-important: #8250df;
+  --callout-warning: #9a6700;
+  --callout-caution: #d1242f;
   font-family: system-ui, "Noto Sans TC", sans-serif;
   color: var(--fg);
   background: var(--bg);
@@ -27,6 +32,11 @@
     --ok: #3fb950;
     --series-1: #3987e5;
     --series-2: #d95926;
+    --callout-note: #4493f8;
+    --callout-tip: #3fb950;
+    --callout-important: #ab7df8;
+    --callout-warning: #d29922;
+    --callout-caution: #f85149;
   }
 }
 
@@ -672,6 +682,98 @@ td {
   padding: 0 1em;
   border-left: 4px solid var(--border);
   color: var(--muted);
+}
+
+.callout {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--callout);
+}
+
+.callout > :last-child {
+  margin-bottom: 0;
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0 0.25em;
+  color: var(--callout);
+  font-weight: 600;
+}
+
+.callout-icon {
+  flex: none;
+  fill: currentColor;
+}
+
+.callout-note {
+  --callout: var(--callout-note);
+}
+
+.callout-tip {
+  --callout: var(--callout-tip);
+}
+
+.callout-important {
+  --callout: var(--callout-important);
+}
+
+.callout-warning {
+  --callout: var(--callout-warning);
+}
+
+.callout-caution {
+  --callout: var(--callout-caution);
+}
+
+.footnote-ref {
+  line-height: 0;
+}
+
+.footnote-ref a,
+.footnote-backref {
+  text-decoration: none;
+}
+
+.footnotes {
+  margin-top: 2em;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+.footnotes h2 {
+  font-size: 1em;
+}
+
+.footnotes li:target {
+  background: var(--code-bg);
+}
+
+.diagram {
+  margin: 1.5em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.diagram-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .article-body .diagram-light {
+    display: none;
+  }
+
+  .article-body .diagram-dark {
+    display: block;
+  }
+}
+
+.diagram-error {
+  color: var(--danger);
+  white-space: pre-wrap;
 }
 
 .article-body table {

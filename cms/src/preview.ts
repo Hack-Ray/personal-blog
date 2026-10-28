@@ -1,9 +1,20 @@
 import { Marked, type Tokens } from "marked";
+import type { MouseEvent } from "react";
+import {
+  articleSyntax,
+  type DiagramTheme,
+  diagramHtml,
+  diagramSvg,
+  diagramTitle,
+  isMermaid,
+  mermaidConfig,
+} from "./article-syntax.ts";
 import { allowedImage, allowedLink } from "./url-policy.ts";
 
 // Mirrors frontend/src/content/markdown.ts so the preview looks like the
 // published article: Shiki highlighting with the same themes, figures with
-// captions, the external-link marker, and raw HTML and disallowed URLs shown as text.
+// captions, the external-link marker, footnotes, callouts and Mermaid diagrams,
+// and raw HTML and disallowed URLs shown as text.
 
 // Imported one by one so the build bundles only these, not every Shiki grammar.
 const LANGS = () => [
@@ -40,10 +51,41 @@ export async function loadHighlighter(): Promise<Highlight> {
       : undefined;
 }
 
-export function renderPreview(markdown: string, highlight?: Highlight): string {
-  const marked = new Marked({
+/** Diagram HTML for a Mermaid source, or undefined while it is not rendered yet. */
+export type Diagram = (source: string) => string | undefined;
+
+/** Renders a Mermaid source in both themes, or to an error message; one at a time, since mermaid.initialize is global. */
+export type RenderDiagram = (source: string) => Promise<string>;
+
+let mermaid: Promise<RenderDiagram> | undefined;
+let rendered = 0;
+
+/** The site renders diagrams at build time; the local CMS loads Mermaid only once a draft has one. */
+export function loadMermaid(): Promise<RenderDiagram> {
+  mermaid ??= import("mermaid").then(({ default: m }) => {
+    let queue = Promise.resolve("");
+    return (source) =>
+      (queue = queue.then(async () => {
+        const id = `preview-diagram-${++rendered}`;
+        const svg = async (theme: DiagramTheme) => {
+          m.initialize(mermaidConfig(theme));
+          return diagramSvg((await m.render(`${id}-${theme}`, source)).svg, diagramTitle(source));
+        };
+        try {
+          return diagramHtml(await svg("light"), await svg("dark"));
+        } catch (e) {
+          return `<pre class="diagram-error">圖表無法顯示，網站建置也會失敗：${escapeHtml(e instanceof Error ? e.message : String(e))}</pre>\n`;
+        }
+      }));
+  });
+  return mermaid;
+}
+
+export function renderPreview(markdown: string, highlight?: Highlight, diagram?: Diagram): string {
+  const marked = new Marked(articleSyntax(), {
     renderer: {
       code({ text, lang }) {
+        if (isMermaid(lang)) return diagram?.(text) ?? `<pre><code>${escapeHtml(text)}</code></pre>\n`;
         const name = lang?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
         return `${highlight?.(text, name) ?? `<pre><code>${escapeHtml(text)}</code></pre>`}\n`;
       },
@@ -75,4 +117,12 @@ export function renderPreview(markdown: string, highlight?: Highlight): string {
     },
   });
   return marked.parse(markdown, { async: false });
+}
+
+// The CMS routes by the URL hash, so a footnote or other #anchor scrolls the preview instead.
+export function scrollToAnchor(e: MouseEvent<HTMLDivElement>) {
+  const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
+  if (!href?.startsWith("#") || href.startsWith("#/")) return;
+  e.preventDefault();
+  e.currentTarget.querySelector(`[id="${CSS.escape(href.slice(1))}"]`)?.scrollIntoView({ block: "center" });
 }

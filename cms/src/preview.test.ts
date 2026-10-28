@@ -35,3 +35,17 @@ test("raw HTML and disallowed URLs are shown as text, as on the site", () => {
   assert.equal(renderPreview("[x](javascript:alert(1)) [y](&#106;avascript:alert(1))"), "<p>x y</p>\n");
   assert.equal(renderPreview("![alt](data:image/png;base64,AAAA)"), "<p>alt</p>\n");
 });
+
+test("footnotes and callouts render as on the site", () => {
+  const html = renderPreview("> [!TIP]\n> 先讀[^1]\n\n[^1]: 來源\n");
+  assert.match(html, /<div class="callout callout-tip" role="note">\n<p class="callout-title">.*提示<\/p>/);
+  assert.match(html, /<a id="fnref_1" href="#fn_1"/);
+  assert.match(html, /<li id="fn_1"><p>來源 <a href="#fnref_1"/);
+});
+
+test("a Mermaid block is code until its diagram is rendered", () => {
+  const md = "```mermaid\ngraph TD\n  A --> <b>\n```";
+  assert.equal(renderPreview(md), "<pre><code>graph TD\n  A --&gt; &lt;b&gt;</code></pre>\n");
+  const diagram = (source: string) => (source === "graph TD\n  A --> <b>" ? "<div>svg</div>" : undefined);
+  assert.equal(renderPreview(md, undefined, diagram), "<div>svg</div>");
+});
