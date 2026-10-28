@@ -294,8 +294,52 @@ input:focus-visible {
   background: rgb(0 0 0 / 0.4);
 }
 
+.github-pinned {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+.github-pinned h2 {
+  margin: 0 0 8px;
+  font-size: 1.1em;
+}
+
+.github-pinned ul {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.github-pinned li {
+  padding: 6px 0;
+}
+
+.github-pinned li p {
+  margin: 2px 0 0;
+}
+
+.github-pinned .meta {
+  font-size: 1em;
+}
+
 /* 720px article plus a 220px sidebar and 32px gap on each side's room. */
 @media (min-width: 1240px) {
+  .home {
+    position: relative;
+  }
+
+  .github-pinned {
+    position: absolute;
+    top: 0;
+    right: calc(100% + 32px);
+    width: 220px;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
   .toc {
     left: calc(50% - 344px - 32px - 220px);
     width: 220px;

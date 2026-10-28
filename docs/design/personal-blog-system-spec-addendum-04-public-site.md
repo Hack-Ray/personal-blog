@@ -3,7 +3,7 @@
 > **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **基線**：[Baseline v1.0](./personal-blog-system-spec-baseline-v1.0.md)，[Addendum 02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)
-> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-018
+> **日期**：2026-10-20，2026-10-27 補上 FE-014–FE-018，2026-10-28 補上 FE-019
 > **Status 說明**：標為 Accepted (delegated) 的決策，由作者授權採用設計建議，作者可隨時推翻。
 
 ## Decisions
@@ -172,7 +172,7 @@
 - **Context**：FE-001 的 `SITE_ORIGIN` 預設是作者的 Pages 網址，FE-006 的 giscus ID 寫在程式碼。別人 fork 後必須改程式才能部署，換成自訂網域也要改程式。這個 repo 是公開的，作者的網域與帳號資料不應該寫進程式碼。
 - **Decision**：
   - `deploy.yml` 從 `actions/configure-pages` 取得網站的 origin 與 basePath，傳給 build 的 `SITE_ORIGIN` 與 `BASE_PATH`。Pages 設定自訂網域後，下一次部署就使用新網域，不需要改程式。直接 build 時的預設是 `https://example.com` 與 `/personal-blog`。
-  - 每個站不同的值都放在 Actions variables 與 secrets：`CONTENT_REPO`（預設 `<repo>-content`）、`GISCUS_REPO`、`GISCUS_REPO_ID`、`GISCUS_CATEGORY`、`GISCUS_CATEGORY_ID`、`GOOGLE_SITE_VERIFICATION`、`LEGACY_SITE_URLS`。程式碼與文件不寫作者的網域，文件用 `<網域>` 這類替代字。
+  - 每個站不同的值都放在 Actions variables 與 secrets：`CONTENT_REPO`（預設 `<repo>-content`）、`GISCUS_REPO`、`GISCUS_REPO_ID`、`GISCUS_CATEGORY`、`GISCUS_CATEGORY_ID`、`GOOGLE_SITE_VERIFICATION`、`GITHUB_PINNED_USER`、`LEGACY_SITE_URLS`。程式碼與文件不寫作者的網域，文件用 `<網域>` 這類替代字。
   - build 產生 `robots.txt`，其中的 sitemap 網址來自這次 build 的 `SITE_ORIGIN`。網站在網域根路徑時，爬蟲才讀得到它。
   - `LEGACY_SITE_URLS` 列出舊站的根網址。build 時，Markdown 連結中指向舊站的部分改成新站的相對網址，內容 repo 不改寫。
   - RSS 的 `<guid>` 是 `urn:ulid:<docId>`，換網域或 basePath 都不會變。
@@ -227,6 +227,18 @@
   - e2e 測試在沒有任何回應標頭的靜態伺服器上執行，所以也檢查 meta CSP：頁面沒有 CSP 違規，未列入的 inline script 不會執行。
 - **Consequences**：CSP 在沒有 CDN 的 fork 上也生效，部署不需要同步 CDN 設定。meta 版 CSP 沒有 Report-Only 模式，政策錯誤會在部署後直接擋住功能，所以靠 e2e 在合併前發現。CDN 若往 HTML 插入其他網域的 script（例如 Cloudflare Web Analytics 的自動注入）會被擋下，Rocket Loader 必須關閉。
 - **Supersedes**：`cdn-headers.json` 原本帶逐頁 CSP 標頭、由 CDN 逐頁套用的做法；檔案只保留快取標頭與上述固定標頭。
+
+### FE-019：首頁顯示 GitHub 釘選專案
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：首頁只有文章列表，看不到作者的開源專案。這個 repo 是公開的，會被 fork，所以帳號名稱不能寫進程式碼。
+- **Decision**：
+  - 設定 `GITHUB_PINNED_USER`（Actions variable）後，build 在 `frontend/scripts/fetch-github-pinned.ts` 以 GitHub GraphQL API 取得該帳號最多 6 個釘選的 repo，寫入 `.generated/github-pinned.json`，首頁在文章列表之後顯示。沒設定時什麼都不做，首頁不變。
+  - 在 build 時取得，不在訪客的瀏覽器取得。GraphQL API 一定要 token，token 不能放進前端；build 時取得也讓 CSP 的 `connect-src` 維持 `'self'`，訪客不會對第三方發出請求。`deploy.yml` 傳入 `github.token`。
+  - 顯示釘選專案，不顯示最近的 PR。這個 repo 自己的 PR 會觸發部署，「最近的 PR」永遠是網站本身。
+  - 帳號格式不合法是設定錯誤，build 直接失敗。網路、HTTP 或回應格式錯誤、缺少 token 時，build 印出 `::warning::` 並省略這個區塊，不讓 GitHub API 的暫時問題擋住內容發布。每次 build 先刪除舊檔，所以不會部署過期的結果。
+  - 寬螢幕（至少 1240px）時，區塊放在文章列表左側的空白處，與文章頁的目錄同一個位置；較窄時接在列表下方。
+- **Consequences**：釘選專案只在部署時更新。在 GitHub 上改釘選後要等下一次部署才會反映。
 
 ## Open Questions
 
