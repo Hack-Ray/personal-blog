@@ -3,6 +3,9 @@ import { test } from "node:test";
 import { ApiError, EMPTY_METADATA, type DraftApi, type DraftContent } from "./api.ts";
 import { DraftSync } from "./draft-sync.ts";
 
+/** What the editor holds: the loaded draft with the author's edits spread over it. */
+const edited = (c: DraftContent): DraftContent => ({ doc_id: "D", slug: null, state: "draft", revision: 1, updated_at: "loaded", ...c }) as DraftContent;
+
 const content = (markdown: string): DraftContent => ({
   title: "T",
   topic: { slug: "backend", name: "Backend" },
@@ -136,12 +139,12 @@ test("a save stored by the server whose answer was lost is no conflict", async (
   const server = fakeServer();
   const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
   server.loseNextAnswer();
-  sync.edit(content("stored, answer lost"));
+  sync.edit(edited(content("stored, answer lost")));
   let saving = sync.flush();
   await server.releaseAll();
   await saving;
   assert.equal(sync.status.kind, "error");
-  sync.edit(content("typed afterwards"));
+  sync.edit(edited(content("typed afterwards")));
   saving = sync.flush();
   await server.releaseAll();
   await saving;
@@ -158,7 +161,7 @@ test("a lost answer is a conflict when the server then holds another series", as
   const server = fakeServer();
   const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
   server.loseNextAnswer();
-  sync.edit({ ...content("same text"), series: { slug: "s", name: "S" } });
+  sync.edit(edited({ ...content("same text"), series: { slug: "s", name: "S" } }));
   await Promise.all([sync.flush(), server.releaseAll()]);
   server.overwrite(content("same text"));
   sync.edit(content("typed afterwards"));

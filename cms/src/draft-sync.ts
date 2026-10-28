@@ -1,4 +1,5 @@
 import { ApiError, type Draft, type DraftApi, type DraftContent, type Published } from "./api.ts";
+import { sameContent } from "./editor-status.ts";
 
 export type SyncStatus =
   | { kind: "saved" }
@@ -192,6 +193,3 @@ export class DraftSync {
   }
 }
 
-/** Compares the fields the author edits; `a` may be a whole Draft. */
-const sameContent = (a: DraftContent, b: DraftContent): boolean =>
-  (Object.keys(b) as (keyof DraftContent)[]).every((key) => JSON.stringify(a[key]) === JSON.stringify(b[key]));
