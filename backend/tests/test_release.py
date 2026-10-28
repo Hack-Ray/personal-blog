@@ -76,7 +76,7 @@ def update_site(client):
     job = client.post("/api/release-jobs", json={"action": "create"})
     assert job.status_code == 202, job.text
     assert release_jobs.run_once()
-    return client.get(f"/api/release-jobs/{job.json()['id']}").json()
+    return next(j for j in client.get("/api/release-jobs").json() if j["id"] == job.json()["id"])
 
 
 def refresh(session, r, deployer):
@@ -218,7 +218,7 @@ def test_release_api_needs_a_content_repo(client, configure, repos):
     doc_id = client.post("/api/articles", json={"title": "T", "topic": {"slug": "b", "name": "B"}, "markdown": "m"}).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json={"title": "T", "topic": {"slug": "b", "name": "B"}, "markdown": "m", "base_revision": 1})
     created = update_site(client)["release_id"]
-    listed = client.get("/api/releases").json()
+    listed = client.post("/api/releases/refresh").json()
     assert [r["id"] for r in listed] == [created, empty_site]
     assert listed[0]["status"] == "dispatch_failed"
 
@@ -347,17 +347,16 @@ def test_a_commit_pushed_by_someone_else_stops_the_release(repos, tmp_path):
         assert release.create(s, clone, None).status == R.DISPATCH_FAILED
 
 
-def test_listing_releases_does_not_call_github_and_refreshing_does(client, configure, monkeypatch, repos):
+def test_listing_releases_asks_github_how_they_are_doing(client, configure, monkeypatch, repos):
     _, clone = repos
     configure(content_repo_dir=clone)
     deployer = FakeDeployer()
     monkeypatch.setattr(release, "deployer_from_env", lambda: deployer)
     update_site(client)
-    created = client.get("/api/releases").json()[0]
+    created = client.post("/api/releases/refresh").json()[0]
+    assert created["status"] == "dispatched"
+    assert created["dispatched_at"] is not None
     deployer.finish(created["content_commit"])
-    listed = client.get("/api/releases").json()[0]
-    assert listed["status"] == "dispatched"
-    assert listed["dispatched_at"] is not None
     assert client.post("/api/releases/refresh").json()[0]["status"] == "deployed"
 
 

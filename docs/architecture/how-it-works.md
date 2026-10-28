@@ -137,7 +137,7 @@ PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照、`release_ar
 
 **置頂**：`set_pinned` 不建立新版本，下一次「更新網站」才會反映。
 
-**Slug**（`set_slug`，`PUT /api/articles/{id}/slug`，body `{slug}`，`null` 回到 `doc_id` 網址）：格式不符或保留字回 422；被占用回 409 `{detail, suggestion}`，`suggestion` 是第一個可用的 `<slug>-2`、`-3`…。`GET /api/slugs/{slug}?doc_id=` 只檢查不寫入，回 `{available, suggestion?, reason?}`。
+**Slug**（`set_slug`，`PUT /api/articles/{id}/slug`，body `{slug}`，`null` 回到 `doc_id` 網址）：格式不符或保留字回 422；被占用回 409 `{detail, suggestion}`，`suggestion` 是第一個可用的 `<slug>-2`、`-3`…。
 
 **快照還原**：`restore_snapshot` 內部呼叫 `save_draft`，所以還原本身也會先留快照，可以再復原。
 
@@ -171,7 +171,7 @@ sequenceDiagram
   API->>DB: PUSHED
   API->>GH: dispatch deploy.yml {content_sha}
   API->>DB: DISPATCHED
-  SPA->>API: GET /api/release-jobs/{id} 直到工作結束
+  SPA->>API: 頁面開著時每 2 秒 GET /api/release-jobs
   loop 頁面開著且有 DISPATCHED/BUILDING，每 15 秒
     SPA->>API: POST /api/releases/refresh
     API->>GH: 依 run-name 找 run，查 job 與 step
@@ -305,10 +305,10 @@ stateDiagram-v2
 | 快照面板 | `GET .../snapshots`、`POST .../snapshots/{id}/restore` |
 | 分類 `#/taxa` | `GET /api/taxa`、`PUT /api/taxa/{kind}/{slug}`、`POST .../merge`、`DELETE ...` |
 | 個人資料 `#/profile` | `GET /api/profile`、`PUT /api/profile` |
-| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/release-jobs`、`GET /api/release-jobs/{id}` |
+| 網站發布 `#/releases` | `POST /api/releases/refresh`、`GET /api/github-token`、`GET /api/github-status`、`POST /api/release-jobs`、`GET /api/release-jobs` |
 | 流量數據 `#/analytics` | `GET /api/analytics?days=7\|28\|90`、`POST /api/analytics/sync` |
 
-`GET /api/articles` 不帶 `state` 時回傳所有狀態，「文章」分頁在前端濾掉 pending_deletion。`GET /api/releases` 與 `/healthz` CMS 沒有用到。
+`GET /api/articles` 不帶 `state` 時回傳所有狀態，「文章」分頁在前端濾掉 pending_deletion。`/healthz` 給 `scripts/start.sh` 和雲端部署的健康檢查用，CMS 介面沒有用到。
 
 **DraftSync**（`draft-sync.ts`）是編輯器的核心：
 
