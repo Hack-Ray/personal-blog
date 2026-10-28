@@ -143,14 +143,33 @@ for (const publishedAt of ["-000001-01-01T00:00:00.000Z", "+010000-01-01T00:00:0
   });
 }
 
-test("metadata in an unknown format is an error, not documents", async () => {
-  const store = createSearchStore(async () => Response.json({ ...metadata, version: 2 }));
-  await store.startSearch();
-  assert.equal(store.getSearchSnapshot().phase, "metadata-error");
-  assert.deepEqual(store.getSearchSnapshot().docs, []);
+for (const version of [1, 3]) {
+  test(`metadata version ${version} is an error, not documents`, async () => {
+    const store = createSearchStore(async () => Response.json({ ...metadata, version }));
+    await store.startSearch();
+    assert.equal(store.getSearchSnapshot().phase, "metadata-error");
+    assert.deepEqual(store.getSearchSnapshot().docs, []);
+  });
+}
+
+test("a chunk replaces both the display text and the search key", async () => {
+  const store = controlled();
+  const run = store.startSearch();
+  await setImmediate();
+  store.requests[0].resolve(Response.json(metadata));
+  await setImmediate();
+  const [partial] = store.getSearchSnapshot().docs;
+  assert.equal(partial.text.length, 160);
+  store.requests[1].resolve(Response.json(chunks[0]));
+  await setImmediate();
+  const [loaded] = store.getSearchSnapshot().docs;
+  assert.equal(loaded.text, chunks[0].docs[0].text);
+  assert.equal(loaded.textKey, loaded.text.toLowerCase());
+  store.requests[2].resolve(Response.json(chunks[1]));
+  await run;
 });
 
-test("all partial Unicode matches remain after complete replacement without duplicate hits", async () => {
+test("a final sigma cut off by the metadata prefix matches once the full text arrives, without duplicate hits", async () => {
   const source = content(article("sigma", 2026, { markdown: "x".repeat(158) + "ΟΣΑ İ".repeat(1000) }));
   const built = buildSearchAssets(source);
   const store = controlled();
@@ -158,11 +177,10 @@ test("all partial Unicode matches remain after complete replacement without dupl
   await setImmediate();
   store.requests[0].resolve(new Response(built.metadataJson));
   await setImmediate();
-  const partial = results(store, "οσ");
-  assert.deepEqual(partial, [{ docId: "sigma", score: 1 }]);
+  assert.deepEqual(results(store, "οσ"), []);
   store.requests[1].resolve(new Response([...built.chunks.values()][0]));
   await run;
   assert.equal(store.getSearchSnapshot().phase, "complete");
-  assert.deepEqual(results(store, "οσ"), partial);
+  assert.deepEqual(results(store, "οσ"), [{ docId: "sigma", score: 1 }]);
   assert.deepEqual(store.getSearchSnapshot().docs, prepareIndex(buildIndex(source)));
 });

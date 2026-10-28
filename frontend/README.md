@@ -11,9 +11,15 @@ npm run typecheck
 npm run build       # copies snapshot images, makes list thumbnails, writes out/
 npm run check-links # every site path a built page links to exists in out/
 npx playwright install chromium   # once
-npm run test:e2e    # browser tests against out/ (sample data)
+npm run test:e2e    # browser tests against out/ (sample data), including axe accessibility checks
+npm run check-budget # bytes of each page's HTML, JS and CSS against quality-budget.json
+npm run lighthouse  # Lighthouse scores per page (about 2.5 minutes); reports in lighthouse-reports/
 SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 ```
+
+## Quality gate
+
+`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-020 has the reasoning.
 
 ## Snapshot format (schema_version 1, draft)
 

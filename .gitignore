@@ -32,6 +32,7 @@ frontend/public/images/
 frontend/public/thumbs/
 frontend/public/og/
 frontend/.generated/
+frontend/lighthouse-reports/
 frontend/test-results/
 frontend/playwright-report/
 
