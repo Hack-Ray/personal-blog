@@ -32,7 +32,13 @@ case "$out" in
   s3://*) dir="$(mktemp -d)" ;;
   *) dir="$out"; mkdir -p "$dir" ;;
 esac
-name="blog-$(date -u +%Y%m%dT%H%M%SZ).dump"
+stamp() { echo "blog-$(date -u +%Y%m%dT%H%M%SZ).dump"; }
+name="$(stamp)"
+# Names have one-second resolution; never replace a backup made in the same second.
+while [ -e "$dir/$name" ] || [ -e "$dir/$name.partial" ]; do
+  sleep 1
+  name="$(stamp)"
+done
 file="$dir/$name"
 partial="$file.partial"
 trap 'rm -f "$partial"; [ "$dir" = "$out" ] || rm -rf "$dir"' EXIT
