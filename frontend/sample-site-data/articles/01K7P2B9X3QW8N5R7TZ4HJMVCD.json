@@ -17,5 +17,5 @@
     }
   ],
   "published_at": "2026-10-10T20:30:00+08:00",
-  "markdown": "使用 `output: 'export'` 產生純靜態檔案。\n"
+  "markdown": "使用 `output: 'export'` 產生純靜態檔案。\n\n## 建置流程\n\n```mermaid\n%% title: 從 Snapshot 到 GitHub Pages 的建置流程\nflowchart LR\n  A[Snapshot] --> B[next build]\n  B --> C[out/]\n  C --> D[GitHub Pages]\n```\n\n> [!NOTE]\n> 靜態匯出不支援需要伺服器的功能，例如 API routes 與 middleware。\n\n> [!WARNING]\n> 部署到子路徑時要設定 `basePath`，否則圖片與連結會指向錯的位置。\n\nGitHub Pages 只提供靜態檔案[^pages]，所以舊網址用 meta refresh 頁面轉址[^redirect]。\n\n[^pages]: 也不能設定回應標頭，見 [GitHub Pages 文件](https://docs.github.com/pages)。\n[^redirect]: 舊網址會留下一頁，立即轉到新網址。\n"
 }
