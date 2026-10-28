@@ -13,6 +13,9 @@ def _worker_database(url: str, worker: str) -> str:
     from sqlalchemy import create_engine, make_url, text
 
     base = make_url(url)
+    # Tests that import from tests.conftest run this file a second time.
+    if base.database.endswith(f"_{worker}"):
+        return url
     name = f"{base.database}_{worker}"
     server = create_engine(base, isolation_level="AUTOCOMMIT")
     with server.connect() as conn:
