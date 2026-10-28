@@ -139,6 +139,8 @@ jobs:
           GISCUS_CATEGORY_ID: ${{ vars.GISCUS_CATEGORY_ID }}
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           LEGACY_SITE_URLS: ${{ vars.LEGACY_SITE_URLS }}
+          PINNED_GITHUB_USER: ${{ vars.PINNED_GITHUB_USER }}
+          GITHUB_TOKEN: ${{ github.token }}
 
       # Every page of this build carries the id, so the deploy job can tell it is live.
       - id: build-id

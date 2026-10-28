@@ -413,7 +413,8 @@ class FakeGitHub(BaseHTTPRequestHandler):
 def github():
     FakeGitHub.requests, FakeGitHub.responses, FakeGitHub.headers, FakeGitHub.runs = [], {}, {}, []
     server = HTTPServer(("127.0.0.1", 0), FakeGitHub)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    # shutdown() waits for the next poll, every 0.5 s by default.
+    threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
     yield release.GitHubActions(GitHubClient("tok", f"http://127.0.0.1:{server.server_port}"), "o/r", "deploy.yml", "main")
     server.shutdown()
 

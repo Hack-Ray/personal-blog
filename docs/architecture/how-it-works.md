@@ -288,7 +288,7 @@ stateDiagram-v2
 
 **圖示與預設分享圖**：來源只有 `public/icon.svg`。`npm run icons`（`scripts/make-icons.ts`，用 sharp）產生 `favicon.ico`、`apple-touch-icon.png`（180×180，角落填背景色）與 `og-default.png`（1200×630），產生的檔案 commit 進 repo，build 不重新產生。layout 宣告這些圖示；非文章頁的 `og:image` 是 `og-default.png`（`site.ts` 的 `DEFAULT_OG_IMAGE`）。
 
-**分享圖**：文章的 `og:image` 由 `content/share-image.ts` 的 `shareImageOf()` 決定，文章頁的 meta 與 JSON-LD 共用：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`。後者由 `scripts/generate-share-images.ts` 在 build 時用 `shareImageSvg()`（純函式，自己斷行：中文逐字、英文在空格，最多 3 行，過長以「…」結尾）產生 SVG，再由 sharp 轉 PNG 並疊上 `icon.svg`。字型來自系統的 fontconfig（Noto Sans CJK TC，CI 以 apt 安裝 `fonts-noto-cjk`），標題有中文卻沒有中文字型時 build 失敗。這類文章的 `twitter:card` 是 `summary_large_image`。見 Addendum 04 FE-020。
+**分享圖**：文章的 `og:image` 由 `content/share-image.ts` 的 `shareImageOf()` 決定，文章頁的 meta 與 JSON-LD 共用：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`。後者由 `scripts/generate-share-images.ts` 在 build 時用 `shareImageSvg()`（純函式，自己斷行：中文逐字、英文在空格，最多 3 行，過長以「…」結尾）產生 SVG，再由 sharp 轉 PNG 並疊上 `icon.svg`。字型來自系統的 fontconfig（Noto Sans CJK TC，CI 以 apt 安裝 `fonts-noto-cjk`），標題有中文卻沒有中文字型時 build 失敗。這類文章的 `twitter:card` 是 `summary_large_image`。見 Addendum 04 FE-021。
 
 `next.config.ts`：`basePath = BASE_PATH ?? "/personal-blog"`，`SITE_ORIGIN` 預設 `https://example.com`。部署時由 `actions/configure-pages` 提供真正的 origin 與 base path。
 
