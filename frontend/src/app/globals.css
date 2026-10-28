@@ -310,8 +310,128 @@ input:focus-visible {
   background: rgb(0 0 0 / 0.4);
 }
 
+.github-pinned {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+main:has(> article) > .github-pinned {
+  display: none;
+}
+
+.github-pinned h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 1.1em;
+}
+
+.github-pinned .icon {
+  flex: none;
+}
+
+.github-pinned ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.github-pinned li {
+  display: flex;
+}
+
+.repo-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.repo-card:hover {
+  border-color: var(--link);
+}
+
+.repo-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.repo-card:hover .repo-name {
+  color: var(--link);
+}
+
+.repo-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.repo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.repo-language,
+.repo-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.language-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.github-more {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.github-more:hover {
+  color: var(--link);
+}
+
 /* 720px article plus a 220px sidebar and 32px gap on each side's room. */
 @media (min-width: 1240px) {
+  main {
+    position: relative;
+  }
+
+  .github-pinned {
+    position: absolute;
+    top: 0;
+    right: 100%;
+    width: 220px;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
   .toc {
     left: calc(50% - 344px - 32px - 220px);
     width: 220px;
