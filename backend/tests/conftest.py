@@ -6,6 +6,24 @@ import pytest
 
 if "TEST_DATABASE_URL" not in os.environ:
     pytest.exit("Set TEST_DATABASE_URL to an empty, disposable PostgreSQL database.", returncode=2)
+
+
+def _worker_database(url: str, worker: str) -> str:
+    """Under pytest-xdist each worker gets a database of its own, beside the one named in TEST_DATABASE_URL."""
+    from sqlalchemy import create_engine, make_url, text
+
+    base = make_url(url)
+    name = f"{base.database}_{worker}"
+    server = create_engine(base, isolation_level="AUTOCOMMIT")
+    with server.connect() as conn:
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        conn.execute(text(f'CREATE DATABASE "{name}"'))
+    server.dispose()
+    return base.set(database=name).render_as_string(hide_password=False)
+
+
+if worker := os.environ.get("PYTEST_XDIST_WORKER"):
+    os.environ["TEST_DATABASE_URL"] = _worker_database(os.environ["TEST_DATABASE_URL"], worker)
 os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
 from alembic import command  # noqa: E402
