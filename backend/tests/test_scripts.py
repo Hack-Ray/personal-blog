@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 import urllib.request
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -209,6 +210,16 @@ def test_restore_backs_up_first_replaces_everything_at_once_and_signs_everyone_o
     assert run_sql(url, "SELECT token_hash FROM admin_sessions") == []
     assert run_sql(url, "SELECT status FROM release_jobs") == ["failed"], "a restored queued update does not publish on its own"
     assert dump.exists() and len(list((tmp_path / "b").glob("*.dump"))) == 2, "the safety backup lands beside the restored one"
+
+
+def test_a_backup_never_replaces_one_made_in_the_same_second(scratch_database, tmp_path):
+    now = datetime.now(UTC)
+    taken = [f"blog-{(now + timedelta(seconds=s)):%Y%m%dT%H%M%SZ}.dump" for s in range(3)]
+    for name in taken:
+        (tmp_path / name).write_text("earlier")
+    assert script("scripts/backup.sh", "--url", scratch_database, "--out", str(tmp_path)).returncode == 0
+    assert all((tmp_path / name).read_text() == "earlier" for name in taken)
+    assert len(list(tmp_path.glob("*.dump"))) == 4
 
 
 def test_backup_keep_removes_the_oldest_backups_in_a_folder(scratch_database, tmp_path):
