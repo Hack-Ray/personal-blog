@@ -186,6 +186,9 @@ test("rejects an article that references an image missing from the snapshot", ()
 
 test("rejects an unparseable publish date", () => {
   assert.throws(() => parseSnapshot(snapshot({ files: { [A]: articleFile(A, { published_at: "yesterday" }) } })), /ISO 8601/);
+  // Without Z or an offset, a build in Taipei and one in UTC would date the article 8 hours apart.
+  assert.throws(() => parseSnapshot(snapshot({ files: { [A]: articleFile(A, { published_at: "2026-10-01T09:00:00" }) } })), /with Z or an offset/);
+  assert.doesNotThrow(() => parseSnapshot(snapshot({ files: { [A]: articleFile(A, { published_at: "2026-10-01T09:00:00.123456Z" }) } })));
 });
 
 test("published lists newest first and leaves out archived articles", () => {
@@ -276,8 +279,14 @@ test("every code block gets a copy button that starts hidden", () => {
 test("an image alone in its paragraph becomes a figure captioned with its escaped alt text", () => {
   assert.equal(
     renderMarkdown('![A <b> & "x"](images/a.png)', "/bp"),
-    '<figure><img src="/bp/images/a.png" alt="A &lt;b&gt; &amp; &quot;x&quot;" loading="lazy"><figcaption>A &lt;b&gt; &amp; &quot;x&quot;</figcaption></figure>\n',
+    '<figure><img src="/bp/images/a.png" alt="A &lt;b&gt; &amp; &quot;x&quot;" fetchpriority="high" decoding="async"><figcaption>A &lt;b&gt; &amp; &quot;x&quot;</figcaption></figure>\n',
   );
+});
+
+test("only the first image of a page loads right away; the rest load lazily", () => {
+  const html = renderMarkdown("![a](images/a.png)\n\n![b](images/b.png)\n\n![c](images/c.png)", "");
+  assert.deepEqual(html.match(/fetchpriority="high"|loading="lazy"/g), ['fetchpriority="high"', 'loading="lazy"', 'loading="lazy"']);
+  assert.match(renderMarkdown("![a](images/a.png)", ""), /fetchpriority="high"/, "each page starts over");
 });
 
 test("inline images, images without alt text and linked images stay in their paragraph", () => {

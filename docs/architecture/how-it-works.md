@@ -270,7 +270,7 @@ stateDiagram-v2
 | `/posts/<slug 或 docId>/` | 文章頁（`app/posts/[segment]/`）。封存文章也會產生，顯示「文章已封存」並 `noindex` |
 | `/posts/<redirect_from 的片段>/` | 轉址頁：`<meta http-equiv="refresh">` 到新網址（含 basePath）、canonical 指向新網址、`noindex`，並有一個手動連結。GitHub Pages 不能回 301，所以用這種頁面 |
 | `/topics/`、`/topics/<slug>/`、`/tags/`、`/tags/<slug>/` | Taxon 索引與列表（只算已發布文章） |
-| `/archive/` | 依台北時間分年，兩種排序都在 server 端 render |
+| `/archive/` | 依台北時間分年。列表以純資料（新到舊）傳給 client component 一次，另一種排序在瀏覽器反轉，不再把兩棵樹都放進 RSC payload |
 | `/about/` | Profile |
 | `/search/` | 搜尋頁，`?q=` 同步 |
 | `/feed.xml`、`/sitemap.xml`、`/latest-posts.json` | RSS 2.0 最新 20 篇、sitemap、404 頁用的清單 |

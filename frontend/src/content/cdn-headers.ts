@@ -41,7 +41,9 @@ export function withCspMeta(html: string): string {
 }
 
 export function cacheControl(path: string): string {
-  return path.startsWith("_next/static/") || /^(?:images|thumbs)\/[a-f0-9]{64}\.[a-z0-9]+$/.test(path)
+  return path.startsWith("_next/static/") ||
+    /^(?:images|thumbs)\/[a-f0-9]{64}\.[a-z0-9]+$/.test(path) ||
+    /^search-data\/\d{4}-[a-f0-9]{64}\/chunk\.json$/.test(path)
     ? IMMUTABLE_CACHE
     : MUTABLE_CACHE;
 }

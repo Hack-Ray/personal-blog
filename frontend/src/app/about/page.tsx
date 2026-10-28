@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { loadSiteContent } from "../../content/load.ts";
 import { renderMarkdown } from "../../content/markdown.ts";
+import { jsonLd, profilePage } from "../../content/structured-data.ts";
 import { absoluteUrl, BASE_PATH } from "../../site.ts";
 import { ArticleBody } from "../article-body.tsx";
 
@@ -16,6 +17,7 @@ export default function AboutPage() {
   const { name, headline, intro, links, experience, projects } = loadSiteContent().profile;
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(profilePage({ name, links })) }} />
       <h1>{name}</h1>
       {headline && <p className="meta">{headline}</p>}
       {intro && <ArticleBody html={renderMarkdown(intro, BASE_PATH)} />}

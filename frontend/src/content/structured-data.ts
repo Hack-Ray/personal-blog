@@ -1,14 +1,24 @@
-import { absoluteUrl } from "../site.ts";
+import { absoluteUrl, DEFAULT_OG_IMAGE } from "../site.ts";
 import { coverOf, excerptOf } from "./card.ts";
 import type { Profile, PublishedArticle } from "./model.ts";
 import { postPath } from "./queries.ts";
+
+/** schema.org Person for the site's author, described by the About page. */
+export function person(profile: Pick<Profile, "name" | "links">) {
+  // The profile's other accounts, so Google can tell this author from others with the same name.
+  const sameAs = profile.links.map((l) => l.url).filter((u) => u.startsWith("https://"));
+  return { "@type": "Person", name: profile.name, url: absoluteUrl("/about/"), ...(sameAs.length > 0 && { sameAs }) } as const;
+}
+
+/** schema.org ProfilePage for the About page. */
+export function profilePage(profile: Pick<Profile, "name" | "links">) {
+  return { "@context": "https://schema.org", "@type": "ProfilePage", url: absoluteUrl("/about/"), mainEntity: person(profile) };
+}
 
 /** schema.org BlogPosting; the fields agree with the article page's openGraph. */
 export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" | "links">) {
   const url = absoluteUrl(postPath(a));
   const cover = coverOf(a);
-  // The profile's other accounts, so Google can tell this author from others with the same name.
-  const sameAs = profile.links.map((l) => l.url).filter((u) => u.startsWith("https://"));
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -18,8 +28,9 @@ export function blogPosting(a: PublishedArticle, profile: Pick<Profile, "name" |
     dateModified: (a.updatedAt ?? a.publishedAt).toISOString(),
     url,
     mainEntityOfPage: url,
-    ...(cover && { image: absoluteUrl(`/${cover}`) }),
-    author: { "@type": "Person", name: profile.name, url: absoluteUrl("/about/"), ...(sameAs.length > 0 && { sameAs }) },
+    // The same image the page's og:image falls back to; Google asks Article results for one.
+    image: cover ? absoluteUrl(`/${cover}`) : DEFAULT_OG_IMAGE,
+    author: person(profile),
     ...(a.tags.length > 0 && { keywords: a.tags.map((t) => t.name) }),
     articleSection: a.topic.name,
     inLanguage: "zh-Hant",

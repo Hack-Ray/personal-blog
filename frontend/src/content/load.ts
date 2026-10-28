@@ -11,7 +11,11 @@ export const IMAGE_SIZES_FILE = resolve(".generated/image-sizes.json");
 
 function readJson(path: string): unknown {
   if (!existsSync(path)) throw new ContentError(`${path}: file not found`);
-  return JSON.parse(readFileSync(path, "utf8"));
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    throw new ContentError(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 let cached: SiteContent | undefined;

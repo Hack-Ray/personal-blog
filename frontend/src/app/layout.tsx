@@ -16,6 +16,8 @@ export function generateMetadata(): Metadata {
     description: description || undefined,
     openGraph: { ...siteOg(title), images: [DEFAULT_OG_IMAGE] },
     twitter: { card: "summary", images: [DEFAULT_OG_IMAGE] },
+    // Lets Google show large image previews, e.g. in Discover. Pages that set robots (noindex) replace this.
+    robots: { "max-image-preview": "large" },
     // Edit frontend/public/icon.svg and run `npm run icons` to change them and og-default.png.
     icons: {
       icon: [
@@ -39,6 +41,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="alternate" type="application/rss+xml" title={title} href={absoluteUrl("/feed.xml")} />
       </head>
       <body>
+        <a className="skip-link" href="#main">
+          跳到主要內容
+        </a>
         <header>
           <Link href="/" className="site-title">
             {title}
@@ -52,7 +57,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </nav>
         </header>
-        <main>{children}</main>
+        <main id="main">{children}</main>
         <footer>
           <p>
             <span>{site.footer || `© ${new Date().getFullYear()} ${name}`}</span>

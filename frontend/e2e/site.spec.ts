@@ -106,6 +106,16 @@ test("the archive switches between newest and oldest first", async ({ page }) =>
   await expect(first).toHaveText("沒有標籤的短文");
 });
 
+test("the first Tab reaches a skip link that jumps to the main content", async ({ page }) => {
+  await page.goto("");
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "跳到主要內容" });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeInViewport();
+  await skip.press("Enter");
+  await expect(page).toHaveURL(/#main$/);
+});
+
 test("the 404 page lists the latest posts", async ({ page }) => {
   await page.goto("404.html");
   await expect(page.getByRole("heading", { name: "最新文章" })).toBeVisible();

@@ -34,6 +34,7 @@ test("a page without the charset tag fails loudly", () => {
 test("only immutable asset paths receive a year-long cache lifetime", () => {
   assert.equal(cacheControl("_next/static/chunks/a.js"), IMMUTABLE_CACHE);
   assert.equal(cacheControl(`images/${"a".repeat(64)}.webp`), IMMUTABLE_CACHE);
+  assert.equal(cacheControl(`search-data/2026-${"a".repeat(64)}/chunk.json`), IMMUTABLE_CACHE);
   for (const file of ["index.html", "feed.xml", "sitemap.xml", "robots.txt", "search-index.json", "search-metadata.json", "search-data/2026/chunk.json", "images/cover.webp", "og-default.png"]) {
     assert.equal(cacheControl(file), MUTABLE_CACHE, file);
   }
