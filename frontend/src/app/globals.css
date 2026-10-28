@@ -421,23 +421,21 @@ main:has(> article) > .github-pinned {
 
 /* 720px article plus a 220px sidebar and 32px gap on each side's room. */
 @media (min-width: 1240px) {
-  main {
-    position: relative;
-  }
-
-  .github-pinned {
-    position: absolute;
-    top: 0;
-    right: 100%;
-    width: 220px;
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
-
+  .github-pinned,
   .toc {
     left: calc(50% - 344px - 32px - 220px);
     width: 220px;
+  }
+
+  .github-pinned {
+    position: fixed;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 
   .toc-close,
