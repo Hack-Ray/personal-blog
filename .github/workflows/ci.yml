@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   frontend:
-    # Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04).
+    # Pinned because Playwright 1.56 could not install Chromium on ubuntu-latest (26.04);
+    # recheck before moving to ubuntu-latest.
     runs-on: ubuntu-24.04
     defaults:
       run:

@@ -22,7 +22,7 @@ export interface PreparedSearchDoc {
   textKey: string;
 }
 
-export interface SearchHit {
+interface SearchHit {
   doc: SearchMetadata;
   score: number;
 }

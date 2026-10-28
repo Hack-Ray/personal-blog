@@ -1,7 +1,7 @@
 import type { SiteContent } from "./model.ts";
 import { page, postPath, published, tags, topics } from "./queries.ts";
 
-export interface SitemapEntry {
+interface SitemapEntry {
   path: string;
   lastModified?: Date;
 }
