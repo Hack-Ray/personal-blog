@@ -6,7 +6,7 @@
 
 A self-hosted blog: you write in a CMS that runs on your own computer, and the public site is a static site on GitHub Pages. A fork needs no code changes; [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) (in Traditional Chinese) walks from the fork to the first published article.
 
-範例 / Example: <https://hack-ray.github.io/personal-blog/>
+範例 / Example: <https://hackray.dev/>
 
 ---
 
@@ -46,10 +46,11 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 
 - **讀者端快又安全。** 公開網站是預先產生的 HTML，沒有伺服器與資料庫可以被攻擊，也不需要主機費用。每頁都帶 CSP，只執行網站自己的 script 與 giscus。
 - **CMS 只在你的電腦上。** 後端只綁定 `127.0.0.1`，以 scrypt 雜湊保存密碼，Session cookie 為 `HttpOnly`、`SameSite=Strict`，閒置 1 天或登入滿 3 天就要重新登入，也可以從介面登出所有裝置。同一個來源連續 5 次密碼錯誤後要等待，之後每錯一次等待時間加倍（最長 15 分鐘），其他來源不受影響。CMS 拒絕跨來源寫入與白名單以外的 Host，回應帶 CSP 等安全標頭。
-- **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。
-- **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。
+- **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。資料庫在 CMS 啟動時備份一次，開著的期間每 24 小時再備份一次；還原前會先備份目前的資料，還原後下一次「更新網站」會讓網站回到備份當時的內容。
+- **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。較舊的程式碼建置不會蓋掉較新的部署。
 - **網址穩定。** 文章網址預設是不會改變的 ULID（`/posts/<docId>/`），也可以在 CMS 設定英文 slug（`/posts/<slug>/`）。上線過的舊網址會留下轉址頁，giscus 留言一律綁 ULID，改標題或 slug 都不會讓連結或留言失效。
-- **讀者功能齊全。** 程式碼高亮（淺色與深色）、目錄、上一篇與下一篇、系列與相關文章、主題與標籤頁、歸檔、站內搜尋、RSS、深淺色切換、Open Graph 預覽圖、分享按鈕（Facebook、X、Threads、LINE，不載入任何平台的程式）與 giscus 留言。
+- **讀者功能齊全。** 程式碼高亮（淺色與深色）、目錄、上一篇與下一篇、系列與相關文章、主題與標籤頁、歸檔、站內搜尋（顯示內文片段並標出搜尋字詞）、RSS、深淺色切換、Open Graph 預覽圖（沒有封面的文章自動用標題產生）、分享按鈕（Facebook、X、Threads、LINE，不載入任何平台的程式）、GitHub 釘選專案與 giscus 留言。
+- **文章語法。** Markdown 之外支援註腳（`[^1]`）、提示區塊（`> [!NOTE]`）與 Mermaid 圖表。圖表在建置時轉成 SVG，讀者端不載入 Mermaid；CMS 預覽看得到同樣的結果。
 - **不追蹤讀者也看得到流量。** 公開網站沒有分析或追蹤程式。網站接上 Cloudflare 與 Google Search Console 後，CMS 的「流量數據」頁可以從它們的 API 讀取每日流量與搜尋字詞（選用，見 [`docs/analytics.md`](docs/analytics.md)）。
 - **圖片自動處理。** 上傳的圖片依內容判斷格式，縮到最寬 1440px 並轉成 WebP，同時移除 EXIF（例如照片的 GPS 位置）。沒被引用超過 7 天的圖片會自動清除。
 - **內容與程式分開。** 內容在獨立的 private repo，有完整的 git 歷史；程式碼可以公開，也可以換掉整個前端而不動內容。
@@ -64,6 +65,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 git clone https://github.com/<你的帳號>/personal-blog.git   # 你的 fork
 cd personal-blog/frontend
 npm ci
+npx playwright install chromium                     # 只需一次；建置時用它把 Mermaid 圖表轉成 SVG
 BASE_PATH= npm run build      # 用 sample-site-data/ 的範例內容建置到 out/，網址從根路徑開始
 python3 -m http.server --directory out 3000         # 打開 http://localhost:3000/
 ```
@@ -98,6 +100,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 | repo 的 Actions secret `CONTENT_REPO_TOKEN` | 可以讀取你的內容 repo 的 token |
 | repo 的 Actions variable `CONTENT_REPO`（選用） | 內容 repo 不叫 `<fork 名稱>-content` 時才需要 |
 | repo 的 Actions variables `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（選用） | 從 <https://giscus.app> 取得；沒設定就不顯示留言 |
+| repo 的 Actions variable `PINNED_GITHUB_USER`（選用） | 你的 GitHub 帳號名稱；文章頁以外的每一頁會顯示它的釘選專案 |
 | `backend/.env` 的 `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` |
 
 文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。CMS 的本機與雲端設定、API 發布及 GitHub App 認證見 [`docs/portable-cms.md`](docs/portable-cms.md)。
@@ -110,7 +113,7 @@ CI（`.github/workflows/ci.yml`）在每個 pull request 與每次 push 到 `mai
 
 ```sh
 # backend：需要 PostgreSQL 與 Node 22（契約測試會執行前端的 Snapshot parser）
-cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
+cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest -n auto
 
 # cms
 cd cms && npm ci && npm test && npm run build
@@ -118,6 +121,8 @@ cd cms && npm ci && npm test && npm run build
 # frontend：以 frontend/sample-site-data 的範例內容建置
 cd frontend && npm ci && npm test && npm run typecheck && npm run build
 ```
+
+frontend 建置後，CI 還會檢查連結、頁面大小、無障礙（axe）與瀏覽器測試；跟效能有關的變更另外跑 Lighthouse。門檻在 `frontend/quality-budget.json`，本機執行方式見 [`frontend/README.md`](frontend/README.md)。
 
 開發 CMS 介面時，可以在 `cms/` 執行 `npm run dev`，Vite 會把 `/api` 轉給 `127.0.0.1:8000` 的後端。
 
@@ -199,10 +204,11 @@ The backend and the frontend talk only through the Snapshot. `frontend/src/conte
 
 - **Fast and safe for readers.** The public site is prebuilt HTML. There is no server or database to attack and no hosting bill. Every page carries a CSP that runs only the site's own scripts and giscus.
 - **The CMS stays on your computer.** The backend binds only to `127.0.0.1` and stores the password as a scrypt hash. The session cookie is `HttpOnly` and `SameSite=Strict`; a session ends after a day idle or three days in total, and the CMS can sign out every device. After five wrong passwords, that client address must wait, and each further failure doubles the wait (up to 15 minutes) without locking out other addresses. Cross-origin writes and Host headers outside the allow list are refused, and responses carry a CSP and other security headers.
-- **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days.
-- **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it.
+- **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days. The database is backed up when the CMS starts and every 24 hours while it runs. A restore first backs up the current data, and the next "更新網站" (Update site) after it takes the site back to what it showed at backup time.
+- **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it. A build of older code never overwrites a newer deployment.
 - **Stable URLs.** Articles live at a fixed ULID (`/posts/<docId>/`) or at an English slug set in the CMS (`/posts/<slug>/`). Every URL that went live keeps a redirect page, and giscus comments stay keyed on the ULID, so changing a title or slug breaks neither links nor comments.
-- **Reader features.** Code highlighting in light and dark themes, a table of contents, previous and next links, series and related posts, topic and tag pages, an archive, site search, RSS, a theme toggle, Open Graph preview images, share buttons (Facebook, X, Threads, LINE, with no script from any of them) and giscus comments.
+- **Reader features.** Code highlighting in light and dark themes, a table of contents, previous and next links, series and related posts, topic and tag pages, an archive, site search (with body snippets that highlight the matched terms), RSS, a theme toggle, Open Graph preview images (drawn from the title for articles without a cover), share buttons (Facebook, X, Threads, LINE, with no script from any of them), GitHub pinned repositories and giscus comments.
+- **Article syntax.** Beyond Markdown, articles support footnotes (`[^1]`), callouts (`> [!NOTE]`) and Mermaid diagrams. Diagrams become SVG at build time, so readers never load Mermaid, and the CMS preview shows the same result.
 - **Traffic data without tracking readers.** The public site has no analytics or tracking script. Once the site sits behind Cloudflare and Google Search Console, the CMS's "流量數據" (Traffic) page reads daily traffic and search queries from their APIs (optional, see [`docs/analytics.md`](docs/analytics.md)).
 - **Images handled for you.** Uploads are identified by their bytes, scaled to at most 1440px wide and re-encoded as WebP, which also strips EXIF data such as a photo's GPS location. Images nothing has referenced for 7 days are removed.
 - **Content separate from code.** Content sits in its own private repo with full git history. The code can be public, and the whole frontend could be replaced without touching the content.
@@ -217,6 +223,7 @@ You need Docker, [uv](https://docs.astral.sh/uv/), Node.js 22 and Git. The full 
 git clone https://github.com/<you>/personal-blog.git   # your fork
 cd personal-blog/frontend
 npm ci
+npx playwright install chromium                     # once; the build renders Mermaid diagrams to SVG with it
 BASE_PATH= npm run build      # builds out/ from the sample content in sample-site-data/, at the root path
 python3 -m http.server --directory out 3000         # open http://localhost:3000/
 ```
@@ -251,6 +258,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 | Actions secret `CONTENT_REPO_TOKEN` | A token that can read your content repo |
 | Actions variable `CONTENT_REPO` (optional) | Only when the content repo is not named `<fork name>-content` |
 | Actions variables `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` (optional) | From <https://giscus.app>; without them the site has no comments |
+| Actions variable `PINNED_GITHUB_USER` (optional) | Your GitHub login; every page except articles lists its pinned repositories |
 | `DEPLOY_REPO` in `backend/.env` | Your fork, e.g. `you/personal-blog` |
 
 The default setup runs the CMS locally and deploys the public site to GitHub Pages. The same CMS can run in the cloud with environment settings. See [`docs/portable-cms.md`](docs/portable-cms.md) for API publishing and GitHub App authentication.
@@ -263,7 +271,7 @@ CI (`.github/workflows/ci.yml`) runs these three suites on every pull request an
 
 ```sh
 # backend: needs PostgreSQL and Node 22 (a contract test runs the frontend's Snapshot parser)
-cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest
+cd backend && uv run ruff check && uv run ruff format --check && TEST_DATABASE_URL=postgresql+psycopg://blog:blog@127.0.0.1:5432/blog_test uv run pytest -n auto
 
 # cms
 cd cms && npm ci && npm test && npm run build
@@ -271,6 +279,8 @@ cd cms && npm ci && npm test && npm run build
 # frontend: builds from the sample content in frontend/sample-site-data
 cd frontend && npm ci && npm test && npm run typecheck && npm run build
 ```
+
+After the frontend build, CI also checks links, page weight, accessibility (axe) and browser tests, and runs Lighthouse for performance-related changes. The thresholds are in `frontend/quality-budget.json`; [`frontend/README.md`](frontend/README.md) shows how to run them locally.
 
 While working on the CMS UI, run `npm run dev` in `cms/`. Vite forwards `/api` to the backend on `127.0.0.1:8000`.
 

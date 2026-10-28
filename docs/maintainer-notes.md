@@ -6,8 +6,8 @@
 
 - 程式 repo：`Hack-Ray/personal-blog`（公開）。網站使用自訂網域，網域設定在 repo 的 Settings → Pages，DNS 與 CDN 在 Cloudflare（步驟見 [`site-domain.md`](./site-domain.md)）。
 - 內容 repo：`Hack-Ray/personal-blog-content`（private）。名稱符合預設的 `<repo>-content`，所以不需要設定 `CONTENT_REPO`。
-- repo variables：`GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（Announcements 分類）。
-- 本機 `backend/.env`：`CONTENT_REPO_DIR`、`DEPLOY_REPO=Hack-Ray/personal-blog`、`CMS_GITHUB_TOKEN`（舊名 `GITHUB_TOKEN` 仍可用）。
+- repo variables：`GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID`（Announcements 分類）、`PINNED_GITHUB_USER=Hack-Ray`。沒有設 `GOOGLE_SITE_VERIFICATION`，因為 Search Console 用的是 DNS 驗證的網域資源。
+- 本機 `backend/.env`：`CONTENT_REPO_DIR`、`DEPLOY_REPO=Hack-Ray/personal-blog`、`CMS_GITHUB_TOKEN`（舊名 `GITHUB_TOKEN` 仍可用）、`BACKUP_KEEP=30`，以及「流量數據」用的 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ZONE_ID`、`GSC_SITE_URL`、`GSC_CREDENTIALS_FILE`（見下方）。
 
 ## 2026-10-20：第一次端到端部署
 
@@ -28,6 +28,14 @@
 ## 備份
 
 `backend/backups` 是指向 Google Drive「我的雲端硬碟/personal-blog-backups」的 symlink，備份寫入即自動同步。`.gitignore` 的 `backend/backups/` 不會匹配 symlink，所以另在本機 `.git/info/exclude` 加上 `/backend/backups`。
+
+## 2026-10-28：流量數據
+
+照 [`analytics.md`](./analytics.md) 設定，CMS 的「流量數據」頁兩個來源都已接上。
+
+- Cloudflare：token 只有 `hackray.dev` 這個 zone 的 Zone → Analytics → Read。
+- Google Search Console：網域資源 `sc-domain:hackray.dev`，以 Cloudflare 上的 DNS TXT 記錄驗證，並提交了 `sitemap.xml`。Google Cloud 專案 `blog-analytics-513013` 啟用 Search Console API；服務帳戶 `blog-cms@blog-analytics-513013.iam.gserviceaccount.com` 在 Search Console 有「受限」權限，沒有任何 IAM 角色。
+- 服務帳戶的 JSON 金鑰在 `backend/secrets/search-console.json`（git 忽略，權限 600）。CMS 的備份不包含它；換電腦時另外帶過去，或在 Google Cloud 建一把新的金鑰並刪掉舊的。
 
 ## 雲端 Claude session 與內容 repo
 
