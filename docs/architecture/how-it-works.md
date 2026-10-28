@@ -499,3 +499,5 @@ Dockerfile          CMS image（尚不能「更新網站」）
 - 後端 `articles.publish` 檢查標題、Markdown、cover、圖片存在與網址政策。
 - `GET /api/articles` 不帶 `state` 回傳所有狀態。
 - `retention` 的受保護集合不含 push_failed、dispatch_failed、failed。這是安全的：重試這些狀態時推送或 dispatch 的是已經存在的 commit，不會從資料庫重新匯出，刪掉資料庫裡的舊版本不影響它們。
+
+部署前除內容 HEAD 外，也比較 main 的 `frontend/`、`.nvmrc` 與 `deploy.yml` 物件 SHA。程式較舊的建置會略過部署，避免較慢的舊 CI 在新版上線後覆蓋網站；只有文件、後端或 CMS 改動時不阻擋相同網站程式部署。API 失敗、tree 不完整或被截斷時部署失敗。

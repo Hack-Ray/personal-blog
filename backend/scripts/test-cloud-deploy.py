@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -196,6 +197,58 @@ class SsmEnvironmentTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.env_file.read_text(), "CMS_ENV=cloud\nOLD=1\n")
         self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".cms.env")], [])
+
+
+class PagesCodeHeadTest(unittest.TestCase):
+    """Execute the workflow's code check against controlled GitHub tree responses."""
+
+    def test_site_changes_block_older_builds_but_other_changes_do_not(self):
+        import contextlib
+        import io
+        from unittest.mock import patch
+
+        source = (SCRIPT.parents[2] / ".github/workflows/deploy.yml").read_text()
+        block = source.split("      - id: latest-code\n", 1)[1].split("      - id: deployment\n", 1)[0]
+        shell = textwrap.dedent(block.split("        run: |\n", 1)[1])
+        script = shell.split("python3 - <<'PYCODE'\n", 1)[1].rsplit("PYCODE", 1)[0]
+        self.assertIn("steps.latest.outputs.current == 'true' && steps.latest-code.outputs.current == 'true'", source)
+        original = {"frontend": "front-v1", ".nvmrc": "node-v1", ".github/workflows/deploy.yml": "workflow-v1", "backend": "back-v1", "docs": "docs-v1"}
+        cases = [("same", {}, "true"), ("non-site", {"backend": "back-v2", "docs": "docs-v2"}, "true")]
+        cases += [(path, {path: "new"}, "false") for path in ("frontend", ".nvmrc", ".github/workflows/deploy.yml")]
+        cases += [("truncated", {}, None), ("missing", {}, None), ("lookup-error", {}, None)]
+        for name, changes, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                output = Path(temp) / "output"
+                latest = {**original, **changes}
+
+                def response(tree, **extra):
+                    return {"tree": [{"path": p, "sha": sha} for p, sha in tree.items()], **extra}
+
+                data = response(latest)
+                if name == "truncated":
+                    data["truncated"] = True
+                if name == "missing":
+                    data = response({"frontend": "front-v1"})
+                replies = [contextlib.closing(io.StringIO(json.dumps(response(original)))), contextlib.closing(io.StringIO(json.dumps(data)))]
+                if name == "lookup-error":
+                    replies = [OSError("lookup failed")]
+                env = {
+                    "CODE_TOKEN": "never-print-this",
+                    "GITHUB_API_URL": "https://api.github.com",
+                    "GITHUB_REPOSITORY": "example/blog",
+                    "GITHUB_SHA": "built",
+                    "GITHUB_OUTPUT": str(output),
+                }
+                log = io.StringIO()
+                with patch.dict(os.environ, env), patch("urllib.request.urlopen", side_effect=replies), contextlib.redirect_stdout(log):
+                    if expected is None:
+                        with self.assertRaises((RuntimeError, OSError)):
+                            exec(compile(script, "latest-code", "exec"), {})
+                        self.assertFalse(output.exists())
+                    else:
+                        exec(compile(script, "latest-code", "exec"), {})
+                        self.assertEqual(output.read_text(), f"current={expected}\n")
+                self.assertNotIn("never-print-this", log.getvalue())
 
 
 if __name__ == "__main__":
