@@ -514,7 +514,7 @@ main:has(> article) > .github-pinned {
 }
 
 mark {
-  color: inherit;
+  color: var(--fg);
   background: var(--mark);
   border-radius: 2px;
 }
