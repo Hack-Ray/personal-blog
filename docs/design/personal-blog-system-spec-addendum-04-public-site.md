@@ -217,7 +217,7 @@
   - 沒有封面也沒有上傳圖片的文章，以及首頁、列表等非文章頁，`og:image` 都是 `og-default.png`。有圖片的文章仍用 FE-008 與 FE-011 的規則。`twitter:card` 只有文章自己有圖時是 `summary_large_image`，其餘為 `summary`。
 - **Consequences**：fork 的人換掉 `icon.svg` 並執行 `npm run icons`，就能換成自己的圖示與預設分享圖。
 - **Supersedes**：FE-008 中「沒圖時不輸出 `og:image`」。
-- **Amended by**：FE-021（沒有封面也沒有上傳圖片的文章改用依標題畫的分享圖，`twitter:card` 一律 `summary_large_image`；非文章頁仍是 `og-default.png`）。
+- **Amended by**：FE-022（沒有封面也沒有上傳圖片的文章改用依標題畫的分享圖，`twitter:card` 一律 `summary_large_image`；非文章頁仍是 `og-default.png`）。
 
 ### FE-018：CSP 寫在每個 HTML 的 meta，CDN 只加固定標頭
 

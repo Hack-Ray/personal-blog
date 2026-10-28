@@ -322,7 +322,7 @@ def _outcome(run: Run, deployer: Deployer) -> dict:
     if run.conclusion != "success":
         return values | {"status": R.FAILED, "detail": f"workflow run {run.conclusion}"}
     if deployer.deploy_step_conclusion(run.id) == "skipped":
-        return values | {"status": R.SUPERSEDED, "detail": "a newer content commit was pushed before this build finished"}
+        return values | {"status": R.SUPERSEDED, "detail": "newer content or site code reached the repository before this build finished"}
     return values | {"status": R.DEPLOYED}
 
 
