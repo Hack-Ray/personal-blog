@@ -43,6 +43,7 @@ def test_cloud_refuses_to_start_without_its_required_settings(missing):
         ({"CMS_ORIGIN": "https://user@cms.example.ts.net"}, "CMS_ORIGIN must be a scheme and host"),
         ({"CMS_ORIGIN": "https://cms.example.ts.net:99999"}, "CMS_ORIGIN must be a scheme and host"),
         ({"CMS_ORIGIN": "https://"}, "CMS_ORIGIN must be a scheme and host"),
+        ({"BACKUP_EVERY_HOURS": "1.5"}, "BACKUP_EVERY_HOURS must be a whole number"),
     ],
 )
 def test_malformed_settings_stop_the_start(env, message):
@@ -51,8 +52,14 @@ def test_malformed_settings_stop_the_start(env, message):
 
 
 def test_each_setting_overrides_the_environment_default():
-    s = config.load({**CLOUD, "COOKIE_SECURE": "0", "ENABLE_DOCS": "1"})
-    assert (s.cookie_secure, s.enable_docs) == (False, True)
+    s = config.load({**CLOUD, "COOKIE_SECURE": "0", "ENABLE_DOCS": "1", "BACKUP_EVERY_HOURS": "12"})
+    assert (s.cookie_secure, s.enable_docs, s.backup_every_hours) == (False, True, 12)
+
+
+def test_a_local_cms_backs_up_daily_and_a_cloud_one_leaves_it_to_the_host():
+    assert config.load({}).backup_every_hours == 24
+    assert config.load({"BACKUP_EVERY_HOURS": "0"}).backup_every_hours == 0
+    assert config.load(CLOUD).backup_every_hours == 0
 
 
 def test_the_old_github_token_name_still_works(caplog):

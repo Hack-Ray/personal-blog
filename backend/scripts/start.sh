@@ -8,8 +8,9 @@
 # scripts/stop.sh stops a server running in the background.
 #
 # The backup runs before migrations, so a migration problem can be undone
-# with scripts/restore.sh. backups/ is git-ignored; copy it to cloud storage,
-# or set BACKUP_TARGET in .env.
+# with scripts/restore.sh. The CMS then backs up again every
+# BACKUP_EVERY_HOURS (default 24) while it runs. backups/ is git-ignored;
+# copy it to cloud storage, or set BACKUP_TARGET in .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
