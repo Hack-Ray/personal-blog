@@ -45,6 +45,8 @@ jobs:
           sh scripts/verify-site.sh http://127.0.0.1:8123/personal-blog
       - name: Check links in the built site
         run: node scripts/check-links.ts
+      - name: Check page weight against quality-budget.json
+        run: npm run check-budget
       # The browser download is cached; the system packages it needs are not.
       - id: playwright-cache
         uses: actions/cache@v6
@@ -57,6 +59,14 @@ jobs:
         run: npx playwright install-deps chromium
       - name: Browser tests
         run: npx playwright test
+      - name: Lighthouse scores against quality-budget.json
+        run: npm run lighthouse
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          if-no-files-found: ignore
       - name: Build a site with nothing published yet
         run: npm run build
         env:
