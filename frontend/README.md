@@ -19,7 +19,7 @@ SITE_DATA_DIR=/path/to/personal-blog-content npm run build
 
 ## Quality gate
 
-`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-019 has the reasoning.
+`quality-budget.json` lists the pages to check and the thresholds: byte budgets per page (HTML plus the JS and CSS it loads, raw and gzip), and Lighthouse's minimum score per category (a page can override them with `minScores`). The axe spec in `e2e/a11y.spec.ts`, `scripts/check-budget.ts` and `scripts/lighthouse.ts` all read it. Run `npm run build` first; the Lighthouse script uses Playwright's Chromium. When a page legitimately grows, raise its budget in the same PR and say why. Addendum 04 FE-020 has the reasoning.
 
 ## Snapshot format (schema_version 1, draft)
 
@@ -63,6 +63,8 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 | `GISCUS_REPO`, `GISCUS_CATEGORY` | `""`, `Announcements` | repository variables, defaulting to this repo and `Announcements` |
 | `GISCUS_REPO_ID`, `GISCUS_CATEGORY_ID` | `""` (no comments) | repository variables, from <https://giscus.app> |
 | `GOOGLE_SITE_VERIFICATION` | `""` (no tag) | repository variable; the `content` of Search Console's `google-site-verification` meta tag |
+| `PINNED_GITHUB_USER` | `""` (no section) | repository variable; a GitHub login whose pinned repositories the home page lists, fetched at build time |
+| `GITHUB_TOKEN` | unset | only read when `PINNED_GITHUB_USER` is set (GitHub's GraphQL API requires a token); `deploy.yml` passes `github.token`. Without it the section is omitted with a warning |
 | `LEGACY_SITE_URLS` | `""` | repository variable; comma-separated roots of earlier sites, whose links in Markdown become relative links to this site (`docs/site-domain.md`) |
 
 ## Icons
