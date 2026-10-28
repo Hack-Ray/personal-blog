@@ -228,6 +228,24 @@
 - **Consequences**：CSP 在沒有 CDN 的 fork 上也生效，部署不需要同步 CDN 設定。meta 版 CSP 沒有 Report-Only 模式，政策錯誤會在部署後直接擋住功能，所以靠 e2e 在合併前發現。CDN 若往 HTML 插入其他網域的 script（例如 Cloudflare Web Analytics 的自動注入）會被擋下，Rocket Loader 必須關閉。
 - **Supersedes**：`cdn-headers.json` 原本帶逐頁 CSP 標頭、由 CDN 逐頁套用的做法；檔案只保留快取標頭與上述固定標頭。
 
+### FE-019：CI 的無障礙與效能門檻
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：無障礙與效能退步只有人工看才會發現。
+- **Decision**：
+  - `frontend/quality-budget.json` 是唯一來源：要檢查的頁面（首頁、文章、文章列表、搜尋、關於、標籤）、每頁的 HTML＋JS＋CSS 位元組預算（原始與 gzip），以及 Lighthouse 的次數與各類別最低分。頁面可用 `minScores` 覆寫最低分。
+  - `e2e/a11y.spec.ts` 用 `@axe-core/playwright`（固定版本）對每頁以 WCAG 2 A/AA 規則檢查，淺色與深色主題各跑手機（390px）與電腦（1280px）寬度，違規數必須為 0，沒有停用任何規則。主題以 localStorage 的 `theme` 設定。
+  - `scripts/check-budget.ts` 讀 `out/`，加總每頁 HTML 與它引用的 JS、CSS 的位元組，超過預算就失敗並印出表格。預算是 2026-10-28 實測值加約 15%（進位到 KB）。
+  - `scripts/lighthouse.ts` 啟動 `serve-out.sh`，用 Playwright 的 Chromium 對每頁以 Lighthouse 預設的手機設定跑 3 次，取各類別中位數，低於最低分就失敗；中位數那次的 HTML／JSON 報告寫到 `frontend/lighthouse-reports/`，CI 以 artifact 上傳。accessibility、best-practices、seo 要求 100，performance 要求 85。
+  - 兩者在 `ci.yml` 中接在第一次 build（範例資料）之後，空 Snapshot 重建之前。
+  - 為了通過 axe，程式碼高亮改用 `github-light-high-contrast`／`github-dark-default`：原本的 `github-light` 關鍵字、字串、參數顏色與 `github-dark` 的註解顏色在 `--code-bg` 上低於 4.5:1。`src/content/code-contrast.test.ts` 檢查各語言範例的所有 token 顏色。
+- **Consequences**：
+  - 搜尋頁刻意 `noindex`，Lighthouse 的 `is-crawlable` 必然失敗，所以該頁 seo 最低分是 60。
+  - 文章頁的 LCP 是內文圖片，performance 較低（本機 80 至 85），最低分 70。
+  - Lighthouse 執行時封鎖 `giscus.app`：它是第三方、需要網路，結果不屬於本站，且在沙箱中會造成 console 錯誤。
+  - 分數在 GitHub runner 上會有雜訊，所以 performance 的門檻低於本機量測值約 10 到 15 分。
+- **Supersedes**：Addendum 04 中程式碼高亮的雙主題 `github-light`／`github-dark`。
+
 ## Open Questions
 
 - ~~流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。~~ 公開網站不放任何分析或追蹤程式。流量改在 CMS 從 Cloudflare 與 Search Console 的 API 讀取，見 Addendum 03 BE-024。
