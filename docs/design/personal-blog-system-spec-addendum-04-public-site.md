@@ -240,6 +240,20 @@
   - 文章頁不顯示，因為左側空白處是目錄；用 CSS `main:has(> article)` 隱藏，不用 JS。其他頁面在寬螢幕（至少 1240px）時放在主內容左側的空白處，與文章頁的目錄同一個位置；較窄時接在頁面內容下方、頁尾之上。
 - **Consequences**：釘選專案只在部署時更新。在 GitHub 上改釘選後要等下一次部署才會反映。
 
+### FE-022：文章的註腳、提示框與 Mermaid 圖表
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：文章需要註腳、提示框與流程圖。FE-013 不允許原始 HTML，所以照它的做法為每一種需求加專用語法，由 renderer 產生固定的 HTML。
+- **Decision**：
+  - 語法與 GitHub 相同：註腳 `文字[^1]` 與 `[^1]: 內容`，提示框是第一行為 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]` 的引言，圖表是語言為 `mermaid` 的程式碼區塊。實作在 `frontend/src/content/article-syntax.ts`，CMS 用逐字複本 `cms/src/article-syntax.ts`，由測試確認兩者相同。
+  - 註腳是自己寫的 marked extension，不用 `marked-footnote`：它把註腳標籤原樣寫進 `aria-label`，標籤含 `"` 時會插入屬性。註腳依第一次引用的順序編號，放在文末的「註腳」區塊，有回到內文的連結；沒有被引用的註腳不顯示，沒有對應註腳的 `[^x]` 保持原文。id 是 `fn_1`、`fnref_1`，`headings.ts` 的 slug 不會產生 `_`，所以不會與標題衝突。註腳內容與內文走同一套網址與跳脫規則。
+  - 提示框的種類、中文標題（注意、提示、重要、警告、小心）與 Octicons 圖示集中在一張表；顏色是 `globals.css` 的 `--callout-*`，兩種主題都至少 4.5:1。不認得的 `[!FOO]` 維持一般引言。
+  - Mermaid 在 build 時算繪。`scripts/render-diagrams.ts` 在 `next build` 之前找出 Snapshot 中所有圖表，用 Playwright 的 headless Chromium 載入 Mermaid（`securityLevel: 'strict'`、`htmlLabels: false`），每張圖產生淺色與深色兩份 SVG，以原始碼雜湊為鍵寫入 `.generated/diagrams.json`。SVG 含 script、事件屬性、`foreignObject` 或外部連結時建置失敗。頁面同時輸出兩份 SVG，CSS 依主題顯示一份，切換方式與 Shiki 相同。圖表的無障礙名稱是 `%% title:` 那一行，沒有時是「圖表」。
+  - 語法錯誤讓建置失敗，訊息有文章檔名、標題與 Mermaid 的錯誤。圖表沒有算繪結果時（沒有先執行這個 script）也失敗，不會改成顯示程式碼。
+  - CMS 在本機執行，預覽在草稿含圖表時才動態載入 Mermaid，停止輸入 0.4 秒後在瀏覽器算繪；語法錯誤顯示在預覽中。
+  - `ci.yml` 在第一次 build 前安裝 Chromium。`deploy.yml` 先用同一個 parser 檢查內容有沒有圖表，有才安裝，沒有圖表的內容發布不多花時間。
+- **Consequences**：公開網站不載入任何 Mermaid 程式，CSP 不變。有圖表的 build 多約 4 秒（啟動 Chromium 與載入 Mermaid），之後每張圖約 0.2 秒；沒有圖表時約 0.2 秒。SVG 文字寬度是 build 機器的字型量出來的，讀者的字型較寬時文字可能略超出方框。網址檢查（`url-policy.ts` 與後端的複本）不認得註腳，`[^1]: see:this` 這種整段像網址的註腳會被當成連結定義擋下。
+
 ## Open Questions
 
 - ~~流量分析服務的選型（Baseline 3.3，Cloudflare Web Analytics 為候選）。~~ 公開網站不放任何分析或追蹤程式。流量改在 CMS 從 Cloudflare 與 Search Console 的 API 讀取，見 Addendum 03 BE-024。

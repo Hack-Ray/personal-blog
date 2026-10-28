@@ -252,7 +252,7 @@ stateDiagram-v2
 
 **建置流程**：
 
-1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。
+1. `scripts/copy-snapshot-images.ts`（`npm run build`／`dev` 之前）：刪除並重建 `public/images`、`public/thumbs`，用 sharp 產生 320 px 寬的 WebP 縮圖。接著 `scripts/render-diagrams.ts` 用 headless Chromium 把 Mermaid 區塊算繪成淺色與深色 SVG，寫入 `.generated/diagrams.json`；沒有圖表時不啟動瀏覽器（FE-022）。
 2. `content/load.ts` 的 `loadSiteContent()` 讀檔並快取，交給 `content/parse.ts` 的 `parseSnapshot()`。
 3. `parseSnapshot` 是 Snapshot 格式的權威與驗證器：`schema_version` 必須是 1；`doc_id` 必須是大寫 ULID；每篇的 `doc_id`／`version` 必須與 manifest 一致；引用的圖必須存在；`blockedUrls` 必須為空；cover 必須在自己的引用中；`doc_id` 不能重複；`slug`／`redirect_from` 格式正確，且任一個 `/posts/<片段>/` 只屬於一篇文章；沒有 `profile.json` 時用 `DEFAULT_PROFILE`。任何錯誤丟 `ContentError`，建置失敗，什麼都不會部署。
 4. 產生 static params，server render 每一頁。
@@ -277,7 +277,7 @@ stateDiagram-v2
 
 文章頁包含 metadata（canonical、OG、Twitter）、閱讀進度、系列導覽、目錄、內文、相關文章（同 Topic 權重 2，每個共同 Tag +1，取 3 篇）、上一篇／下一篇、分享按鈕、giscus 留言。封存文章不出現在列表、sitemap、feed 與搜尋中；轉址頁也不進 sitemap。沒有任何文章時，`static-params.ts` 回傳 `"_"` 佔位，CI 也會用 `test-fixtures/empty-site-data` 建置一次確認空站可以建。
 
-**Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。
+**Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。註腳、提示框與 `mermaid` 區塊來自 `content/article-syntax.ts`（CMS 有逐字複本）；圖表從 `diagrams.json` 取 SVG，找不到就丟錯。
 
 **搜尋**：`content/search.ts` 的 `buildIndex` 由 server 與瀏覽器共用。內文取摘要加純文字最多 5000 個 UTF-16 單位，切詞後去重，所以沒有詞頻排序。權重：標題 10、Topic／Tag 5、內文 1，同分較新的優先。`search-assets.ts` 把它拆成 `search-metadata.json`（`version: 1`，每篇 metadata 與內文前 160 字）與依台北年份切的內文 chunk（檔名含內容雜湊，可長期快取）。
 
@@ -324,7 +324,7 @@ stateDiagram-v2
 
 **發布按鈕**：`publish-checks.ts` 的警告（沒有 tag、圖片缺 alt、標題超過 60 字、`http://` 連結、原始 HTML、TODO、cover 不在文中）只要求確認，不擋發布。`urlProblems` 有問題時停用按鈕。發布走同一個 DraftSync 佇列，成功顯示「已發布第 N 版」並提醒到「網站發布」頁更新網站。
 
-**預覽**（`preview.ts`）是 `frontend/src/content/markdown.ts` 的手寫鏡像：同樣 21 種語言（Shiki 依語言延遲載入）、figure、外部連結標記、跳脫原始 HTML。`images/<id>` 只在輸出的 HTML 中改寫成 `/api/images/<id>`。
+**預覽**（`preview.ts`）是 `frontend/src/content/markdown.ts` 的手寫鏡像：同樣 21 種語言（Shiki 依語言延遲載入）、figure、外部連結標記、跳脫原始 HTML，註腳與提示框用 `article-syntax.ts` 的複本。草稿有 `mermaid` 區塊時才動態載入 Mermaid，在瀏覽器算繪。`images/<id>` 只在輸出的 HTML 中改寫成 `/api/images/<id>`。
 
 **離開保護**（`leave-guard.ts`）：`beforeunload` 加上 router 自己的 `confirm()`（hash 變更不觸發 `beforeunload`，取消時以 `history.replaceState` 還原）。
 
@@ -414,7 +414,7 @@ frontend/
                     url-policy.ts、headings.ts、search.ts、search-assets.ts、feed.ts、sitemap.ts、
                     cdn-headers.ts（CSP 與快取標頭）
   src/app/          路由與 client component
-  scripts/          copy-snapshot-images.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
+  scripts/          copy-snapshot-images.ts、render-diagrams.ts、create-cdn-config.ts、check-snapshot.ts、check-links.ts、verify-site.sh
   sample-site-data/ 本機與 CI 用的範例 Snapshot（3 篇已發布、1 篇封存、2 張圖）
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright
@@ -437,7 +437,7 @@ Dockerfile          CMS image（尚不能「更新網站」）
 
 **新增 Profile 欄位**：`backend/blog/profile.py` 的 `ProfileContent`、`frontend/src/content/parse.ts` 的 `parseProfile` 與 `DEFAULT_PROFILE`（兩邊的預設值互為鏡像）、`cms/src/profile-form.ts` 與 `profile-page.tsx`。
 
-**改 Markdown 渲染或網址政策**：同時改 `frontend/src/content/markdown.ts` 與 `cms/src/preview.ts`；網址政策改 `frontend/src/content/url-policy.ts` 後複製到 `cms/src/url-policy.ts` 與 `backend/blog/url_policy.py`，並更新 `frontend/test-fixtures/url-policy.json`。圖片引用規則改了要同步 `backend/blog/images.py` 的 `refs`、`frontend/src/content/parse.ts` 的 `imagePaths`、`cms/src/cover.ts`，共用 fixture 是 `frontend/test-fixtures/image-refs.json`。
+**改 Markdown 渲染或網址政策**：同時改 `frontend/src/content/markdown.ts` 與 `cms/src/preview.ts`；註腳、提示框與圖表改 `frontend/src/content/article-syntax.ts` 後複製到 `cms/src/article-syntax.ts`；網址政策改 `frontend/src/content/url-policy.ts` 後複製到 `cms/src/url-policy.ts` 與 `backend/blog/url_policy.py`，並更新 `frontend/test-fixtures/url-policy.json`。圖片引用規則改了要同步 `backend/blog/images.py` 的 `refs`、`frontend/src/content/parse.ts` 的 `imagePaths`、`cms/src/cover.ts`，共用 fixture 是 `frontend/test-fixtures/image-refs.json`。
 
 **新的後台操作**：領域邏輯放在對應的 `backend/blog/<module>.py`，用 `_locked` 與 `ALLOWED_FROM` 表達狀態規則；例外在 `api.py` 對應成 HTTP；路由不需要另外處理驗證。CMS 端在 `api.ts` 加方法，畫面放在對應的 `*-page.tsx`。
 
