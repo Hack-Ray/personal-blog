@@ -50,7 +50,7 @@ test("the searchable budget counts UTF-16 units before lowercase expansion", () 
   assert.equal(prepareIndex(expanded)[0].textKey.length, 10000);
 });
 
-test("assets use ordered Taipei years, stable hashes and prefixes of already normalized bounded text", () => {
+test("assets use ordered Taipei years, stable hashes and metadata text that prefixes the chunk text", () => {
   const fixture = content(
     article("old", 2024, { markdown: "body" }),
     article("sigma", 2026, { markdown: "x".repeat(158) + "ΟΣΑ" }),
@@ -61,15 +61,16 @@ test("assets use ordered Taipei years, stable hashes and prefixes of already nor
   const metadata = JSON.parse(assets.metadataJson);
   assert.deepEqual(metadata.years.map((y: { year: number }) => y.year), [2026, 2024]);
   assert.ok(JSON.parse(assets.chunks.get(metadata.years[0].asset)!).docs.some((d: { docId: string }) => d.docId === "taipei"));
-  assert.equal(metadata.docs[0].textKey, "x".repeat(158) + "οσ");
-  assert.notEqual(metadata.docs[0].textKey, ("x".repeat(158) + "ΟΣ").toLowerCase());
+  assert.equal(metadata.version, 2);
+  assert.equal(metadata.docs[0].text, "x".repeat(158) + "ΟΣ");
   for (const [asset, json] of assets.chunks) {
     const chunk = JSON.parse(json);
+    assert.equal(chunk.version, 2);
     assert.equal(asset, `${chunk.year}-${createHash("sha256").update(json).digest("hex")}`);
     for (const doc of chunk.docs) {
-      const prefix = metadata.docs.find((d: { docId: string }) => d.docId === doc.docId).textKey;
-      assert.equal(prefix, doc.textKey.slice(0, 160));
-      assert.ok(doc.textKey.startsWith(prefix));
+      const prefix = metadata.docs.find((d: { docId: string }) => d.docId === doc.docId).text;
+      assert.equal(prefix, doc.text.slice(0, 160));
+      assert.ok(doc.text.startsWith(prefix));
     }
   }
 });
@@ -86,9 +87,19 @@ test("empty content exports no advertised placeholder or body asset", () => {
   assert.equal(assets.chunks.size, 0);
 });
 
-test("the body keeps each phrase once and still matches within each phrase", () => {
-  const [doc] = buildIndex(content(article("repeat", 2026, { markdown: "樂觀鎖處理併發。樂觀鎖處理併發，next.js 部署。\n\n樂觀鎖處理併發" })));
-  assert.equal(doc.text, "樂觀鎖處理併發 next.js 部署");
-  for (const query of ["處理併發", "next.js", "部署", "樂觀鎖 部署"]) assert.equal(search(prepareIndex([doc]), query).length, 1, query);
+test("the body keeps each phrase once with its original case and punctuation, and still matches", () => {
+  const [doc] = buildIndex(content(article("repeat", 2026, { markdown: "樂觀鎖處理併發。樂觀鎖處理併發，Next.js 部署。\n\n樂觀鎖處理併發" })));
+  assert.equal(doc.text, "樂觀鎖處理併發。Next.js 部署。");
+  for (const query of ["處理併發", "next.js", "部署", "樂觀鎖 部署", "併發。next.js"]) assert.equal(search(prepareIndex([doc]), query).length, 1, query);
   assert.deepEqual(search(prepareIndex([doc]), "併發，next"), []);
+});
+
+test("whitespace runs in the body collapse to one space and a leading separator is dropped", () => {
+  const [doc] = buildIndex(content(article("space", 2026, { excerpt: "", markdown: "First line\n\n  second   line, First line" })));
+  assert.equal(doc.text, "First line second line,");
+});
+
+test("the metadata prefix never ends in half a surrogate pair", () => {
+  const metadata = JSON.parse(buildSearchAssets(content(article("emoji", 2026, { markdown: "x".repeat(159) + "😀 tail" }))).metadataJson);
+  assert.equal(metadata.docs[0].text, "x".repeat(159));
 });

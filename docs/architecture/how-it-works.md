@@ -279,7 +279,9 @@ stateDiagram-v2
 
 **Markdown 渲染**（`content/markdown.ts` 的 `renderMarkdown`）：Marked 加 Shiki（21 種語言，雙主題，模組頂層 await）。原始 HTML 一律跳脫；不允許的連結變純文字，不允許的圖片 src 為空；外部連結加 `target="_blank" rel="noopener noreferrer"`；段落中只有一張有 alt 的圖時輸出 `figure`；`images/` 改寫成 `${basePath}/images/`；h2／h3 的 id 來自 `headings.ts` 的 `slugger()`（保留中日韓字元，重複加 `-2`），目錄用同一套規則。網址政策在 `content/url-policy.ts`。
 
-**搜尋**：`content/search.ts` 的 `buildIndex` 由 server 與瀏覽器共用。內文取摘要加純文字最多 5000 個 UTF-16 單位，切詞後去重，所以沒有詞頻排序。權重：標題 10、Topic／Tag 5、內文 1，同分較新的優先。`search-assets.ts` 把它拆成 `search-metadata.json`（`version: 1`，每篇 metadata 與內文前 160 字）與依台北年份切的內文 chunk（檔名含內容雜湊，可長期快取）。
+**搜尋**：`content/search.ts` 的 `buildIndex` 由 server 與瀏覽器共用。內文取摘要加純文字最多 5000 個 UTF-16 單位，在空白與全形標點處切成片語，每個片語只留第一次出現（連同它後面的分隔符號），保留原本的大小寫與標點，所以沒有詞頻排序。權重：標題 10、Topic／Tag 5、內文 1，同分較新的優先。`search-assets.ts` 把它拆成 `search-metadata.json`（`version: 2`，每篇 metadata 與內文前 160 字）與依台北年份切的內文 chunk（也是 version 2，檔名含內容雜湊，可長期快取）。瀏覽器端 `prepareDoc` 才把 `text` 轉成小寫的 `textKey` 比對。
+
+`/search/` 的每筆結果顯示內文片段（`snippet`：第一個命中前約 30 個單位起、共約 120 個單位，沒命中內文時取開頭），標題與片段中的關鍵字用 `highlight` 切成 `<mark>` 片段（`app/search/highlight.tsx`）；header 下拉選單只標標題。小寫後長度改變（`İ`）時，片段直接取自小寫文字。見 Addendum 04 FE-020。
 
 瀏覽器端（`app/search/load-index.ts`）是一個 `useSyncExternalStore` store：先以 `no-store` 抓 metadata 並檢查 version，接著從最新年份開始逐年抓 chunk，每年抓完就更新結果。某年失敗時保留已載入的文章，`retry` 從失敗的年份繼續。header 的搜尋框 focus 時才開始載入。
 
