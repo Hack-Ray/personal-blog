@@ -217,6 +217,7 @@
   - 沒有封面也沒有上傳圖片的文章，以及首頁、列表等非文章頁，`og:image` 都是 `og-default.png`。有圖片的文章仍用 FE-008 與 FE-011 的規則。`twitter:card` 只有文章自己有圖時是 `summary_large_image`，其餘為 `summary`。
 - **Consequences**：fork 的人換掉 `icon.svg` 並執行 `npm run icons`，就能換成自己的圖示與預設分享圖。
 - **Supersedes**：FE-008 中「沒圖時不輸出 `og:image`」。
+- **Amended by**：FE-021（沒有封面也沒有上傳圖片的文章改用依標題畫的分享圖，`twitter:card` 一律 `summary_large_image`；非文章頁仍是 `og-default.png`）。
 
 ### FE-018：CSP 寫在每個 HTML 的 meta，CDN 只加固定標頭
 
@@ -271,6 +272,20 @@
   - 分數在 GitHub runner 上會有雜訊，所以 performance 的門檻低於本機量測值約 10 到 15 分。
 - **Supersedes**：Addendum 04 中程式碼高亮的雙主題 `github-light`／`github-dark`。
 
+
+### FE-022：沒有封面的文章，build 依標題畫分享圖
+
+- **Status**：Confirmed（使用者 2026-10-28 指定）
+- **Context**：FE-017 讓沒有圖片的文章都分享同一張 `og-default.png`，貼到社群或聊天軟體時彼此看不出差別。
+- **Decision**：
+  - `npm run build`／`dev` 在 `copy-snapshot-images.ts` 之後執行 `scripts/generate-share-images.ts`，替每篇已發布、沒有封面也沒有上傳圖片的文章（`coverOf()` 為空）畫一張 1200×630 的 PNG，寫到 `public/og/<docId>.png`。檔名用 `docId`，換 slug 不會讓舊的分享連結失效。每次先刪除整個 `public/og` 再重畫，所以重跑結果相同；輸出與 `public/thumbs` 一樣不 commit。
+  - 圖的內容是 SVG 字串（`content/share-image.ts` 的 `shareImageSvg()`，純函式，輸入標題、網站名稱、主題與日期），再由 sharp 轉成 PNG，不新增 satori 等依賴。配色取自網站的深色主題，左上角是 `public/icon.svg` 的 R 圖示與 `profile.json` 的網站名稱，標題用大字置中，左下角是主題與發布日期（`Asia/Taipei`）。
+  - sharp 沒有排版引擎，所以標題自己斷行：全形字佔 1 em、半形約 0.55 em；中文逐字斷，英文在空格斷，過長的單字逐字元斷；`，。、！？）」』` 等不放在行首、`（「『` 不放在行尾；最多 3 行，字級從 88、72、60 px 取放得下的最大者，仍放不下時最後一行以「…」結尾。字元以 XML 跳脫。
+  - 字型是 sharp 內的 librsvg 透過 fontconfig 找的系統字型，`font-family` 依序為 Noto Sans CJK TC、Noto Sans TC、PingFang TC、Microsoft JhengHei、sans-serif，所以 Mac 本機也能 build。只要有標題、網站名稱或主題含中日韓字元，腳本就用 `fc-list :lang=zh-tw` 檢查，沒有任何中文字型就讓 build 失敗，而不是輸出方框；沒有 `fc-list` 時只警告。`ci.yml` 的 frontend job 與 `deploy.yml` 的 build job 在 build 前檢查是否已有 Noto Sans CJK，沒有才 `apt-get install fonts-noto-cjk`。
+  - 文章頁的 `og:image`、`twitter:image` 與 JSON-LD `BlogPosting.image` 都由 `shareImageOf()` 決定：有封面或上傳圖片用該圖，否則 `/og/<docId>.png`，三處一致；因為規則是確定的，不另存清單。畫出來的圖輸出 `og:image:width`／`height`（1200、630）與 `og:image:alt`。`twitter:card` 一律 `summary_large_image`。RSS 沒有圖片欄位，不變。首頁、列表等非文章頁、導向頁與封存頁維持 `og-default.png` 或不輸出。
+  - 以 4 個並行的 worker 畫圖。本機（4 核心）範例資料 2 張約 0.1 秒；1000 篇（壓力測試資料）約 24 秒、31 MB。PNG 用調色盤與低壓縮等級，因為最高壓縮要 2.3 倍時間，只省 2% 的檔案大小。
+- **Consequences**：build 多了一個耗時隨文章數線性成長的步驟，以及對系統中文字型的依賴；fork 的人在本機 build 含中文標題的內容時需要先裝中文字型。圖的外觀改在 `share-image.ts`，不需要動 CMS。分享平台會快取圖片，標題改了以後平台上的預覽要等它重抓。
+- **Supersedes**：FE-017 中沒有圖片的文章用 `og-default.png`，以及該類文章的 `twitter:card` 為 `summary`。
 
 ## Open Questions
 

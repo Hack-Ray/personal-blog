@@ -24,6 +24,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # The share images' CJK titles need a font; the runner image's fonts vary, so install Noto once.
+      - name: Install a CJK font
+        run: fc-list | grep -q 'Noto Sans CJK' || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk; }
       - run: npm ci
       - run: npm test
       - run: npm run typecheck

@@ -71,6 +71,8 @@ The build fails, and nothing is deployed, when the schema version is unknown, an
 
 `public/icon.svg` is the only source. `npm run icons` writes `favicon.ico`, `apple-touch-icon.png` and `og-default.png` (the share image for pages without one of their own) next to it. Commit the SVG and the three generated files; the build does not regenerate them.
 
+Articles without a cover or uploaded image get their own share image: the build draws `public/og/<docId>.png` (1200x630, the title on the site's dark theme with the icon and site name) with `scripts/generate-share-images.ts`. It is not committed. Titles with Chinese need a CJK font known to fontconfig, such as `fonts-noto-cjk` on Debian/Ubuntu; the build fails when there is none. CI installs it.
+
 ## Checking the built site
 
 ```sh

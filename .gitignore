@@ -30,6 +30,7 @@ next-env.d.ts
 *.tsbuildinfo
 frontend/public/images/
 frontend/public/thumbs/
+frontend/public/og/
 frontend/.generated/
 frontend/lighthouse-reports/
 frontend/test-results/
