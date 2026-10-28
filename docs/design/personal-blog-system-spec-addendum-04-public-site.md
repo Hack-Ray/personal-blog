@@ -172,7 +172,7 @@
 - **Context**：FE-001 的 `SITE_ORIGIN` 預設是作者的 Pages 網址，FE-006 的 giscus ID 寫在程式碼。別人 fork 後必須改程式才能部署，換成自訂網域也要改程式。這個 repo 是公開的，作者的網域與帳號資料不應該寫進程式碼。
 - **Decision**：
   - `deploy.yml` 從 `actions/configure-pages` 取得網站的 origin 與 basePath，傳給 build 的 `SITE_ORIGIN` 與 `BASE_PATH`。Pages 設定自訂網域後，下一次部署就使用新網域，不需要改程式。直接 build 時的預設是 `https://example.com` 與 `/personal-blog`。
-  - 每個站不同的值都放在 Actions variables 與 secrets：`CONTENT_REPO`（預設 `<repo>-content`）、`GISCUS_REPO`、`GISCUS_REPO_ID`、`GISCUS_CATEGORY`、`GISCUS_CATEGORY_ID`、`GOOGLE_SITE_VERIFICATION`、`GITHUB_PINNED_USER`、`LEGACY_SITE_URLS`。程式碼與文件不寫作者的網域，文件用 `<網域>` 這類替代字。
+  - 每個站不同的值都放在 Actions variables 與 secrets：`CONTENT_REPO`（預設 `<repo>-content`）、`GISCUS_REPO`、`GISCUS_REPO_ID`、`GISCUS_CATEGORY`、`GISCUS_CATEGORY_ID`、`GOOGLE_SITE_VERIFICATION`、`PINNED_GITHUB_USER`、`LEGACY_SITE_URLS`。程式碼與文件不寫作者的網域，文件用 `<網域>` 這類替代字。
   - build 產生 `robots.txt`，其中的 sitemap 網址來自這次 build 的 `SITE_ORIGIN`。網站在網域根路徑時，爬蟲才讀得到它。
   - `LEGACY_SITE_URLS` 列出舊站的根網址。build 時，Markdown 連結中指向舊站的部分改成新站的相對網址，內容 repo 不改寫。
   - RSS 的 `<guid>` 是 `urn:ulid:<docId>`，換網域或 basePath 都不會變。
@@ -233,7 +233,7 @@
 - **Status**：Confirmed（使用者 2026-10-28 指定）
 - **Context**：首頁只有文章列表，看不到作者的開源專案。這個 repo 是公開的，會被 fork，所以帳號名稱不能寫進程式碼。
 - **Decision**：
-  - 設定 `GITHUB_PINNED_USER`（Actions variable）後，build 在 `frontend/scripts/fetch-github-pinned.ts` 以 GitHub GraphQL API 取得該帳號最多 6 個釘選的 repo，寫入 `.generated/github-pinned.json`，首頁在文章列表之後顯示。沒設定時什麼都不做，首頁不變。
+  - 設定 `PINNED_GITHUB_USER`（Actions variable；名稱不以 `GITHUB_` 開頭，因為 GitHub 不允許）後，build 在 `frontend/scripts/fetch-github-pinned.ts` 以 GitHub GraphQL API 取得該帳號最多 6 個釘選的 repo，寫入 `.generated/github-pinned.json`，首頁在文章列表之後顯示。沒設定時什麼都不做，首頁不變。
   - 在 build 時取得，不在訪客的瀏覽器取得。GraphQL API 一定要 token，token 不能放進前端；build 時取得也讓 CSP 的 `connect-src` 維持 `'self'`，訪客不會對第三方發出請求。`deploy.yml` 傳入 `github.token`。
   - 顯示釘選專案，不顯示最近的 PR。這個 repo 自己的 PR 會觸發部署，「最近的 PR」永遠是網站本身。
   - 帳號格式不合法是設定錯誤，build 直接失敗。網路、HTTP 或回應格式錯誤、缺少 token 時，build 印出 `::warning::` 並省略這個區塊，不讓 GitHub API 的暫時問題擋住內容發布。每次 build 先刪除舊檔，所以不會部署過期的結果。

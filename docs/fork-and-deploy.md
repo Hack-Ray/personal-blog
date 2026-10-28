@@ -56,7 +56,7 @@
 | Variable | `GISCUS_REPO_ID`、`GISCUS_CATEGORY_ID` | 從 <https://giscus.app> 取得，見下方 | 要留言功能時 |
 | Variable | `GISCUS_REPO`、`GISCUS_CATEGORY` | 預設是這個 fork 與 `Announcements` | 不同時 |
 | Variable | `GOOGLE_SITE_VERIFICATION` | Search Console「HTML 標記」驗證方式給的 `<meta name="google-site-verification">` 標籤中 `content` 的值，見下方 | 要在 Google Search Console 登錄網站時 |
-| Variable | `GITHUB_PINNED_USER` | GitHub 帳號名稱（login）。首頁會顯示這個帳號的釘選專案，每次部署時更新 | 選用；不設定就不顯示 |
+| Variable | `PINNED_GITHUB_USER` | GitHub 帳號名稱（login）。首頁會顯示這個帳號的釘選專案，每次部署時更新 | 選用；不設定就不顯示 |
 
 留言（選用）：在 fork 的 Settings → General → Features 勾選 Discussions，安裝 [giscus app](https://github.com/apps/giscus) 並只授權這個 fork。到 <https://giscus.app> 輸入 `<你的帳號>/personal-blog`、分類選 Announcements，頁面產生的 `data-repo-id` 與 `data-category-id` 就是上表的兩個值。沒設定時網站不顯示留言區。
 

@@ -6,9 +6,9 @@ const QUERY = `query($login: String!) { user(login: $login) { pinnedItems(first:
 
 rmSync(PINNED_REPOS_FILE, { force: true });
 
-const login = process.env.GITHUB_PINNED_USER?.trim();
+const login = process.env.PINNED_GITHUB_USER?.trim();
 if (login) {
-  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)) throw new Error(`GITHUB_PINNED_USER is not a valid GitHub login: ${login}`);
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)) throw new Error(`PINNED_GITHUB_USER is not a valid GitHub login: ${login}`);
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     console.log("::warning::GitHub pinned repositories: GITHUB_TOKEN is not set");
