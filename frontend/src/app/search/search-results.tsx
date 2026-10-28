@@ -38,7 +38,7 @@ export function SearchResults() {
                 {dateFormat.format(new Date(doc.publishedAt))} · {doc.topic}
                 {doc.tags.map((t) => ` · #${t}`).join("")}
               </p>
-              <p className="snippet"><Highlight segments={snippet(prepared, wanted)} /></p>
+              {prepared.text && <p className="snippet"><Highlight segments={snippet(prepared, wanted)} /></p>}
             </div>
           </li>
         ))}

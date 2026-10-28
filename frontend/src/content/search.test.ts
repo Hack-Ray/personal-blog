@@ -115,3 +115,8 @@ test("a cut snippet does not start with the punctuation that ended the previous 
   const segments = snippet(prepared("a".repeat(5) + "。 " + "b".repeat(28) + "needle"), ["needle"]);
   assert.deepEqual(segments.map((s) => s.text), ["…", "b".repeat(28), "needle"]);
 });
+
+test("trimming leading punctuation never removes the start of a match", () => {
+  const segments = snippet(prepared("a".repeat(40) + "。".repeat(40) + "。next"), ["。next"]);
+  assert.deepEqual(segments.filter((s) => s.mark).map((s) => s.text), ["。next"]);
+});

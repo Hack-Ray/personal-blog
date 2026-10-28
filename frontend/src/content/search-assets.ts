@@ -19,7 +19,7 @@ export function buildSearchAssets(content: SiteContent): SearchAssets {
     const group = groups.get(year) ?? [];
     group.push({ docId: doc.docId, text });
     groups.set(year, group);
-    return { ...doc, text: text.slice(0, 160) };
+    return { ...doc, text: text.slice(0, 160).replace(/[\ud800-\udbff]$/, "") };
   });
   const chunks = new Map<string, string>();
   const years = [...groups].map(([year, docs]) => {

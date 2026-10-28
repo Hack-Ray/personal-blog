@@ -98,3 +98,8 @@ test("whitespace runs in the body collapse to one space and a leading separator 
   const [doc] = buildIndex(content(article("space", 2026, { excerpt: "", markdown: "First line\n\n  second   line, First line" })));
   assert.equal(doc.text, "First line second line,");
 });
+
+test("the metadata prefix never ends in half a surrogate pair", () => {
+  const metadata = JSON.parse(buildSearchAssets(content(article("emoji", 2026, { markdown: "x".repeat(159) + "😀 tail" }))).metadataJson);
+  assert.equal(metadata.docs[0].text, "x".repeat(159));
+});

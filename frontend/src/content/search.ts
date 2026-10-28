@@ -100,8 +100,8 @@ export interface Segment {
   mark: boolean;
 }
 
-// Lowercasing can change length (İ) or depend on context (final sigma); then positions in the
-// lowercase key don't map onto the original, so the key itself is shown.
+// Lowercasing can change length (İ); then positions in the lowercase key don't map onto the
+// original, so the key itself is shown.
 const displayed = (text: string, key: string) => (key.length === text.length ? text : key);
 
 function marked(text: string, key: string, wanted: readonly string[]): Segment[] {
@@ -143,7 +143,8 @@ export function snippet({ text, textKey }: PreparedSearchDoc, wanted: readonly s
   let end = Math.min(shown.length, start + SNIPPET_LENGTH);
   if (start > 0 && isLow(shown.charCodeAt(start))) start++;
   if (end < shown.length && isHigh(shown.charCodeAt(end - 1))) end--;
-  const cut = shown.slice(start, end).replace(start > 0 ? LEADING_BREAK : /^$/, "");
+  if (start > 0) start += LEADING_BREAK.exec(shown.slice(start, first))?.[0].length ?? 0;
+  const cut = shown.slice(start, end);
   return [
     ...(start > 0 ? [{ text: "…", mark: false }] : []),
     ...highlight(cut, wanted),
