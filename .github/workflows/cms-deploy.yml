@@ -19,12 +19,14 @@ jobs:
   deploy:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: cms-production
     permissions:
       contents: read
       packages: write
+      id-token: write
     env:
+      CMS_DEPLOY_VIA: ${{ vars.CMS_DEPLOY_VIA }}
       CMS_HOST: ${{ vars.CMS_HOST }}
       CMS_SSH_USER: ${{ vars.CMS_SSH_USER }}
       CMS_ENV_FILE: ${{ vars.CMS_ENV_FILE }}
@@ -36,13 +38,28 @@ jobs:
       CMS_MEMORY: ${{ vars.CMS_MEMORY }}
       CMS_LOG_GROUP: ${{ vars.CMS_LOG_GROUP }}
       CMS_LOG_REGION: ${{ vars.CMS_LOG_REGION }}
+      CMS_AWS_ROLE_ARN: ${{ vars.CMS_AWS_ROLE_ARN }}
+      CMS_AWS_REGION: ${{ vars.CMS_AWS_REGION }}
+      CMS_INSTANCE_ID: ${{ vars.CMS_INSTANCE_ID }}
     steps:
       - uses: actions/checkout@v7
       - name: Validate deployment settings
         run: |
           set -euo pipefail
-          [[ "$CMS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
-          [[ "$CMS_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          via="${CMS_DEPLOY_VIA:-tailscale}"
+          case "$via" in
+            tailscale)
+              [[ "$CMS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+              [[ "$CMS_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+              ;;
+            ssm)
+              [[ "$CMS_AWS_ROLE_ARN" =~ ^arn:aws[a-z-]*:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$ ]]
+              [[ "$CMS_AWS_REGION" =~ ^[a-z]{2}(-[a-z]+)+-[0-9]$ ]]
+              [[ "$CMS_INSTANCE_ID" =~ ^i-[0-9a-f]{8,17}$ ]]
+              ;;
+            *) echo "CMS_DEPLOY_VIA must be tailscale or ssm" >&2; exit 1 ;;
+          esac
+          echo "DEPLOY_VIA=$via" >> "$GITHUB_ENV"
           for path in "$CMS_ENV_FILE" "$CMS_BACKUP_DIR"; do
             [[ "$path" == /* && "$path" != *$'\n'* && "$path" != *:* && "$path" != *,* ]]
           done
@@ -63,17 +80,56 @@ jobs:
           digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
           [[ "$digest" == ghcr.io/*@sha256:* ]]
           echo "DEPLOY_IMAGE=$digest" >> "$GITHUB_ENV"
-      - uses: tailscale/github-action@v4
+      - name: Prepare deploy arguments
+        run: |
+          set -euo pipefail
+          args=(--image "$DEPLOY_IMAGE" --env-file "$CMS_ENV_FILE" --backup-dir "$CMS_BACKUP_DIR" --name "$CMS_CONTAINER" --port "$CMS_PORT")
+          if [ -n "$CMS_SECRETS_DIR" ]; then args+=(--secrets-dir "$CMS_SECRETS_DIR"); fi
+          if [ -n "$CMS_MEMORY" ]; then args+=(--memory "$CMS_MEMORY"); fi
+          if [ -n "$CMS_LOG_GROUP$CMS_LOG_REGION" ]; then args+=(--log-group "$CMS_LOG_GROUP" --log-region "$CMS_LOG_REGION"); fi
+          printf -v quoted '%q ' "${args[@]}"
+          echo "DEPLOY_ARGS=$quoted" >> "$GITHUB_ENV"
+      - if: env.DEPLOY_VIA == 'tailscale'
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: ${{ vars.CMS_CI_TAG || 'tag:cms-ci' }}
       - name: Back up, migrate, and replace CMS
+        if: env.DEPLOY_VIA == 'tailscale'
         run: |
           set -euo pipefail
-          args=(bash -s -- --image "$DEPLOY_IMAGE" --env-file "$CMS_ENV_FILE" --backup-dir "$CMS_BACKUP_DIR" --name "$CMS_CONTAINER" --port "$CMS_PORT")
-          if [ -n "$CMS_SECRETS_DIR" ]; then args+=(--secrets-dir "$CMS_SECRETS_DIR"); fi
-          if [ -n "$CMS_MEMORY" ]; then args+=(--memory "$CMS_MEMORY"); fi
-          if [ -n "$CMS_LOG_GROUP$CMS_LOG_REGION" ]; then args+=(--log-group "$CMS_LOG_GROUP" --log-region "$CMS_LOG_REGION"); fi
-          printf -v remote '%q ' "${args[@]}"
-          tailscale ssh "$CMS_SSH_USER@$CMS_HOST" "$remote" < backend/scripts/deploy-cloud.sh
+          tailscale ssh "$CMS_SSH_USER@$CMS_HOST" "bash -s -- $DEPLOY_ARGS" < backend/scripts/deploy-cloud.sh
+      - if: env.DEPLOY_VIA == 'ssm'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.CMS_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.CMS_AWS_REGION }}
+      - name: Back up, migrate, and replace CMS over SSM
+        if: env.DEPLOY_VIA == 'ssm'
+        timeout-minutes: 36
+        run: |
+          set -euo pipefail
+          script=$(base64 -w0 backend/scripts/deploy-cloud.sh)
+          command="tmp=\$(mktemp) && printf %s $script | base64 -d > \"\$tmp\" && bash \"\$tmp\" $DEPLOY_ARGS; status=\$?; rm -f \"\$tmp\"; exit \$status"
+          jq -n --arg command "$command" '{commands: [$command], executionTimeout: ["1800"]}' > "$RUNNER_TEMP/ssm-parameters.json"
+          id=$(aws ssm send-command --instance-ids "$CMS_INSTANCE_ID" --document-name AWS-RunShellScript \
+            --comment "Deploy CMS ${GITHUB_REF_NAME:0:80}" --timeout-seconds 300 \
+            --parameters "file://$RUNNER_TEMP/ssm-parameters.json" --query Command.CommandId --output text)
+          echo "SSM command $id"
+          invocation=(ssm get-command-invocation --command-id "$id" --instance-id "$CMS_INSTANCE_ID")
+          # The invocation is not visible for a few seconds after send-command,
+          # and `aws ssm wait command-executed` gives up after about 100 seconds.
+          deadline=$((SECONDS + 2100))
+          while :; do
+            if ! status=$(aws "${invocation[@]}" --query Status --output text 2>"$RUNNER_TEMP/ssm-error"); then
+              grep -q InvocationDoesNotExist "$RUNNER_TEMP/ssm-error" || { cat "$RUNNER_TEMP/ssm-error" >&2; exit 1; }
+              status=Pending
+            fi
+            case "$status" in Pending|InProgress|Delayed) ;; *) break ;; esac
+            if ((SECONDS >= deadline)); then echo "SSM command $id did not finish in 35 minutes" >&2; exit 1; fi
+            sleep 10
+          done
+          aws "${invocation[@]}" --query StandardOutputContent --output text
+          aws "${invocation[@]}" --query StandardErrorContent --output text >&2
+          [ "$status" = Success ] || { echo "SSM command $id ended with status $status" >&2; exit 1; }

@@ -19,7 +19,8 @@ state = root / "running"
 exists = root / "exists"
 if args[0] == "inspect":
     if not exists.exists(): sys.exit(1)
-    if "-f" in args: print("true" if state.exists() else "false")
+    if "{{.Config.Image}}" in args: print("ghcr.io/example/cms@sha256:abc")
+    elif "-f" in args: print("true" if state.exists() else "false")
 elif args[0] in ("start", "stop", "rm"):
     if args[0] == "start": state.touch()
     else: state.unlink(missing_ok=True)
@@ -27,6 +28,7 @@ elif args[0] in ("start", "stop", "rm"):
 elif args[0] == "run":
     if "scripts/backup.sh" in args and os.environ.get("FAIL_STAGE") == "backup": sys.exit(7)
     if "alembic" in args and os.environ.get("FAIL_STAGE") == "migration": sys.exit(8)
+    if "scripts/restore.sh" in args and os.environ.get("FAIL_STAGE") == "restore": sys.exit(9)
     if "-d" in args: exists.touch(); state.touch(); print("container-id")
 elif args[0] == "exec" and os.environ.get("FAIL_STAGE") == "backup": sys.exit(7)
 """
@@ -197,6 +199,274 @@ class SsmEnvironmentTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.env_file.read_text(), "CMS_ENV=cloud\nOLD=1\n")
         self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".cms.env")], [])
+
+
+RESTORE_CURL = """#!/usr/bin/env python3
+import json, os, pathlib, sys
+args = sys.argv[1:]
+root = pathlib.Path(os.environ["STUB_ROOT"])
+with (root / "curl-calls").open("a") as log: log.write(json.dumps(args) + "\\n")
+if "--config" in args:
+    (root / "curl-config").write_text(sys.stdin.read())
+    pathlib.Path(args[args.index("--output") + 1]).write_bytes(b"dump-bytes")
+"""
+
+
+class CloudRestoreTest(unittest.TestCase):
+    URL = "https://bucket.s3.amazonaws.com/cms/blog-20261029T030000Z.dump?X-Amz-Signature=never-print-this"
+    SHA = "e9d4a1e7b0f6c0a78bd9e2b1b1e4b1eb4da5a19d9d6dbbbd2b38c4d4d52a3a69"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.backups = self.root / "backups"
+        self.backups.mkdir()
+        self.env_file = self.root / "cms.env"
+        self.env_file.write_text("CMS_ENV=cloud\n")
+        for name, body in (("docker", DOCKER), ("curl", RESTORE_CURL)):
+            file = self.bin / name
+            file.write_text(body)
+            file.chmod(0o755)
+        (self.root / "exists").touch()
+        (self.root / "running").touch()
+        self.env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_ROOT": str(self.root)}
+
+    def restore(self, *source, fail=""):
+        return subprocess.run(
+            ["bash", str(SCRIPT.with_name("cloud-restore.sh")), *source, "--env-file", str(self.env_file), "--backup-dir", str(self.backups), "--yes"],
+            env={**self.env, "FAIL_STAGE": fail},
+            capture_output=True,
+            text=True,
+        )
+
+    def calls(self):
+        log = self.root / "calls"
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+    def dump(self):
+        (self.backups / "blog-1.dump").write_bytes(b"dump-bytes")
+        return str(self.backups / "blog-1.dump")
+
+    def test_stops_cms_restores_with_its_image_then_starts_it(self):
+        result = self.restore("--dump", self.dump())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        stop = calls.index(["stop", "blog-cms"])
+        restore = next(i for i, call in enumerate(calls) if "scripts/restore.sh" in call)
+        self.assertLess(stop, restore)
+        self.assertEqual(calls[restore + 1], ["start", "blog-cms"])
+        run = calls[restore]
+        self.assertIn("ghcr.io/example/cms@sha256:abc", run)
+        self.assertEqual(run[run.index("scripts/restore.sh") :], ["scripts/restore.sh", "/backup/blog-1.dump", "--env", "--yes"])
+        self.assertIn("BACKUP_TARGET=/backup", run)
+        for flag in ("--read-only", "--cap-drop", "no-new-privileges", "type=volume,target=/tmp", f"type=bind,source={self.backups},target=/backup"):
+            self.assertIn(flag, run)
+
+    def test_restore_failure_leaves_cms_stopped(self):
+        result = self.restore("--dump", self.dump(), fail="restore")
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(["start", "blog-cms"], self.calls())
+        self.assertIn("stays stopped", result.stderr)
+        self.assertIn("--dump", result.stderr)
+
+    def test_refuses_without_a_deployed_container(self):
+        (self.root / "exists").unlink()
+        result = self.restore("--dump", self.dump())
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("deploy once first", result.stderr)
+        self.assertFalse(any(call[0] in ("stop", "run") for call in self.calls()))
+
+    def test_refuses_while_the_lock_is_held(self):
+        dump = self.dump()
+        with open(self.backups / ".cms-deploy.lock", "w") as lock:
+            import fcntl
+
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            result = self.restore("--dump", dump)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already running", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_url_download_writes_checksum_and_keeps_signature_off_argv(self):
+        import hashlib
+
+        sha = hashlib.sha256(b"dump-bytes").hexdigest()
+        result = self.restore("--url", self.URL, "--sha256", sha)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.backups / "blog-20261029T030000Z.dump.sha256").read_text(), f"{sha}  blog-20261029T030000Z.dump\n")
+        self.assertIn(self.URL, (self.root / "curl-config").read_text())
+        self.assertNotIn("never-print-this", (self.root / "curl-calls").read_text() + json.dumps(self.calls()) + result.stdout + result.stderr)
+
+    def test_checksum_mismatch_does_not_stop_cms(self):
+        result = self.restore("--url", self.URL, "--sha256", self.SHA)
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(["stop", "blog-cms"], self.calls())
+        self.assertEqual([p.name for p in self.backups.iterdir()], [".cms-deploy.lock"], "a rejected download leaves nothing for the S3 sync")
+
+    def test_url_requires_sha256(self):
+        result = self.restore("--url", self.URL)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.root / "curl-calls").exists())
+
+
+SETUP_STUB = """#!/usr/bin/env python3
+import json, os, pathlib, sys
+tool, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
+root = pathlib.Path(os.environ["STUB_ROOT"])
+with (root / "calls").open("a") as log: log.write(json.dumps([tool, *args]) + "\\n")
+containers = root / "containers"
+containers.mkdir(exist_ok=True)
+if tool == "aws":
+    if "get-parameters-by-path" in args: print((root / "parameters.json").read_text())
+    else: print((root / ("pem" if args[args.index("--name") + 1].endswith("pem") else "token")).read_text())
+elif tool == "docker":
+    if args[0] == "inspect":
+        box = containers / args[-1]
+        if not box.exists(): sys.exit(1)
+        if "-f" in args: print(box.read_text())
+    elif args[0] == "run":
+        name = args[args.index("--name") + 1]
+        if "--env-file" in args:
+            (root / f"{name}-env-file").write_text(pathlib.Path(args[args.index("--env-file") + 1]).read_text())
+        (containers / name).write_text("postgres:16" if name == "blog-db" else args[args.index("tunnel") - 1])
+    elif args[0] == "rm":
+        (containers / args[-1]).unlink()
+"""
+
+
+class HostSetupTest(unittest.TestCase):
+    PASSWORD = "never-print-this"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        for tool in ("dnf", "systemctl", "docker", "aws", "chown"):
+            file = self.bin / tool
+            file.write_text(SETUP_STUB)
+            file.chmod(0o755)
+        self.host = self.root / "host"
+        (self.host / "etc/dnf").mkdir(parents=True)
+        (self.host / "etc/dnf/automatic.conf").write_text("[commands]\nupgrade_type = default\napply_updates = no\n")
+        self.srv = self.root / "srv"
+        (self.root / "token").write_text("tunnel-token-1")
+        self.parameters(f"postgresql+psycopg://blog:{self.PASSWORD}@127.0.0.1:5432/blog")
+        self.env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_ROOT": str(self.root), "HOST_PREFIX": str(self.host)}
+
+    def parameters(self, database_url):
+        values = {"CMS_ENV": "cloud", "DATABASE_URL": database_url}
+        (self.root / "parameters.json").write_text(json.dumps({"Parameters": [{"Name": f"/blog/cms/{k}", "Value": v} for k, v in values.items()]}))
+
+    def setup_host(self, *extra):
+        return subprocess.run(
+            ["bash", str(SCRIPT.with_name("cloud-host-setup.sh")), "--region", "ap-northeast-1", "--root", str(self.srv), *extra],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+
+    def calls(self):
+        return [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
+
+    def docker_runs(self):
+        return [call for call in self.calls() if call[:2] == ["docker", "run"]]
+
+    def test_first_run_prepares_host_and_local_database(self):
+        result = self.setup_host("--tunnel-token-param", "/blog/cloudflared-token")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("upgrade_type = security", (self.host / "etc/dnf/automatic.conf").read_text())
+        self.assertIn("apply_updates = yes", (self.host / "etc/dnf/automatic.conf").read_text())
+        self.assertEqual((self.host / "etc/dnf/vars/releasever").read_text(), "latest\n")
+        self.assertIn(["systemctl", "enable", "--now", "docker", "crond", "dnf-automatic.timer"], self.calls())
+        self.assertEqual((self.srv / "cms.env").stat().st_mode & 0o777, 0o600)
+        self.assertTrue((self.srv / "cloud-maintenance.sh").exists())
+        self.assertEqual((self.srv / "backups").stat().st_mode & 0o777, 0o750)
+        self.assertIn(["chown", "1000:1000", str(self.srv / "backups"), str(self.srv / "secrets")], self.calls())
+        db = next(call for call in self.docker_runs() if "blog-db" in call)
+        self.assertIn("127.0.0.1:5432:5432", db)
+        self.assertIn("type=volume,source=blog-pgdata,target=/var/lib/postgresql/data", db)
+        self.assertEqual((self.root / "blog-db-env-file").read_text(), f"POSTGRES_USER=blog\nPOSTGRES_PASSWORD={self.PASSWORD}\nPOSTGRES_DB=blog\n")
+        self.assertIn(["docker", "exec", "blog-db", "pg_isready", "-q", "-U", "blog"], self.calls())
+        self.assertNotIn(self.PASSWORD, (self.root / "calls").read_text() + result.stdout + result.stderr)
+
+    def test_rerun_keeps_database_and_tunnel(self):
+        self.assertEqual(self.setup_host("--tunnel-token-param", "/blog/cloudflared-token").returncode, 0)
+        (self.root / "calls").unlink()
+        result = self.setup_host("--tunnel-token-param", "/blog/cloudflared-token")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.docker_runs(), [])
+        self.assertFalse(any(call[:2] == ["docker", "rm"] for call in self.calls()))
+        self.assertIn(["docker", "start", "blog-db"], self.calls())
+        self.assertNotIn(self.PASSWORD, (self.root / "calls").read_text())
+
+    def test_non_local_database_is_skipped(self):
+        self.parameters(f"postgresql+psycopg://blog:{self.PASSWORD}@db.example.rds.amazonaws.com:5432/blog")
+        result = self.setup_host()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("skipping the local PostgreSQL container", result.stdout)
+        self.assertFalse(any("blog-db" in call for call in self.calls()))
+
+    def test_github_app_key_is_written_for_the_cms_user_only(self):
+        (self.root / "pem").write_text("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----")
+        result = self.setup_host("--github-app-pem-param", "/blog/cms-github-app-pem")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        key = self.srv / "secrets/github-app.pem"
+        self.assertTrue(key.read_text().startswith("-----BEGIN RSA PRIVATE KEY-----"))
+        self.assertEqual(key.stat().st_mode & 0o777, 0o400)
+        self.assertTrue(any(call[:2] == ["chown", "1000:1000"] and call[-1].startswith(str(self.srv / "secrets/.github-app.")) for call in self.calls()))
+
+    def test_a_parameter_without_a_key_leaves_no_file(self):
+        (self.root / "pem").write_text("not a key")
+        result = self.setup_host("--github-app-pem-param", "/blog/cms-github-app-pem")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not hold a PEM private key", result.stderr)
+        self.assertEqual(list((self.srv / "secrets").iterdir()), [])
+
+    def test_cron_runs_maintenance_hourly_and_backup_daily(self):
+        self.assertEqual(self.setup_host().returncode, 0)
+        cron = (self.host / "etc/cron.d/blog-cms").read_text().splitlines()
+        self.assertEqual(cron[0], "PATH=/usr/local/bin:/usr/bin:/bin")
+        self.assertTrue(cron[1].startswith(f"0 * * * * root bash {self.srv}/cloud-maintenance.sh maintenance blog-cms {self.srv}/backups "))
+        self.assertTrue(cron[2].startswith(f"30 3 * * * root bash {self.srv}/cloud-maintenance.sh backup blog-cms {self.srv}/backups 2>&1"))
+        self.assertEqual(self.setup_host("--s3", "s3://bucket/cms/").returncode, 0)
+        cron = (self.host / "etc/cron.d/blog-cms").read_text().splitlines()
+        self.assertIn(f"backup blog-cms {self.srv}/backups s3://bucket/cms/ 2>&1", cron[2])
+
+    def test_tunnel_token_is_private_and_off_argv(self):
+        result = self.setup_host("--tunnel-token-param", "/blog/cloudflared-token")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        token_file = self.host / "etc/cloudflared/token.env"
+        self.assertEqual(token_file.read_text(), "TUNNEL_TOKEN=tunnel-token-1\n")
+        self.assertEqual(token_file.stat().st_mode & 0o777, 0o600)
+        run = next(call for call in self.docker_runs() if "blog-cloudflared" in call)
+        self.assertEqual(run[-4:], ["cloudflare/cloudflared:2026.10.0", "tunnel", "--no-autoupdate", "run"])
+        for flag in ("--network", "--read-only", "ALL", "no-new-privileges", str(token_file)):
+            self.assertIn(flag, run)
+        self.assertNotIn("tunnel-token-1", (self.root / "calls").read_text() + result.stdout + result.stderr)
+
+    def test_tunnel_is_recreated_when_token_or_image_changes(self):
+        self.assertEqual(self.setup_host("--tunnel-token-param", "/blog/cloudflared-token").returncode, 0)
+        for change in ("token", "image"):
+            with self.subTest(change=change):
+                (self.root / "calls").unlink()
+                extra = ["--cloudflared-image", "cloudflare/cloudflared:2026.10.5"] if change == "image" else []
+                if change == "token":
+                    (self.root / "token").write_text("tunnel-token-2")
+                result = self.setup_host("--tunnel-token-param", "/blog/cloudflared-token", *extra)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(["docker", "rm", "-f", "blog-cloudflared"], self.calls())
+                self.assertEqual(len([call for call in self.docker_runs() if "blog-cloudflared" in call]), 1)
+
+    def test_missing_region_fails_before_changing_the_host(self):
+        result = subprocess.run(["bash", str(SCRIPT.with_name("cloud-host-setup.sh"))], env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse((self.root / "calls").exists())
 
 
 class PagesCodeHeadTest(unittest.TestCase):
