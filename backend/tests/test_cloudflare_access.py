@@ -117,11 +117,21 @@ def test_a_little_clock_skew_is_tolerated(behind_access):
     assert as_author(token(iat=int(time.time()) + 30)).get("/api/articles").status_code == 200
 
 
-def test_unreachable_signing_keys_answer_503_and_are_logged(behind_access, monkeypatch, caplog):
-    def down(_client):
-        raise jwt.PyJWKClientConnectionError("connection refused")
+def _refused(_client):
+    raise jwt.PyJWKClientConnectionError("connection refused")
 
-    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", down)
+
+def _not_json(_client):
+    return json.loads("<html>")
+
+
+def _no_keys(_client):
+    return {"keys": []}
+
+
+@pytest.mark.parametrize("fetch", [_refused, _not_json, _no_keys])
+def test_unusable_signing_keys_answer_503_and_are_logged(behind_access, monkeypatch, caplog, fetch):
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", fetch)
     r = as_author().get("/api/articles")
     assert r.status_code == 503
     assert any("Cloudflare Access signing keys" in rec.getMessage() for rec in caplog.records if rec.levelname == "ERROR")

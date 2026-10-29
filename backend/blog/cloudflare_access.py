@@ -42,7 +42,9 @@ def verify(token: str | None) -> str:
             leeway=LEEWAY,
             options={"require": ["exp", "iat", "aud", "iss"]},
         )
-    except jwt.PyJWKClientConnectionError as e:
+    # A key set that is unreachable, not JSON, or without usable keys is
+    # Cloudflare's side failing, not a bad token.
+    except (jwt.PyJWKClientConnectionError, jwt.PyJWKSetError, ValueError) as e:
         raise KeysUnavailable(str(e)) from e
     except (jwt.PyJWKClientError, jwt.InvalidTokenError) as e:
         raise Refused(str(e)) from e
