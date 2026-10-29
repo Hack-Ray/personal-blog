@@ -25,7 +25,7 @@ Stack 建立以下資源。
 | GitHub OIDC provider | 選用。帳號已有 `token.actions.githubusercontent.com` 時設 `CreateGitHubOidcProvider=false` |
 | 部署用 IAM role | 只信任 `<owner>/<repo>` 的 `cms-production` environment，只能對這台主機執行 `AWS-RunShellScript` 並讀取結果 |
 
-Hop limit 1 讓 bridge network 的容器（PostgreSQL）拿不到 instance role 的憑證。CMS 與 `cloudflared` 使用 host network，仍可以取得，所以主機 role 只有上表的權限。
+Hop limit 1 讓 bridge network 的容器（PostgreSQL）拿不到 instance role 的憑證。CMS 與 `cloudflared` 使用 host network，仍可以取得。`AmazonSSMManagedInstanceCore` 本身允許讀取帳號裡所有的 SSM 參數，所以不要在同一個帳號與 region 存放和這個 CMS 無關的密碼。
 
 ## 2. 建立 Cloudflare Tunnel 與 Access
 
@@ -73,15 +73,17 @@ aws ssm put-parameter --region <region> --type SecureString --name /blog/cms/DAT
 Subnet 必須是 public subnet，也就是 route table 有指向 internet gateway 的路由。主機會拿到一個 public IP，只用來對外連線。沒有 inbound 規則，所以外面連不進來。
 
 ```sh
+ami=$(aws ssm get-parameter --region <region> --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 --query Parameter.Value --output text)
+echo "$ami"
 aws cloudformation deploy --region <region> --stack-name blog-cms \
   --template-file infra/aws/cms-ec2.yaml --capabilities CAPABILITY_IAM \
-  --parameter-overrides GitHubRepository=<owner>/<repo> VpcId=<vpc-id> SubnetId=<subnet-id>
+  --parameter-overrides GitHubRepository=<owner>/<repo> VpcId=<vpc-id> SubnetId=<subnet-id> ImageId="$ami"
 aws cloudformation describe-stacks --region <region> --stack-name blog-cms --query 'Stacks[0].Outputs'
 ```
 
 `GitHubRepository` 的大小寫要和 GitHub 上的 repo 名稱一致，否則 GitHub 取不到部署 role。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
 
-`ImageId` 預設讀取最新的 Amazon Linux 2023 AMI。之後每次更新 stack 都會重新讀取，AMI 改版時 CloudFormation 會建立一台新主機。舊主機與它的資料庫會保留下來，不會被終止，但 stack 之後指向沒有資料的新主機。建立後先查出目前的 AMI ID，之後更新 stack 時把它填進 `ImageId`。
+`ImageId` 是固定的 AMI ID，記下第一行印出的值。之後更新 stack 時傳同一個值，主機就不會被換掉。只有刻意換新的 AMI 時，CloudFormation 才會建立新主機。舊主機與它的資料庫會保留，不會被終止，但仍連著同一個 tunnel。這時先在舊主機執行 `sudo bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups <BackupTarget>` 做一份備份，再執行 `sudo docker rm -f blog-cloudflared blog-cms`，讓兩台主機不會同時接收請求。接著在新主機執行第 5 節，把 GitHub 的 `CMS_INSTANCE_ID` 改成新的 `InstanceId`，部署一次，再用第 8 節還原那份備份。確認新主機正常後，到 EC2 主控台終止舊主機。
 
 ## 5. 設定主機
 
@@ -96,11 +98,11 @@ sudo bash <repo>/backend/scripts/cloud-host-setup.sh --region <region> \
 
 腳本做以下幾件事，重複執行也安全。
 
-1. 安裝 Docker、cron、`dnf-automatic` 與 Git，啟動 Docker 與 cron。`dnf-automatic` 設成每天自動套用安全更新。核心更新要重新開機才生效，腳本不會自動重開。
+1. 安裝 Docker、cron、`dnf-automatic` 與 Git，啟動 Docker 與 cron。`dnf-automatic` 設成每天自動套用安全更新。Amazon Linux 2023 預設停在 AMI 當時的套件版本，所以腳本把 `/etc/dnf/vars/releasever` 設成 `latest`，讓安全更新能裝進來。核心更新要重新開機才生效，腳本不會自動重開。
 2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。有 `--github-app-pem-param` 時，從 SSM 取出 GitHub App 私鑰，寫成只有 CMS 容器使用者（UID 1000）能讀的 `/srv/blog/secrets/github-app.pem`。
 3. 從 SSM 產生權限 600 的 `/srv/blog/cms.env`。
 4. `DATABASE_URL` 指向 `127.0.0.1` 時，建立 PostgreSQL 16 容器 `blog-db`，資料放在 volume `blog-pgdata`，只發布在主機的 `127.0.0.1:5432`。容器已經存在時只啟動它，不改資料與密碼。
-5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:00（UTC）備份並同步到 S3。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。
+5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:30（UTC）備份並同步到 S3。備份和整點的維護錯開，因為兩者共用同一個鎖，同時開始時較晚的會直接放棄。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。
 6. 從 SSM 讀取 tunnel token，寫入權限 600 的 `/etc/cloudflared/token.env`，啟動 `blog-cloudflared` 容器。容器使用 host network、唯讀檔案系統、移除全部 capabilities。Token 只在這個檔案裡，不出現在指令列。Token 或 image 改變時，腳本重建容器，否則保留原本的容器。Image 預設是固定版本的 `cloudflare/cloudflared`，用 `--cloudflared-image` 可以換成其他版本。
 
 這時 tunnel 已經連上，但 CMS 還沒部署，`https://cms.<網域>` 會回傳錯誤。

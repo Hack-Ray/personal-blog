@@ -114,7 +114,7 @@ jobs:
           command="tmp=\$(mktemp) && printf %s $script | base64 -d > \"\$tmp\" && bash \"\$tmp\" $DEPLOY_ARGS; status=\$?; rm -f \"\$tmp\"; exit \$status"
           jq -n --arg command "$command" '{commands: [$command], executionTimeout: ["1800"]}' > "$RUNNER_TEMP/ssm-parameters.json"
           id=$(aws ssm send-command --instance-ids "$CMS_INSTANCE_ID" --document-name AWS-RunShellScript \
-            --comment "Deploy CMS $GITHUB_REF_NAME" --timeout-seconds 600 \
+            --comment "Deploy CMS ${GITHUB_REF_NAME:0:80}" --timeout-seconds 300 \
             --parameters "file://$RUNNER_TEMP/ssm-parameters.json" --query Command.CommandId --output text)
           echo "SSM command $id"
           invocation=(ssm get-command-invocation --command-id "$id" --instance-id "$CMS_INSTANCE_ID")
@@ -122,7 +122,10 @@ jobs:
           # and `aws ssm wait command-executed` gives up after about 100 seconds.
           deadline=$((SECONDS + 2100))
           while :; do
-            status=$(aws "${invocation[@]}" --query Status --output text 2>/dev/null || echo Pending)
+            if ! status=$(aws "${invocation[@]}" --query Status --output text 2>"$RUNNER_TEMP/ssm-error"); then
+              grep -q InvocationDoesNotExist "$RUNNER_TEMP/ssm-error" || { cat "$RUNNER_TEMP/ssm-error" >&2; exit 1; }
+              status=Pending
+            fi
             case "$status" in Pending|InProgress|Delayed) ;; *) break ;; esac
             if ((SECONDS >= deadline)); then echo "SSM command $id did not finish in 35 minutes" >&2; exit 1; fi
             sleep 10

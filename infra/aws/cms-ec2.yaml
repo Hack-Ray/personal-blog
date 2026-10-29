@@ -31,8 +31,10 @@ Parameters:
     Default: 20
     MinValue: 10
   ImageId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Type: AWS::EC2::Image::Id
+    Description: >-
+      An Amazon Linux 2023 x86-64 AMI ID, fixed so that stack updates never replace the host. Look it up with
+      aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64.
   ParameterPath:
     Type: String
     Description: SSM path holding the CMS environment, one parameter per variable.
@@ -168,8 +170,8 @@ Resources:
 
   Host:
     Type: AWS::EC2::Instance
-    # A replacement (for example a new AMI) keeps the old host and its local
-    # database instead of terminating it. Deleting the stack still deletes it,
+    # A replacement (a new ImageId) keeps the old host and its local database
+    # instead of terminating it. Deleting the stack still deletes it,
     # because a retained host would keep the security group from being deleted.
     UpdateReplacePolicy: Retain
     Metadata:

@@ -51,8 +51,13 @@ image="$(docker inspect --type container -f '{{.Config.Image}}' "$name" 2>/dev/n
 if [ -n "$url" ]; then
   [ ! -e "$backup_dir/$file" ] || { echo "$backup_dir/$file already exists; restore it with --dump" >&2; exit 1; }
   # Through --config so the presigned signature stays off the command line.
-  printf 'url = "%s"\n' "$url" | curl --config - --fail --silent --show-error --output "$backup_dir/$file.partial"
-  mv "$backup_dir/$file.partial" "$backup_dir/$file"
+  # A dot name keeps a partial or rejected download out of the nightly S3 sync.
+  partial="$backup_dir/.$file.partial"
+  trap 'rm -f "$partial"' EXIT
+  printf 'url = "%s"\n' "$url" | curl --config - --fail --silent --show-error --output "$partial"
+  (cd "$backup_dir" && printf '%s  %s\n' "$sha256" ".$file.partial" | sha256sum --check --quiet) || { echo "checksum mismatch; the download was deleted and the CMS was not stopped" >&2; exit 1; }
+  mv "$partial" "$backup_dir/$file"
+  trap - EXIT
   printf '%s  %s\n' "$sha256" "$file" > "$backup_dir/$file.sha256"
 fi
 [ -f "$backup_dir/$file" ] || { echo "no such file: $backup_dir/$file" >&2; exit 2; }

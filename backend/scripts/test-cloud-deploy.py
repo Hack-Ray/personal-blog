@@ -304,6 +304,7 @@ class CloudRestoreTest(unittest.TestCase):
         result = self.restore("--url", self.URL, "--sha256", self.SHA)
         self.assertEqual(result.returncode, 1)
         self.assertNotIn(["stop", "blog-cms"], self.calls())
+        self.assertEqual([p.name for p in self.backups.iterdir()], [".cms-deploy.lock"], "a rejected download leaves nothing for the S3 sync")
 
     def test_url_requires_sha256(self):
         result = self.restore("--url", self.URL)
@@ -381,6 +382,7 @@ class HostSetupTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("upgrade_type = security", (self.host / "etc/dnf/automatic.conf").read_text())
         self.assertIn("apply_updates = yes", (self.host / "etc/dnf/automatic.conf").read_text())
+        self.assertEqual((self.host / "etc/dnf/vars/releasever").read_text(), "latest\n")
         self.assertIn(["systemctl", "enable", "--now", "docker", "crond", "dnf-automatic.timer"], self.calls())
         self.assertEqual((self.srv / "cms.env").stat().st_mode & 0o777, 0o600)
         self.assertTrue((self.srv / "cloud-maintenance.sh").exists())
@@ -431,7 +433,7 @@ class HostSetupTest(unittest.TestCase):
         cron = (self.host / "etc/cron.d/blog-cms").read_text().splitlines()
         self.assertEqual(cron[0], "PATH=/usr/local/bin:/usr/bin:/bin")
         self.assertTrue(cron[1].startswith(f"0 * * * * root bash {self.srv}/cloud-maintenance.sh maintenance blog-cms {self.srv}/backups "))
-        self.assertTrue(cron[2].startswith(f"0 3 * * * root bash {self.srv}/cloud-maintenance.sh backup blog-cms {self.srv}/backups 2>&1"))
+        self.assertTrue(cron[2].startswith(f"30 3 * * * root bash {self.srv}/cloud-maintenance.sh backup blog-cms {self.srv}/backups 2>&1"))
         self.assertEqual(self.setup_host("--s3", "s3://bucket/cms/").returncode, 0)
         cron = (self.host / "etc/cron.d/blog-cms").read_text().splitlines()
         self.assertIn(f"backup blog-cms {self.srv}/backups s3://bucket/cms/ 2>&1", cron[2])

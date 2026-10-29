@@ -40,6 +40,10 @@ dnf install -y docker cronie dnf-automatic git
 automatic="$etc/dnf/automatic.conf"
 [ -f "$automatic" ] || { echo "$automatic is missing after installing dnf-automatic" >&2; exit 1; }
 sed -i -E 's/^upgrade_type[[:space:]]*=.*/upgrade_type = security/; s/^apply_updates[[:space:]]*=.*/apply_updates = yes/' "$automatic"
+# AL2023 stays on the repository version of its AMI, which never gets new
+# packages; following the latest version lets the security updates arrive.
+mkdir -p "$etc/dnf/vars"
+echo latest > "$etc/dnf/vars/releasever"
 systemctl enable --now docker crond dnf-automatic.timer
 
 echo "==> Directories and scripts in $root"
@@ -51,7 +55,7 @@ install -m 755 "$here/cloud-maintenance.sh" "$here/ssm-env.sh" "$root/"
 if [ -n "$github_app_pem_param" ]; then
   echo "==> GitHub App private key in $root/secrets/github-app.pem"
   pem="$(umask 077 && mktemp "$root/secrets/.github-app.XXXXXX")"
-  aws ssm get-parameter --name "$github_app_pem_param" --with-decryption --query Parameter.Value --output text --region "$region" > "$pem"
+  aws ssm get-parameter --name "$github_app_pem_param" --with-decryption --query Parameter.Value --output text --region "$region" > "$pem" || { rm -f "$pem"; exit 1; }
   grep -q -- '-----BEGIN' "$pem" || { rm -f "$pem"; echo "$github_app_pem_param does not hold a PEM private key" >&2; exit 1; }
   # The CMS container runs as UID 1000 and reads it from /run/secrets.
   chown 1000:1000 "$pem"
@@ -114,7 +118,7 @@ mkdir -p "$etc/cron.d"
 printf '%s\n' \
   "PATH=/usr/local/bin:/usr/bin:/bin" \
   "0 * * * * root bash $root/cloud-maintenance.sh maintenance $container $root/backups 2>&1 | logger -t blog-cms-maintenance" \
-  "0 3 * * * root bash $root/cloud-maintenance.sh backup $container $root/backups${s3:+ $s3} 2>&1 | logger -t blog-cms-backup" \
+  "30 3 * * * root bash $root/cloud-maintenance.sh backup $container $root/backups${s3:+ $s3} 2>&1 | logger -t blog-cms-backup" \
   > "$etc/cron.d/blog-cms"
 chmod 644 "$etc/cron.d/blog-cms"
 
