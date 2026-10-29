@@ -24,13 +24,9 @@ export function TaxonPicker({ label, options, value, max, onChange }: Props) {
   const rows = useMemo(() => {
     const found: Row[] = suggest(options, query, value).map((o) => ({ key: o.slug, taxon: { slug: o.slug, name: o.name }, usage: o }));
     if (entry.kind === "new") found.push({ key: "new", taxon: entry.taxon });
-    else if (entry.kind === "existing") {
-      const exact = found.findIndex((r) => r.key === entry.taxon.slug);
-      if (exact > 0) found.unshift(...found.splice(exact, 1));
-    }
     return found;
   }, [options, query, value, entry]);
-  const invalid = query.trim() !== "" && entry.kind === "invalid";
+  const invalid = query.trim() !== "" && entry.kind === "invalid" && rows.length === 0;
   const index = Math.min(active, rows.length - 1);
   const optionId = (i: number) => `${id}-opt-${i}`;
 
@@ -51,6 +47,8 @@ export function TaxonPicker({ label, options, value, max, onChange }: Props) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Enter and comma also confirm an IME conversion (注音, 拼音); leave those to the IME.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true);
@@ -128,7 +126,7 @@ export function TaxonPicker({ label, options, value, max, onChange }: Props) {
                 </>
               ) : (
                 <span>
-                  {entry.kind === "existing" ? "選用「" : "新增「"}
+                  新增「
                   {r.taxon.slug}
                   {r.taxon.name !== r.taxon.slug ? `:${r.taxon.name}` : ""}」
                 </span>

@@ -16,6 +16,12 @@ test("suggest puts prefix matches before substring matches, then most used", () 
   assert.deepEqual(suggest(options, "r", []).map((o) => o.slug), ["rpg", "rpgle", "sprint"]);
 });
 
+test("suggest puts an exact slug first even past the suggestion limit", () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ slug: `as${i}x`, name: `AS ${i}`, articles: 9, in_use: true }));
+  const all = [...many, { slug: "as", name: "AS", articles: 0, in_use: true }];
+  assert.equal(suggest(all, "as", [])[0]?.slug, "as");
+});
+
 test("suggest matches the display name case-insensitively", () => {
   assert.deepEqual(suggest(options, "PYTH", []).map((o) => o.slug), ["python"]);
   assert.deepEqual(suggest(options, "as/", []).map((o) => o.slug), ["as400"]);

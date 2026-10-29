@@ -8,12 +8,14 @@ export const SUGGESTION_LIMIT = 8;
 
 export type Entry = { kind: "existing"; taxon: Taxon } | { kind: "new"; taxon: Taxon } | { kind: "invalid" };
 
+// An exact slug ranks first so Enter picks it even when many taxa share the prefix.
 const rank = (t: Taxon, q: string): number => {
   if (q === "") return 0;
   const slug = t.slug.toLowerCase();
   const name = t.name.toLowerCase();
-  if (slug.startsWith(q) || name.startsWith(q)) return 0;
-  return slug.includes(q) || name.includes(q) ? 1 : -1;
+  if (slug === q) return 0;
+  if (slug.startsWith(q) || name.startsWith(q)) return 1;
+  return slug.includes(q) || name.includes(q) ? 2 : -1;
 };
 
 export function suggest(options: TaxonUsage[], query: string, selected: Taxon[]): TaxonUsage[] {
