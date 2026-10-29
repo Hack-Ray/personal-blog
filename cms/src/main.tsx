@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AnalyticsPage } from "./analytics-page.tsx";
-import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft, type SignInMethod } from "./api.ts";
+import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, isAccessError, type Draft, type SignInMethod } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
 import { confirmLeave } from "./leave-guard.ts";
@@ -127,7 +127,10 @@ function App() {
         setMethod(s.method);
         setSignedIn(s.signed_in);
       },
-      () => setSignedIn(false),
+      (e) => {
+        if (isAccessError(e)) setMethod("cloudflare");
+        setSignedIn(false);
+      },
     );
     const onSignedOut = () => setSignedIn(false);
     addEventListener(SIGNED_OUT, onSignedOut);

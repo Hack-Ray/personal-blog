@@ -167,6 +167,12 @@ export type SignInMethod = "password" | "cloudflare";
 export const ACCESS_LOGOUT = "/cdn-cgi/access/logout";
 const ACCESS_REQUIRED = "Cloudflare Access sign-in required";
 
+// Only a CMS behind Cloudflare Access answers like this, so a failed first
+// session check can still tell which sign-in screen to show.
+export function isAccessError(e: unknown): boolean {
+  return e instanceof ApiError && (e.message === ACCESS_REQUIRED || (e.status === 503 && e.message.includes("Cloudflare Access")));
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
