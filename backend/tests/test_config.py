@@ -223,3 +223,51 @@ def test_settings_do_not_display_traffic_credentials(tmp_path):
     search_console = {"GSC_SITE_URL": "sc-domain:example.com", "GSC_CREDENTIALS_FILE": str(key)}
     s = config.load({"CLOUDFLARE_API_TOKEN": "dont-show-cf", "CLOUDFLARE_ZONE_ID": ZONE, **search_console})
     assert "dont-show" not in repr(s)
+
+
+AUD = "0123456789abcdef" * 4
+ACCESS = {"CLOUDFLARE_ACCESS_TEAM_DOMAIN": "myteam.cloudflareaccess.com", "CLOUDFLARE_ACCESS_AUD": AUD, "CLOUDFLARE_ACCESS_EMAILS": "author@example.com"}
+
+
+def test_password_sign_in_is_the_default():
+    assert config.load({}).access is None
+    assert config.load(CLOUD).access is None
+
+
+def test_cloudflare_access_settings_are_normalised():
+    s = config.load(
+        {
+            **CLOUD,
+            "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "https://MyTeam.cloudflareaccess.com/",
+            "CLOUDFLARE_ACCESS_AUD": AUD.upper(),
+            "CLOUDFLARE_ACCESS_EMAILS": " Author@Example.com, second@example.com ,",
+        }
+    )
+    assert s.access == config.CloudflareAccess(
+        team_domain="myteam.cloudflareaccess.com", audience=AUD, emails=frozenset({"author@example.com", "second@example.com"})
+    )
+
+
+@pytest.mark.parametrize("missing", list(ACCESS))
+def test_cloudflare_access_needs_all_three_settings(missing):
+    with pytest.raises(config.ConfigError, match=f"^{missing} must be set"):
+        config.load({k: v for k, v in ACCESS.items() if k != missing})
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "http://myteam.cloudflareaccess.com"),
+        ("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "https://myteam.cloudflareaccess.com/cdn-cgi/access/certs"),
+        ("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "myteam.cloudflareaccess.com:443"),
+        ("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "myteam"),
+        ("CLOUDFLARE_ACCESS_AUD", AUD[:-1]),
+        ("CLOUDFLARE_ACCESS_AUD", AUD[:-1] + "g"),
+        ("CLOUDFLARE_ACCESS_EMAILS", "author"),
+        ("CLOUDFLARE_ACCESS_EMAILS", "author@example.com,someone"),
+        ("CLOUDFLARE_ACCESS_EMAILS", ","),
+    ],
+)
+def test_malformed_cloudflare_access_settings_stop_the_start(name, value):
+    with pytest.raises(config.ConfigError, match=f"^{name} must"):
+        config.load({**ACCESS, name: value})
