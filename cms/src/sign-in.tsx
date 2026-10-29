@@ -45,3 +45,17 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     </div>
   );
 }
+
+export function AccessExpired() {
+  return (
+    <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="access-expired-title">
+      <div className="sign-in">
+        <h1 id="access-expired-title">登入已過期</h1>
+        <p>這個 CMS 透過 Cloudflare Access 登入。請重新載入頁面再登入一次。</p>
+        <button type="button" onClick={() => location.reload()}>
+          重新載入
+        </button>
+      </div>
+    </div>
+  );
+}

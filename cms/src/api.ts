@@ -163,19 +163,33 @@ export class ApiError extends Error {
 export const SIGNED_OUT = "cms:signed-out";
 export const SIGNED_IN = "cms:signed-in";
 
+export type SignInMethod = "password" | "cloudflare";
+export const ACCESS_LOGOUT = "/cdn-cgi/access/logout";
+const ACCESS_REQUIRED = "Cloudflare Access sign-in required";
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
     headers: body === undefined || body instanceof FormData ? {} : { "content-type": "application/json" },
     body: body === undefined || body instanceof FormData ? body : JSON.stringify(body),
+    // The API never redirects; Cloudflare Access does once its session has
+    // expired, towards a sign-in page fetch cannot follow.
+    redirect: "manual",
   });
-  if (res.status === 401 && path !== "/session") dispatchEvent(new Event(SIGNED_OUT));
-  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
+  if (res.type === "opaqueredirect") {
+    dispatchEvent(new Event(SIGNED_OUT));
+    throw new ApiError(res.status, { detail: ACCESS_REQUIRED });
+  }
+  if (!res.ok) {
+    const error = new ApiError(res.status, await res.json().catch(() => ({})));
+    if ((res.status === 401 && path !== "/session") || (res.status === 403 && error.message === ACCESS_REQUIRED)) dispatchEvent(new Event(SIGNED_OUT));
+    throw error;
+  }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
 export const api = {
-  session: () => request<{ signed_in: boolean }>("GET", "/session"),
+  session: () => request<{ signed_in: boolean; method: SignInMethod }>("GET", "/session"),
   signIn: (password: string) => request<void>("POST", "/session", { password }),
   signOut: () => request<void>("DELETE", "/session"),
   signOutEverywhere: () => request<void>("DELETE", "/sessions"),

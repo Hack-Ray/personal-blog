@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type ArticleState, type ArticleSummary } from "./api.ts";
+import { ACCESS_LOGOUT, api, type ArticleState, type ArticleSummary, type SignInMethod } from "./api.ts";
 import { STATE_LABEL } from "./labels.ts";
 
 type Filter = "live" | "pending_deletion";
@@ -19,7 +19,7 @@ const ACTIONS: Record<ArticleState, { label: string; run: (docId: string) => Pro
   ],
 };
 
-export function ArticleList() {
+export function ArticleList({ method }: { method: SignInMethod }) {
   const [filter, setFilter] = useState<Filter>("live");
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [error, setError] = useState("");
@@ -63,21 +63,29 @@ export function ArticleList() {
         <a className="button" href="#/analytics">
           流量數據
         </a>
-        <button
-          type="button"
-          onClick={() => api.signOut().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`))}
-        >
-          登出
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (!window.confirm("登出所有裝置與瀏覽器（包括這一個）？")) return;
-            api.signOutEverywhere().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`));
-          }}
-        >
-          登出所有裝置
-        </button>
+        {method === "cloudflare" ? (
+          <a className="button" href={ACCESS_LOGOUT}>
+            登出
+          </a>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => api.signOut().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`))}
+            >
+              登出
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm("登出所有裝置與瀏覽器（包括這一個）？")) return;
+                api.signOutEverywhere().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`));
+              }}
+            >
+              登出所有裝置
+            </button>
+          </>
+        )}
       </div>
       <div role="tablist" className="tabs">
         <button type="button" role="tab" aria-selected={filter === "live"} onClick={() => setFilter("live")}>
