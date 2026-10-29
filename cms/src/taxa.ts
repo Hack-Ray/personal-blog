@@ -1,22 +1,39 @@
-import type { Taxon } from "./api.ts";
+import type { Taxon, TaxonUsage } from "./api.ts";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Parses "slug" or "slug:Name" items separated by commas. */
-export function parseTags(input: string): { tags: Taxon[]; invalid: string[] } {
-  const tags: Taxon[] = [];
-  const invalid: string[] = [];
-  for (const item of input.split(",").map((s) => s.trim()).filter(Boolean)) {
-    const [slug, ...rest] = item.split(":");
-    const name = rest.join(":").trim() || slug!.trim();
-    if (SLUG.test(slug!.trim())) tags.push({ slug: slug!.trim(), name });
-    else invalid.push(item);
-  }
-  return { tags, invalid };
-}
-
-export function formatTags(tags: Taxon[]): string {
-  return tags.map((t) => (t.name === t.slug ? t.slug : `${t.slug}:${t.name}`)).join(", ");
-}
-
 export const isSlug = (s: string) => SLUG.test(s);
+
+export const SUGGESTION_LIMIT = 8;
+
+export type Entry = { kind: "existing"; taxon: Taxon } | { kind: "new"; taxon: Taxon } | { kind: "invalid" };
+
+const rank = (t: Taxon, q: string): number => {
+  if (q === "") return 0;
+  const slug = t.slug.toLowerCase();
+  const name = t.name.toLowerCase();
+  if (slug.startsWith(q) || name.startsWith(q)) return 0;
+  return slug.includes(q) || name.includes(q) ? 1 : -1;
+};
+
+export function suggest(options: TaxonUsage[], query: string, selected: Taxon[]): TaxonUsage[] {
+  const q = query.trim().toLowerCase();
+  const taken = new Set(selected.map((t) => t.slug));
+  return options
+    .filter((o) => !taken.has(o.slug))
+    .map((o) => ({ o, r: rank(o, q) }))
+    .filter(({ r }) => r >= 0)
+    .sort((a, b) => a.r - b.r || b.o.articles - a.o.articles || a.o.slug.localeCompare(b.o.slug))
+    .slice(0, SUGGESTION_LIMIT)
+    .map(({ o }) => o);
+}
+
+/** Reads "slug" or "slug:名稱"; the name defaults to the slug. An existing slug keeps its stored name. */
+export function entryFor(options: Taxon[], query: string): Entry {
+  const [rawSlug = "", ...rest] = query.split(":");
+  const slug = rawSlug.trim();
+  if (!isSlug(slug)) return { kind: "invalid" };
+  const existing = options.find((o) => o.slug === slug);
+  if (existing) return { kind: "existing", taxon: { slug: existing.slug, name: existing.name } };
+  return { kind: "new", taxon: { slug, name: rest.join(":").trim() || slug } };
+}

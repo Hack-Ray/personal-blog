@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { SIGNED_IN, api, type Draft, type DraftContent } from "./api.ts";
+import { SIGNED_IN, api, type Draft, type DraftContent, type TaxonKind, type TaxonUsage } from "./api.ts";
 import { DraftSync, type SyncStatus } from "./draft-sync.ts";
 import { statusLabel, unsavedReason } from "./editor-status.ts";
 import { STATE_LABEL } from "./labels.ts";
@@ -9,7 +9,7 @@ import { type Diagram, type Highlight, loadHighlighter, loadMermaid, renderPrevi
 import { SnapshotPanel } from "./snapshot-panel.tsx";
 import { imageIds } from "./cover.ts";
 import { URL_POLICY, prePublishWarnings, urlProblems } from "./publish-checks.ts";
-import { formatTags, isSlug, parseTags } from "./taxa.ts";
+import { TaxonPicker } from "./taxon-picker.tsx";
 import { onSlugBlur, publicPath, slugSaveFailed, type SlugStatus } from "./slug.ts";
 
 // Waits for a pause in typing, so a diagram is not re-rendered on every keystroke.
@@ -106,8 +106,7 @@ function SlugField({ docId, initial }: { docId: string; initial: string | null }
 
 export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void }) {
   const [content, setContent] = useState<DraftContent>(draft);
-  const [tagText, setTagText] = useState(formatTags(draft.tags));
-  const [seriesText, setSeriesText] = useState(formatTags(draft.series ? [draft.series] : []));
+  const [taxa, setTaxa] = useState<Partial<Record<TaxonKind, TaxonUsage[]>>>({});
   const [status, setStatus] = useState<SyncStatus>({ kind: "saved" });
   const [notice, setNotice] = useState("");
   const [state, setState] = useState(draft.state);
@@ -117,6 +116,10 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
   const sync = useRef<DraftSync>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.taxa().then(setTaxa, () => undefined);
+  }, []);
 
   useEffect(() => {
     const current = new DraftSync(api, draft.doc_id, { revision: draft.revision, content: draft }, setStatus);
@@ -129,9 +132,6 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
     };
   }, [draft]);
 
-  const { invalid } = parseTags(tagText);
-  const seriesParsed = parseTags(seriesText);
-  const seriesInvalid = seriesParsed.invalid.length > 0 || seriesParsed.tags.length > 1;
   const covers = useMemo(() => imageIds(content.markdown), [content.markdown]);
   const badUrls = useMemo(() => urlProblems(content.markdown), [content.markdown]);
   const topicValid = unsavedReason(content) === undefined;
@@ -251,40 +251,26 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
         <Field label="標題">
           <input value={content.title} onChange={(e) => update({ ...content, title: e.target.value })} />
         </Field>
-        <Field label="Topic slug">
-          <input
-            value={content.topic.slug}
-            aria-invalid={!isSlug(content.topic.slug)}
-            onChange={(e) => update({ ...content, topic: { ...content.topic, slug: e.target.value } })}
-          />
-        </Field>
-        <Field label="Topic 名稱">
-          <input
-            value={content.topic.name}
-            onChange={(e) => update({ ...content, topic: { ...content.topic, name: e.target.value } })}
-          />
-        </Field>
-        <Field label="Tags（slug:名稱, …）">
-          <input
-            value={tagText}
-            aria-invalid={invalid.length > 0}
-            onChange={(e) => {
-              setTagText(e.target.value);
-              update({ ...content, tags: parseTags(e.target.value).tags });
-            }}
-          />
-        </Field>
-        <Field label="系列（slug:名稱，留空表示不屬於系列）">
-          <input
-            value={seriesText}
-            aria-invalid={seriesInvalid}
-            onChange={(e) => {
-              setSeriesText(e.target.value);
-              const { tags, invalid } = parseTags(e.target.value);
-              update({ ...content, series: invalid.length === 0 && tags.length === 1 ? tags[0]! : null });
-            }}
-          />
-        </Field>
+        <TaxonPicker
+          label="Topic"
+          options={taxa.topics ?? []}
+          value={content.topic.slug ? [content.topic] : []}
+          max={1}
+          onChange={(next) => update({ ...content, topic: next[0] ?? { slug: "", name: "" } })}
+        />
+        <TaxonPicker
+          label="Tags"
+          options={taxa.tags ?? []}
+          value={content.tags}
+          onChange={(tags) => update({ ...content, tags })}
+        />
+        <TaxonPicker
+          label="系列（可不選）"
+          options={taxa.series ?? []}
+          value={content.series ? [content.series] : []}
+          max={1}
+          onChange={(next) => update({ ...content, series: next[0] ?? null })}
+        />
         <Field label="封面圖" wide>
           <select value={content.cover ?? ""} onChange={(e) => update({ ...content, cover: e.target.value || null })}>
             <option value="">第一張圖片（預設）</option>
@@ -312,8 +298,6 @@ export function Editor({ draft, onReload }: { draft: Draft; onReload: () => void
           修正後才能發布：{badUrls.join("、")}（{URL_POLICY}）
         </p>
       )}
-      {invalid.length > 0 && <p className="hint">無效的 tag slug：{invalid.join("、")}</p>}
-      {seriesInvalid && <p className="hint">系列只能填一個，slug 須為小寫英數與連字號。</p>}
       {content.cover && !covers.includes(content.cover) && <p className="hint">封面圖已不在文章中，發布前請重新選擇。</p>}
       {content.cover && covers.includes(content.cover) && (
         <img className="cover-preview" src={`/api/images/${content.cover}`} alt="封面圖預覽" />
