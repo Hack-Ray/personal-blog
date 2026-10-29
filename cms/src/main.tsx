@@ -1,13 +1,13 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AnalyticsPage } from "./analytics-page.tsx";
-import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft } from "./api.ts";
+import { EMPTY_METADATA, SIGNED_IN, SIGNED_OUT, api, type Draft, type SignInMethod } from "./api.ts";
 import { ArticleList } from "./article-list.tsx";
 import { Editor } from "./editor.tsx";
 import { confirmLeave } from "./leave-guard.ts";
 import { ProfilePage } from "./profile-page.tsx";
 import { Releases } from "./releases.tsx";
-import { SignIn } from "./sign-in.tsx";
+import { AccessExpired, SignIn } from "./sign-in.tsx";
 import { TaxaPage } from "./taxa-page.tsx";
 import { isSlug } from "./taxa.ts";
 import "./styles.css";
@@ -98,10 +98,10 @@ function EditArticle({ docId }: { docId: string }) {
   return draft ? <Editor key={`${draft.doc_id}@${draft.revision}`} draft={draft} onReload={load} /> : <p>載入中…</p>;
 }
 
-function Page({ route }: { route: Route }) {
+function Page({ route, method }: { route: Route; method: SignInMethod }) {
   switch (route.page) {
     case "list":
-      return <ArticleList />;
+      return <ArticleList method={method} />;
     case "new":
       return <NewArticle />;
     case "releases":
@@ -120,8 +120,15 @@ function Page({ route }: { route: Route }) {
 function App() {
   const route = useRoute();
   const [signedIn, setSignedIn] = useState<boolean>();
+  const [method, setMethod] = useState<SignInMethod>("password");
   useEffect(() => {
-    api.session().then((s) => setSignedIn(s.signed_in), () => setSignedIn(false));
+    api.session().then(
+      (s) => {
+        setMethod(s.method);
+        setSignedIn(s.signed_in);
+      },
+      () => setSignedIn(false),
+    );
     const onSignedOut = () => setSignedIn(false);
     addEventListener(SIGNED_OUT, onSignedOut);
     return () => removeEventListener(SIGNED_OUT, onSignedOut);
@@ -135,10 +142,11 @@ function App() {
     <>
       {everSignedIn && (
         <div inert={!signedIn}>
-          <Page route={route} />
+          <Page route={route} method={method} />
         </div>
       )}
-      {!signedIn && (
+      {!signedIn && method === "cloudflare" && <AccessExpired />}
+      {!signedIn && method === "password" && (
         <SignIn
           onSignedIn={() => {
             setSignedIn(true);

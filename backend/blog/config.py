@@ -23,6 +23,15 @@ class ConfigError(Exception):
 
 
 @dataclass(frozen=True)
+class CloudflareAccess:
+    """A CMS behind Cloudflare Access trusts the Access token, not a password (BE-026)."""
+
+    team_domain: str
+    audience: str
+    emails: frozenset[str]
+
+
+@dataclass(frozen=True)
 class Settings:
     env: str
     database_url: str = field(repr=False)
@@ -57,6 +66,7 @@ class Settings:
     gsc_credentials_file: Path | None = field(default=None, repr=False)
     gsc_api_url: str = "https://www.googleapis.com"
     backup_every_hours: int = 0
+    access: CloudflareAccess | None = None
 
     @property
     def session_cookie(self) -> str:
@@ -172,6 +182,25 @@ def _credentials_file(value: str | None) -> Path | None:
     return path
 
 
+def _access(env: Mapping[str, str]) -> CloudflareAccess | None:
+    names = ("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "CLOUDFLARE_ACCESS_AUD", "CLOUDFLARE_ACCESS_EMAILS")
+    values = [_optional(env, n) for n in names]
+    if not any(values):
+        return None
+    if missing := [n for n, v in zip(names, values, strict=True) if v is None]:
+        raise ConfigError(f"{', '.join(missing)} must be set along with the other CLOUDFLARE_ACCESS_ settings")
+    team, audience, emails = values
+    team = team.lower().removeprefix("https://").removesuffix("/")
+    if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", team):
+        raise ConfigError("CLOUDFLARE_ACCESS_TEAM_DOMAIN must be the team domain such as myteam.cloudflareaccess.com")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", audience):
+        raise ConfigError("CLOUDFLARE_ACCESS_AUD must be the 64-character Application Audience (AUD) tag")
+    allowed = frozenset(e.strip().lower() for e in emails.split(",") if e.strip())
+    if not allowed or any("@" not in e for e in allowed):
+        raise ConfigError("CLOUDFLARE_ACCESS_EMAILS must list email addresses separated by commas")
+    return CloudflareAccess(team_domain=team, audience=audience.lower(), emails=allowed)
+
+
 def load(env: Mapping[str, str] = os.environ) -> Settings:
     cms_env = env.get("CMS_ENV", "local").strip() or "local"
     if cms_env not in ("local", "cloud"):
@@ -258,6 +287,7 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         gsc_credentials_file=_credentials_file(credentials),
         gsc_api_url=_api_url(_optional(env, "GSC_API_URL") or "https://www.googleapis.com", cloud, "GSC_API_URL"),
         backup_every_hours=int(backup_every),
+        access=_access(env),
     )
 
 

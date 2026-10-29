@@ -99,6 +99,8 @@ Starlette 依註冊順序的**反向**執行 middleware。`api.py` 依序註冊 
 
 **登入**（`auth.py`）：密碼以 scrypt（N=2^15，約 32 MiB）存在 `admin_credentials` 唯一一列。`sign_in` 先依 `request.client.host` 計失敗次數，先加一再驗密碼。5 次以上失敗後鎖定 `min(15 分鐘, 30 秒 × 2^(n−5))`。scrypt 外面有每個 process 2 個名額的 semaphore，等 10 秒拿不到回 503。成功後刪掉失敗紀錄與過期 session，建立 `admin_sessions`（只存 token 的 sha256）。cookie 為 httponly、`SameSite=Strict`、3 天；`COOKIE_SECURE` 時名稱是 `__Host-cms_session`，否則 `cms_session`。閒置超過 1 天也失效，`last_seen_at` 最多每 5 分鐘寫一次。`set_password` 會登出所有 session。CLI：`python -m blog.auth`。
 
+**Cloudflare Access 登入**（`cloudflare_access.py`，BE-026）：三個 `CLOUDFLARE_ACCESS_*` 都設定時，上面的密碼登入整個關閉。`require_cloudflare_access` middleware 對 `/healthz` 以外的每個請求驗證 `Cf-Access-Jwt-Assertion`：只收 RS256，檢查 AUD、issuer、`exp`、`iat`（60 秒誤差），email 要在白名單。公鑰以 `PyJWKClient` 從 team domain 取得並依 kid 快取。驗證失敗回 403，取不到公鑰回 503。通過時 email 放在 `request.state.access_email`，`require_admin` 以它判斷已登入，忽略 cookie。
+
 ### 3.2 文章的生命週期
 
 所有寫入都經過 `articles._locked(doc_id, action)`：`SELECT ... FOR UPDATE` 鎖住文章列，檢查 `ALLOWED_FROM[action]`，不允許就丟 `InvalidTransition`（409）。
@@ -397,6 +399,7 @@ backend/
     images.py       上傳轉檔、引用解析、垃圾回收
     profile.py      ProfileContent 與 revision 檢查
     auth.py         密碼、登入節流、session；CLI 設定密碼
+    cloudflare_access.py  驗證 Cloudflare Access 的 JWT（雲端登入）
     exporter.py     render_snapshot、寫入 clone、commit、push、remote 檢查；CLI
     release.py      Release 狀態機、GitHubActions REST client、refresh
     retention.py    Published Version 清理

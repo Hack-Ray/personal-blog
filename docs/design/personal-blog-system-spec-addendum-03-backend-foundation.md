@@ -281,7 +281,7 @@
   - 不開長期的雲端分支。能用同一種做法同時適用本機與雲端的，就不做成選項，例如定期維護是同一個指令 `python -m blog.maintenance`。
   - 只有真的不同的設定放進 `.env`，由 `backend/blog/config.py` 啟動時一次讀取並檢查。`CMS_ENV=local|cloud` 只決定預設值，每一項都能個別覆寫。
   - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式。workflow 透過 Tailscale 的 GitHub Action 連到主機，主機仍不開進站連接埠（BE-020）。
-- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行；選哪個運算服務仍待決定（`docs/backlog.md`）。
+- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行。作者的運算服務見 BE-027。
 - **Supersedes**：無。
 
 ### BE-022：本機與雲端共用發布流程
@@ -333,6 +333,36 @@
   - CMS 關閉時，對備份的 process group 送 SIGTERM。`stop_cms` 等 CMS 程序結束而不只等 port 關閉，所以先停 CMS 的 `restore.sh` 不會與排程備份的清理同時進行。強制結束 CMS 時沒有這個保證，正在跑的備份會自己跑完。
 - **Consequences**：CMS 關著時沒有每日備份；資料只在 CMS 開著時改變，所以沒有遺漏。直接執行 `uvicorn` 而不經 `start.sh` 時，第一份排程備份在啟動滿一個間隔後才出現。
 - **Supersedes**：無。
+
+### BE-026：雲端 CMS 以 Cloudflare Access 登入
+
+- **Status**：Confirmed（使用者 2026-10-29 決定）
+- **Context**：雲端 CMS 改用 Cloudflare Tunnel 對外，放在 `cms.<網域>`，不再只有 tailnet 裡的裝置連得到。BE-020 的第一道驗證是通過核准的 Tailscale 裝置，這個前提不再成立。CMS 自己只有一組密碼。
+- **Decision**：
+  - Cloudflare Access 擋在 `cms.<網域>` 前面，以 GitHub 為登入方式，session 24 小時，policy 只允許作者的 email。
+  - 設定 `CLOUDFLARE_ACCESS_TEAM_DOMAIN`、`CLOUDFLARE_ACCESS_AUD` 與 `CLOUDFLARE_ACCESS_EMAILS` 時，CMS 不接受密碼登入。三個要一起設定，否則 CMS 不啟動。沒有設定時，密碼與 session cookie 的行為完全不變。
+  - `backend/blog/cloudflare_access.py` 每個請求都驗證 `Cf-Access-Jwt-Assertion` 的 JWT。只接受 RS256，檢查 AUD、issuer、`exp` 與 `iat`（容許 60 秒時鐘誤差），email 必須在 `CLOUDFLARE_ACCESS_EMAILS` 裡。公鑰從 team domain 的 `/cdn-cgi/access/certs` 取得並快取。
+  - 除了 `/healthz`，所有路徑都要通過驗證，包括 `/admin/` 的檔案。沒有或無效的 JWT 回 403，取不到公鑰回 503。
+  - CMS 不發 session，也不存登入狀態。`GET /api/session` 多回 `method`（`password` 或 `cloudflare`）。這個模式下密碼登入與登出的 API 回 409，登出改到 `/cdn-cgi/access/logout`，撤銷在 Cloudflare 執行。
+  - 不安全方法仍檢查 Origin，audit log 多記 `user=<email>`。
+- **Consequences**：主機不能有繞過 Cloudflare 的入口，因為撤銷 session 只在 Cloudflare 生效，CMS 只看 JWT 本身。Access 應用程式要在 tunnel 的 hostname 上線前建立。主機要能對外連到 team domain，取不到公鑰時 CMS 無法使用。步驟見 `docs/cloud-access-cloudflare.md`。
+- **Rejected**：
+  - 用 JWT 換 CMS 自己的 session cookie。在 Cloudflare 撤銷 session 後，cookie 仍然有效，除非每個請求還是檢查 JWT，那就不需要 cookie。
+  - 信任 Access 而不驗證 JWT。tunnel 或 policy 設錯一次，CMS 就直接公開。
+- **Supersedes**：使用 Cloudflare Access 的部署不適用 BE-020。只用 Tailscale 存取的部署仍以 BE-020 為準，並繼續使用密碼登入。
+
+### BE-027：作者的雲端 CMS 放在 EC2，經 SSM 部署
+
+- **Status**：Confirmed（使用者 2026-10-29 決定）
+- **Context**：BE-021 讓 CMS 可以部署到雲端，但沒有選定運算服務。作者決定把 CMS 從本機搬到 AWS。Fork 的人仍預設在自己的電腦執行 CMS。
+- **Decision**：
+  - 單台 EC2（x86-64、Amazon Linux 2023）執行 CMS、PostgreSQL 與 `cloudflared` 三個容器。主機沒有進站規則，也沒有 SSH 金鑰，管理用 SSM Session Manager。
+  - 作者經 Cloudflare Tunnel 連到 `cms.<網域>`，登入方式見 BE-026。
+  - `cms-deploy.yml` 以 `CMS_DEPLOY_VIA=ssm` 選擇 SSM Run Command，GitHub Actions 用 OIDC 取得只能對這台主機執行 `AWS-RunShellScript` 的 role。主機上執行的部署腳本與 Tailscale 做法相同。
+  - 主機與周邊資源由 `infra/aws/cms-ec2.yaml` 建立，`cloud-host-setup.sh` 設定主機，`cloud-restore.sh` 搬入既有備份。每日備份同步到開啟版本控制的 S3 bucket，主機 role 只能寫入。
+  - 選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建。
+- **Consequences**：沒有設定 `CMS_DEPLOY_VIA` 時，部署仍走 Tailscale，fork 的行為不變。資料庫在主機的磁碟上，主機被取代時資料不會跟過去，所以 stack 固定 AMI ID，並保留被取代的主機。步驟見 `docs/cloud-ec2.md`。
+- **Supersedes**：無。BE-020 的 Tailscale 做法仍是 fork 的預設。
 
 ## Known gaps
 

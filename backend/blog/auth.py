@@ -14,6 +14,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from blog import config
 from blog.db import SessionLocal
 from blog.models import AdminCredential, AdminSession, SignInAttempt
 
@@ -169,6 +170,8 @@ def main() -> None:
         except ValueError as e:
             raise SystemExit(str(e)) from e
     print("Admin password set. Existing sessions were signed out.")
+    if config.settings.access:
+        print("CLOUDFLARE_ACCESS_* is set, so this CMS signs in through Cloudflare Access and does not ask for this password.")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 CMS 放到雲端主機時，只讓作者自己的裝置連得到。做法是讓主機不對網際網路開任何連接埠，所有連線都走 Tailscale。決策紀錄見 Addendum 03 BE-020。
 
-另一種做法是 EC2 加上 Cloudflare Tunnel 與 Access，見 [`cloud-ec2.md`](cloud-ec2.md)。
+另一種做法是 EC2 加上 Cloudflare Tunnel，由 Cloudflare Access 登入，見 [`cloud-ec2.md`](cloud-ec2.md) 與 [`cloud-access-cloudflare.md`](cloud-access-cloudflare.md)。
 
 這份文件只涵蓋存取控制，不指定用哪一種主機。容器部署、`cms-v*` tag 更新與排程見 [`cms-deployment.md`](cms-deployment.md)，直接執行程式的設定見 [`local-setup.md`](local-setup.md) 第 13 節。
 
