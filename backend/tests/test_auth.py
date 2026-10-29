@@ -30,9 +30,9 @@ def test_api_requires_sign_in(anon, method, path):
 
 
 def test_session_status_and_sign_in_are_public(anon):
-    assert anon.get("/api/session").json() == {"signed_in": False}
+    assert anon.get("/api/session").json() == {"signed_in": False, "method": "password"}
     assert anon.post("/api/session", json={"password": ADMIN_PASSWORD}).status_code == 204
-    assert anon.get("/api/session").json() == {"signed_in": True}
+    assert anon.get("/api/session").json() == {"signed_in": True, "method": "password"}
     assert anon.post("/api/articles", json=ARTICLE).status_code == 201
 
 

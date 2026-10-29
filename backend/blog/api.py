@@ -11,12 +11,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import analytics, articles, auth, backups, config, images, profile, release, release_jobs, taxa
+from blog import analytics, articles, auth, backups, cloudflare_access, config, images, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
 # Logs go to stdout for the host (or CloudWatch) to collect.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+log = logging.getLogger(__name__)
 audit = logging.getLogger("blog.audit")
 audit.setLevel(logging.INFO)
 
@@ -47,6 +48,12 @@ def _signed_in(token: str | None) -> bool:
         return auth.is_signed_in(session, token)
 
 
+async def _is_admin(request: Request) -> bool:
+    if config.settings.access:
+        return getattr(request.state, "access_email", None) is not None
+    return await run_in_threadpool(_signed_in, request.cookies.get(config.settings.session_cookie))
+
+
 @app.middleware("http")
 async def require_admin(request: Request, call_next):
     path = request.url.path
@@ -57,7 +64,7 @@ async def require_admin(request: Request, call_next):
         expected = config.settings.cms_origin or f"{request.url.scheme}://{request.url.netloc}"
         if request.method in UNSAFE_METHODS and origin and origin != expected:
             return JSONResponse({"detail": "cross-origin request refused"}, status_code=status.HTTP_403_FORBIDDEN)
-        if path not in PUBLIC_API and not await run_in_threadpool(_signed_in, request.cookies.get(config.settings.session_cookie)):
+        if path not in PUBLIC_API and not await _is_admin(request):
             return JSONResponse({"detail": "sign in required"}, status_code=status.HTTP_401_UNAUTHORIZED)
     return await call_next(request)
 
@@ -87,8 +94,25 @@ SECURITY_HEADERS = {
 }
 
 
-# Added after require_admin so its refusals get the headers and the audit
-# line too. /docs is left alone: its page loads Swagger UI from a CDN.
+# Added after require_admin so it runs before it. Every path but /healthz
+# needs the token, so neither the CMS's files nor its API answer a request
+# that did not come through Cloudflare Access.
+@app.middleware("http")
+async def require_cloudflare_access(request: Request, call_next):
+    if config.settings.access is None or request.url.path == "/healthz":
+        return await call_next(request)
+    try:
+        request.state.access_email = await run_in_threadpool(cloudflare_access.verify, request.headers.get(cloudflare_access.HEADER))
+    except cloudflare_access.KeysUnavailable as e:
+        log.error("cannot fetch Cloudflare Access signing keys: %s", e)
+        return JSONResponse({"detail": "cannot reach Cloudflare Access to check the sign-in; try again"}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except cloudflare_access.Refused:
+        return JSONResponse({"detail": "Cloudflare Access sign-in required"}, status_code=status.HTTP_403_FORBIDDEN)
+    return await call_next(request)
+
+
+# Added after the sign-in checks so their refusals get the headers and the
+# audit line too. /docs is left alone: its page loads Swagger UI from a CDN.
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -98,7 +122,8 @@ async def security_headers(request: Request, call_next):
     # Every change, sign-in attempts included, leaves one line; bodies are not logged.
     if path.startswith("/api/") and request.method in UNSAFE_METHODS:
         client = request.client.host if request.client else "-"
-        audit.info("method=%s path=%s status=%d client=%s", request.method, path, response.status_code, client)
+        user = f" user={getattr(request.state, 'access_email', '-')}" if config.settings.access else ""
+        audit.info("method=%s path=%s status=%d client=%s%s", request.method, path, response.status_code, client, user)
     return response
 
 
@@ -227,15 +252,27 @@ class SignInBody(BaseModel):
 
 class SessionOut(BaseModel):
     signed_in: bool
+    method: Literal["password", "cloudflare"]
 
 
 @app.get("/api/session")
 def get_session_status(request: Request, session: SessionDep) -> SessionOut:
-    return SessionOut(signed_in=auth.is_signed_in(session, request.cookies.get(config.settings.session_cookie)))
+    if config.settings.access:
+        return SessionOut(signed_in=True, method="cloudflare")
+    return SessionOut(signed_in=auth.is_signed_in(session, request.cookies.get(config.settings.session_cookie)), method="password")
+
+
+def _password_sign_in_only(detail: str) -> None:
+    if config.settings.access:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail)
+
+
+CLOUDFLARE_SIGN_OUT = "this CMS signs in through Cloudflare Access; sign out at /cdn-cgi/access/logout and revoke sessions in Cloudflare Zero Trust"
 
 
 @app.post("/api/session", status_code=status.HTTP_204_NO_CONTENT)
 def sign_in(body: SignInBody, request: Request, response: Response, session: SessionDep) -> None:
+    _password_sign_in_only("password sign-in is off; this CMS signs in through Cloudflare Access")
     # Behind a proxy listed in FORWARDED_ALLOW_IPS, uvicorn puts the original client here.
     client = request.client.host if request.client else "unknown"
     try:
@@ -263,6 +300,7 @@ def _clear_cookie(response: Response) -> None:
 
 @app.delete("/api/session", status_code=status.HTTP_204_NO_CONTENT)
 def sign_out(request: Request, response: Response, session: SessionDep) -> None:
+    _password_sign_in_only(CLOUDFLARE_SIGN_OUT)
     auth.sign_out(session, request.cookies.get(config.settings.session_cookie))
     _clear_cookie(response)
 
@@ -270,6 +308,7 @@ def sign_out(request: Request, response: Response, session: SessionDep) -> None:
 @app.delete("/api/sessions", status_code=status.HTTP_204_NO_CONTENT)
 def sign_out_everywhere(response: Response, session: SessionDep) -> None:
     """Signs out every browser, this one included."""
+    _password_sign_in_only(CLOUDFLARE_SIGN_OUT)
     auth.sign_out_everywhere(session)
     _clear_cookie(response)
 
