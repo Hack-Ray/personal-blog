@@ -2,7 +2,9 @@
 
 這份流程適用於有 Docker 的 Linux x86-64 主機，包括 EC2 或 Lightsail。Workflow 在標準 Ubuntu runner 建置 amd64 image，尚未提供 ARM64 跨架構建置。本機仍使用 `backend/scripts/start.sh`。兩邊使用同一份程式與資料格式，設定寫在各自的環境檔案。
 
-合併到 `main` 只更新公開網站。雲端 CMS 由 `cms-v*` tag 更新，而且必須先開啟 `CMS_DEPLOY_ENABLED`。主機不開公開進站連接埠，GitHub Actions 透過 Tailscale SSH 連線。
+合併到 `main` 只更新公開網站。雲端 CMS 由 `cms-v*` tag 更新，而且必須先開啟 `CMS_DEPLOY_ENABLED`。主機不開公開進站連接埠。
+
+GitHub Actions 有兩種方式連到主機，由 `CMS_DEPLOY_VIA` 選擇。預設是 `tailscale`，透過 Tailscale SSH 連線，這份文件說明這種做法。設成 `ssm` 時，改用 AWS SSM Run Command 部署到 EC2，作者經 Cloudflare Tunnel 與 Access 連到 CMS，流程見 [`cloud-ec2.md`](cloud-ec2.md)。兩種方式在主機上執行同一個部署腳本。
 
 ## 1. 準備主機
 
@@ -58,15 +60,19 @@ CI 只需要 SSH，不需要連到 CMS 的 443 埠。CI tag 使用 `accept`，�
 
 | Variable | 內容 |
 | --- | --- |
-| `CMS_HOST` | 主機的 Tailscale DNS 名稱，例如 `cms.example.ts.net` |
-| `CMS_SSH_USER` | 主機上的部署帳號 |
+| `CMS_DEPLOY_VIA` | 選用。`tailscale`（預設）或 `ssm`。其他值會讓部署失敗 |
+| `CMS_HOST` | `tailscale` 用。主機的 Tailscale DNS 名稱，例如 `cms.example.ts.net` |
+| `CMS_SSH_USER` | `tailscale` 用。主機上的部署帳號 |
+| `CMS_AWS_ROLE_ARN` | `ssm` 用。GitHub 以 OIDC 取得的部署 role ARN，見 `cloud-ec2.md` |
+| `CMS_AWS_REGION` | `ssm` 用。主機所在的 region |
+| `CMS_INSTANCE_ID` | `ssm` 用。主機的 instance ID，例如 `i-0123456789abcdef0` |
 | `CMS_ENV_FILE` | 主機上環境檔案的絕對路徑，例如 `/srv/blog/cms.env` |
 | `CMS_BACKUP_DIR` | 主機上的備份目錄，例如 `/srv/blog/backups` |
 | `CMS_SECRETS_DIR` | 選用。主機上的私鑰目錄，唯讀掛載成 `/run/secrets` |
 | `CMS_CONTAINER` | 選用。容器名稱，預設 `blog-cms` |
 | `CMS_PORT` | 選用。主機本機位址的監聽埠，預設 `8000` |
 | `CMS_IMAGE` | 選用。GHCR image 路徑，預設 `ghcr.io/<程式 repo 小寫名稱>-cms` |
-| `CMS_CI_TAG` | 選用。Tailscale tag，預設 `tag:cms-ci` |
+| `CMS_CI_TAG` | 選用，`tailscale` 用。Tailscale tag，預設 `tag:cms-ci` |
 | `CMS_MEMORY` | 選用。CMS 容器的記憶體上限，例如 `768m`。未設定時不限制 |
 | `CMS_LOG_GROUP`、`CMS_LOG_REGION` | 選用。兩個一起設定時，CMS 的 log 送到 CloudWatch Logs，見第 6 節 |
 
@@ -222,8 +228,10 @@ docker run --rm --network host --env-file /srv/blog/cms.env -e BACKUP_TARGET=/ba
 在 repo 根目錄執行。
 
 ```sh
-bash -n backend/scripts/deploy-cloud.sh backend/scripts/cloud-maintenance.sh backend/scripts/ssm-env.sh
+bash -n backend/scripts/deploy-cloud.sh backend/scripts/cloud-maintenance.sh backend/scripts/ssm-env.sh \
+  backend/scripts/cloud-host-setup.sh backend/scripts/cloud-restore.sh
 python backend/scripts/test-cloud-deploy.py
+cfn-lint infra/aws/cms-ec2.yaml
 ```
 
-測試以假的 Docker 與 AWS CLI 驗證執行順序、備份失敗恢復、migration 失敗停止、容器限制、參數檢查，以及 SSM 環境檔的產生。2026-10-24 另在 Linux Docker 上實際部署過一次本機 registry 的 image，確認唯讀容器可以 migration、備份、維護、上傳暫存檔並通過健康檢查。這些測試不代表 Tailscale、registry、雲端 PostgreSQL 或正式還原已經實測。完成主機設定後，仍要實際走一次部署與還原演練。
+測試以假的 Docker 與 AWS CLI 驗證執行順序、備份失敗恢復、migration 失敗停止、容器限制、參數檢查，以及 SSM 環境檔的產生。同一個檔案也測試 `cloud-host-setup.sh`（重複執行、密碼與 tunnel token 不出現在指令列、cron 內容）與 `cloud-restore.sh`（執行順序、鎖、沒有 CMS 容器時拒絕、checksum）。`cfn-lint` 用 `pip install cfn-lint` 安裝。2026-10-24 另在 Linux Docker 上實際部署過一次本機 registry 的 image，確認唯讀容器可以 migration、備份、維護、上傳暫存檔並通過健康檢查。這些測試不代表 Tailscale、registry、雲端 PostgreSQL 或正式還原已經實測。完成主機設定後，仍要實際走一次部署與還原演練。
