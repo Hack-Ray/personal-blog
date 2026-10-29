@@ -818,3 +818,93 @@ td {
   color: var(--muted);
   font-size: 0.9em;
 }
+
+.taxon-picker {
+  position: relative;
+}
+
+.taxon-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.taxon-box:focus-within {
+  border-color: var(--accent);
+}
+
+.taxon-box input {
+  flex: 1;
+  min-width: 8em;
+  border: 0;
+  padding: 3px 2px;
+  outline: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.chip small,
+.taxon-list small {
+  color: var(--muted);
+}
+
+.chip button {
+  border: 0;
+  padding: 0 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.taxon-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.taxon-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.taxon-list li.active {
+  background: var(--panel);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.taxon-list .count {
+  margin-left: auto;
+}
+
+.taxon-list .hint-row {
+  color: var(--danger);
+  cursor: default;
+}
