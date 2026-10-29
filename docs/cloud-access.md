@@ -1,5 +1,7 @@
 # 雲端 CMS 的存取控制：Tailscale
 
+CMS 改走 Cloudflare Tunnel 並由 Cloudflare Access 登入的做法見 [`cloud-access-cloudflare.md`](cloud-access-cloudflare.md)。
+
 CMS 放到雲端主機時，只讓作者自己的裝置連得到。做法是讓主機不對網際網路開任何連接埠，所有連線都走 Tailscale。決策紀錄見 Addendum 03 BE-020。
 
 另一種做法是 EC2 加上 Cloudflare Tunnel 與 Access，見 [`cloud-ec2.md`](cloud-ec2.md)。

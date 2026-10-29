@@ -334,6 +334,23 @@
 - **Consequences**：CMS 關著時沒有每日備份；資料只在 CMS 開著時改變，所以沒有遺漏。直接執行 `uvicorn` 而不經 `start.sh` 時，第一份排程備份在啟動滿一個間隔後才出現。
 - **Supersedes**：無。
 
+### BE-026：雲端 CMS 以 Cloudflare Access 登入
+
+- **Status**：Confirmed（使用者 2026-10-29 決定）
+- **Context**：雲端 CMS 改用 Cloudflare Tunnel 對外，放在 `cms.<網域>`，不再只有 tailnet 裡的裝置連得到。BE-020 的第一道驗證是通過核准的 Tailscale 裝置，這個前提不再成立。CMS 自己只有一組密碼。
+- **Decision**：
+  - Cloudflare Access 擋在 `cms.<網域>` 前面，以 GitHub 為登入方式，session 24 小時，policy 只允許作者的 email。
+  - 設定 `CLOUDFLARE_ACCESS_TEAM_DOMAIN`、`CLOUDFLARE_ACCESS_AUD` 與 `CLOUDFLARE_ACCESS_EMAILS` 時，CMS 不接受密碼登入。三個要一起設定，否則 CMS 不啟動。沒有設定時，密碼與 session cookie 的行為完全不變。
+  - `backend/blog/cloudflare_access.py` 每個請求都驗證 `Cf-Access-Jwt-Assertion` 的 JWT。只接受 RS256，檢查 AUD、issuer、`exp` 與 `iat`（容許 60 秒時鐘誤差），email 必須在 `CLOUDFLARE_ACCESS_EMAILS` 裡。公鑰從 team domain 的 `/cdn-cgi/access/certs` 取得並快取。
+  - 除了 `/healthz`，所有路徑都要通過驗證，包括 `/admin/` 的檔案。沒有或無效的 JWT 回 403，取不到公鑰回 503。
+  - CMS 不發 session，也不存登入狀態。`GET /api/session` 多回 `method`（`password` 或 `cloudflare`）。這個模式下密碼登入與登出的 API 回 409，登出改到 `/cdn-cgi/access/logout`，撤銷在 Cloudflare 執行。
+  - 不安全方法仍檢查 Origin，audit log 多記 `user=<email>`。
+- **Consequences**：主機不能有繞過 Cloudflare 的入口，因為撤銷 session 只在 Cloudflare 生效，CMS 只看 JWT 本身。Access 應用程式要在 tunnel 的 hostname 上線前建立。主機要能對外連到 team domain，取不到公鑰時 CMS 無法使用。步驟見 `docs/cloud-access-cloudflare.md`。
+- **Rejected**：
+  - 用 JWT 換 CMS 自己的 session cookie。在 Cloudflare 撤銷 session 後，cookie 仍然有效，除非每個請求還是檢查 JWT，那就不需要 cookie。
+  - 信任 Access 而不驗證 JWT。tunnel 或 policy 設錯一次，CMS 就直接公開。
+- **Supersedes**：使用 Cloudflare Access 的部署不適用 BE-020。只用 Tailscale 存取的部署仍以 BE-020 為準，並繼續使用密碼登入。
+
 ## Known gaps
 
 - ~~真實 GitHub API 與部署流程尚未在真實環境驗證。~~ 2026-10-20 作者以測試文章走完「發布 → 更新網站 → GitHub Pages」全流程。
