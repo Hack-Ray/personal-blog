@@ -4,7 +4,7 @@ Admin UI for the local CMS: article list with the Pending Deletion area, a split
 
 ```sh
 npm ci
-npm test         # draft sync, tag parsing and the profile form
+npm test         # draft sync, taxon suggestions and the profile form
 npm run build    # typecheck, then write dist/
 npm run dev      # Vite dev server; proxies /api to 127.0.0.1:8000
 ```
