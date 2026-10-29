@@ -66,7 +66,7 @@ aws ssm put-parameter --region <region> --type SecureString --name /blog/cms/DAT
 
 `BACKUP_TARGET` 不用設定。主機的 cron 每天把備份寫到 `/srv/blog/backups`，再同步到 S3。
 
-使用 GitHub App 時，私鑰存成 `/blog/cms-github-app-pem`（`<路徑>-github-app-pem`）。取出方式見 `cms-deployment.md` 第 6 節。改用 RDS 時，`DATABASE_URL` 指向 RDS，主機設定腳本就不會建立本機的 PostgreSQL。
+使用 GitHub App 時，私鑰存成 `/blog/cms-github-app-pem`（`<路徑>-github-app-pem`），第 5 節的主機設定腳本加上 `--github-app-pem-param /blog/cms-github-app-pem`，會把它寫成 `/srv/blog/secrets/github-app.pem`。`/blog/cms/GITHUB_APP_PRIVATE_KEY_FILE` 設成容器內的路徑 `/run/secrets/github-app.pem`，GitHub 的 `CMS_SECRETS_DIR` 也要設定。其他 App 設定見 `portable-cms.md`。改用 RDS 時，`DATABASE_URL` 指向 RDS，主機設定腳本就不會建立本機的 PostgreSQL。
 
 ## 4. 建立 CloudFormation stack
 
@@ -81,7 +81,7 @@ aws cloudformation describe-stacks --region <region> --stack-name blog-cms --que
 
 `GitHubRepository` 的大小寫要和 GitHub 上的 repo 名稱一致，否則 GitHub 取不到部署 role。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
 
-`ImageId` 預設讀取最新的 Amazon Linux 2023 AMI。之後每次更新 stack 都會重新讀取，AMI 改版時 CloudFormation 會換掉整台主機，本機的資料庫也會一起消失。建立後先查出目前的 AMI ID，之後更新 stack 時把它填進 `ImageId`。
+`ImageId` 預設讀取最新的 Amazon Linux 2023 AMI。之後每次更新 stack 都會重新讀取，AMI 改版時 CloudFormation 會建立一台新主機。舊主機與它的資料庫會保留下來，不會被終止，但 stack 之後指向沒有資料的新主機。建立後先查出目前的 AMI ID，之後更新 stack 時把它填進 `ImageId`。
 
 ## 5. 設定主機
 
@@ -97,7 +97,7 @@ sudo bash <repo>/backend/scripts/cloud-host-setup.sh --region <region> \
 腳本做以下幾件事，重複執行也安全。
 
 1. 安裝 Docker、cron、`dnf-automatic` 與 Git，啟動 Docker 與 cron。`dnf-automatic` 設成每天自動套用安全更新。核心更新要重新開機才生效，腳本不會自動重開。
-2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。
+2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。有 `--github-app-pem-param` 時，從 SSM 取出 GitHub App 私鑰，寫成只有 CMS 容器使用者（UID 1000）能讀的 `/srv/blog/secrets/github-app.pem`。
 3. 從 SSM 產生權限 600 的 `/srv/blog/cms.env`。
 4. `DATABASE_URL` 指向 `127.0.0.1` 時，建立 PostgreSQL 16 容器 `blog-db`，資料放在 volume `blog-pgdata`，只發布在主機的 `127.0.0.1:5432`。容器已經存在時只啟動它，不改資料與密碼。
 5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:00（UTC）備份並同步到 S3。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。

@@ -320,7 +320,8 @@ with (root / "calls").open("a") as log: log.write(json.dumps([tool, *args]) + "\
 containers = root / "containers"
 containers.mkdir(exist_ok=True)
 if tool == "aws":
-    print((root / ("parameters.json" if "get-parameters-by-path" in args else "token")).read_text())
+    if "get-parameters-by-path" in args: print((root / "parameters.json").read_text())
+    else: print((root / ("pem" if args[args.index("--name") + 1].endswith("pem") else "token")).read_text())
 elif tool == "docker":
     if args[0] == "inspect":
         box = containers / args[-1]
@@ -408,6 +409,22 @@ class HostSetupTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("skipping the local PostgreSQL container", result.stdout)
         self.assertFalse(any("blog-db" in call for call in self.calls()))
+
+    def test_github_app_key_is_written_for_the_cms_user_only(self):
+        (self.root / "pem").write_text("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----")
+        result = self.setup_host("--github-app-pem-param", "/blog/cms-github-app-pem")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        key = self.srv / "secrets/github-app.pem"
+        self.assertTrue(key.read_text().startswith("-----BEGIN RSA PRIVATE KEY-----"))
+        self.assertEqual(key.stat().st_mode & 0o777, 0o400)
+        self.assertTrue(any(call[:2] == ["chown", "1000:1000"] and call[-1].startswith(str(self.srv / "secrets/.github-app.")) for call in self.calls()))
+
+    def test_a_parameter_without_a_key_leaves_no_file(self):
+        (self.root / "pem").write_text("not a key")
+        result = self.setup_host("--github-app-pem-param", "/blog/cms-github-app-pem")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not hold a PEM private key", result.stderr)
+        self.assertEqual(list((self.srv / "secrets").iterdir()), [])
 
     def test_cron_runs_maintenance_hourly_and_backup_daily(self):
         self.assertEqual(self.setup_host().returncode, 0)

@@ -4,8 +4,8 @@
 #
 #   sudo bash backend/scripts/cloud-host-setup.sh --region <region> \
 #     [--ssm-path /blog/cms] [--root /srv/blog] [--s3 s3://<bucket>/cms/] \
-#     [--tunnel-token-param /blog/cloudflared-token] [--container blog-cms] \
-#     [--cloudflared-image cloudflare/cloudflared:<version>]
+#     [--tunnel-token-param /blog/cloudflared-token] [--github-app-pem-param /blog/cms-github-app-pem] \
+#     [--container blog-cms] [--cloudflared-image cloudflare/cloudflared:<version>]
 #
 # Installs Docker, cron and automatic security updates, renders cms.env from
 # SSM, starts a local PostgreSQL container when DATABASE_URL points at this
@@ -15,23 +15,24 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 etc="${HOST_PREFIX:-}/etc"
-region="" ssm_path=/blog/cms root=/srv/blog s3="" tunnel_token_param="" container=blog-cms
+region="" ssm_path=/blog/cms root=/srv/blog s3="" tunnel_token_param="" github_app_pem_param="" container=blog-cms
 cloudflared_image=cloudflare/cloudflared:2026.10.0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --region|--ssm-path|--root|--s3|--tunnel-token-param|--container|--cloudflared-image)
+    --region|--ssm-path|--root|--s3|--tunnel-token-param|--github-app-pem-param|--container|--cloudflared-image)
       [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }
       key="${1#--}"; key="${key//-/_}"; printf -v "$key" '%s' "$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 [[ "$region" =~ ^[a-z]{2}(-[a-z]+)+-[0-9]$ ]] || {
-  echo "usage: cloud-host-setup.sh --region REGION [--ssm-path /blog/cms] [--root /srv/blog] [--s3 s3://bucket/prefix/] [--tunnel-token-param NAME] [--container blog-cms] [--cloudflared-image IMAGE]" >&2; exit 2;
+  echo "usage: cloud-host-setup.sh --region REGION [--ssm-path /blog/cms] [--root /srv/blog] [--s3 s3://bucket/prefix/] [--tunnel-token-param NAME] [--github-app-pem-param NAME] [--container blog-cms] [--cloudflared-image IMAGE]" >&2; exit 2;
 }
 [[ "$root" =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "--root must be an absolute path without spaces" >&2; exit 2; }
 [[ "$container" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || { echo "invalid container name" >&2; exit 2; }
 [ -z "$s3" ] || [[ "$s3" =~ ^s3://[a-z0-9][a-z0-9.-]+(/[A-Za-z0-9_./-]*)?$ ]] || { echo "--s3 must look like s3://bucket/prefix/" >&2; exit 2; }
 [ -z "$tunnel_token_param" ] || [[ "$tunnel_token_param" =~ ^(/[A-Za-z0-9_.-]+)+$ ]] || { echo "invalid --tunnel-token-param" >&2; exit 2; }
+[ -z "$github_app_pem_param" ] || [[ "$github_app_pem_param" =~ ^(/[A-Za-z0-9_.-]+)+$ ]] || { echo "invalid --github-app-pem-param" >&2; exit 2; }
 [[ "$cloudflared_image" =~ ^[a-z0-9][a-z0-9./_-]*:[A-Za-z0-9._-]+$ ]] || { echo "--cloudflared-image needs an explicit tag" >&2; exit 2; }
 
 echo "==> Packages"
@@ -46,6 +47,17 @@ mkdir -p "$root/backups" "$root/secrets"
 chown 1000:1000 "$root/backups" "$root/secrets"
 chmod 750 "$root/backups" "$root/secrets"
 install -m 755 "$here/cloud-maintenance.sh" "$here/ssm-env.sh" "$root/"
+
+if [ -n "$github_app_pem_param" ]; then
+  echo "==> GitHub App private key in $root/secrets/github-app.pem"
+  pem="$(umask 077 && mktemp "$root/secrets/.github-app.XXXXXX")"
+  aws ssm get-parameter --name "$github_app_pem_param" --with-decryption --query Parameter.Value --output text --region "$region" > "$pem"
+  grep -q -- '-----BEGIN' "$pem" || { rm -f "$pem"; echo "$github_app_pem_param does not hold a PEM private key" >&2; exit 1; }
+  # The CMS container runs as UID 1000 and reads it from /run/secrets.
+  chown 1000:1000 "$pem"
+  chmod 400 "$pem"
+  mv "$pem" "$root/secrets/github-app.pem"
+fi
 
 echo "==> Environment file from SSM $ssm_path"
 bash "$root/ssm-env.sh" --path "$ssm_path" --env-file "$root/cms.env" --region "$region"

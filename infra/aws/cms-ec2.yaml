@@ -168,6 +168,14 @@ Resources:
 
   Host:
     Type: AWS::EC2::Instance
+    # A replacement (for example a new AMI) keeps the old host and its local
+    # database instead of terminating it. Deleting the stack still deletes it,
+    # because a retained host would keep the security group from being deleted.
+    UpdateReplacePolicy: Retain
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W3011]
     Properties:
       ImageId: !Ref ImageId
       InstanceType: !Ref InstanceType
