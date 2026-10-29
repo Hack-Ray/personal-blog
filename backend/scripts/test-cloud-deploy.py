@@ -19,7 +19,8 @@ state = root / "running"
 exists = root / "exists"
 if args[0] == "inspect":
     if not exists.exists(): sys.exit(1)
-    if "-f" in args: print("true" if state.exists() else "false")
+    if "{{.Config.Image}}" in args: print("ghcr.io/example/cms@sha256:abc")
+    elif "-f" in args: print("true" if state.exists() else "false")
 elif args[0] in ("start", "stop", "rm"):
     if args[0] == "start": state.touch()
     else: state.unlink(missing_ok=True)
@@ -27,6 +28,7 @@ elif args[0] in ("start", "stop", "rm"):
 elif args[0] == "run":
     if "scripts/backup.sh" in args and os.environ.get("FAIL_STAGE") == "backup": sys.exit(7)
     if "alembic" in args and os.environ.get("FAIL_STAGE") == "migration": sys.exit(8)
+    if "scripts/restore.sh" in args and os.environ.get("FAIL_STAGE") == "restore": sys.exit(9)
     if "-d" in args: exists.touch(); state.touch(); print("container-id")
 elif args[0] == "exec" and os.environ.get("FAIL_STAGE") == "backup": sys.exit(7)
 """
@@ -197,6 +199,117 @@ class SsmEnvironmentTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.env_file.read_text(), "CMS_ENV=cloud\nOLD=1\n")
         self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".cms.env")], [])
+
+
+RESTORE_CURL = """#!/usr/bin/env python3
+import json, os, pathlib, sys
+args = sys.argv[1:]
+root = pathlib.Path(os.environ["STUB_ROOT"])
+with (root / "curl-calls").open("a") as log: log.write(json.dumps(args) + "\\n")
+if "--config" in args:
+    (root / "curl-config").write_text(sys.stdin.read())
+    pathlib.Path(args[args.index("--output") + 1]).write_bytes(b"dump-bytes")
+"""
+
+
+class CloudRestoreTest(unittest.TestCase):
+    URL = "https://bucket.s3.amazonaws.com/cms/blog-20261029T030000Z.dump?X-Amz-Signature=never-print-this"
+    SHA = "e9d4a1e7b0f6c0a78bd9e2b1b1e4b1eb4da5a19d9d6dbbbd2b38c4d4d52a3a69"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.backups = self.root / "backups"
+        self.backups.mkdir()
+        self.env_file = self.root / "cms.env"
+        self.env_file.write_text("CMS_ENV=cloud\n")
+        for name, body in (("docker", DOCKER), ("curl", RESTORE_CURL)):
+            file = self.bin / name
+            file.write_text(body)
+            file.chmod(0o755)
+        (self.root / "exists").touch()
+        (self.root / "running").touch()
+        self.env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "STUB_ROOT": str(self.root)}
+
+    def restore(self, *source, fail=""):
+        return subprocess.run(
+            ["bash", str(SCRIPT.with_name("cloud-restore.sh")), *source, "--env-file", str(self.env_file), "--backup-dir", str(self.backups), "--yes"],
+            env={**self.env, "FAIL_STAGE": fail},
+            capture_output=True,
+            text=True,
+        )
+
+    def calls(self):
+        log = self.root / "calls"
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+    def dump(self):
+        (self.backups / "blog-1.dump").write_bytes(b"dump-bytes")
+        return str(self.backups / "blog-1.dump")
+
+    def test_stops_cms_restores_with_its_image_then_starts_it(self):
+        result = self.restore("--dump", self.dump())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        stop = calls.index(["stop", "blog-cms"])
+        restore = next(i for i, call in enumerate(calls) if "scripts/restore.sh" in call)
+        self.assertLess(stop, restore)
+        self.assertEqual(calls[restore + 1], ["start", "blog-cms"])
+        run = calls[restore]
+        self.assertIn("ghcr.io/example/cms@sha256:abc", run)
+        self.assertEqual(run[run.index("scripts/restore.sh") :], ["scripts/restore.sh", "/backup/blog-1.dump", "--env", "--yes"])
+        self.assertIn("BACKUP_TARGET=/backup", run)
+        for flag in ("--read-only", "--cap-drop", "no-new-privileges", "type=volume,target=/tmp", f"type=bind,source={self.backups},target=/backup"):
+            self.assertIn(flag, run)
+
+    def test_restore_failure_leaves_cms_stopped(self):
+        result = self.restore("--dump", self.dump(), fail="restore")
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(["start", "blog-cms"], self.calls())
+        self.assertIn("stays stopped", result.stderr)
+        self.assertIn("--dump", result.stderr)
+
+    def test_refuses_without_a_deployed_container(self):
+        (self.root / "exists").unlink()
+        result = self.restore("--dump", self.dump())
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("deploy once first", result.stderr)
+        self.assertFalse(any(call[0] in ("stop", "run") for call in self.calls()))
+
+    def test_refuses_while_the_lock_is_held(self):
+        dump = self.dump()
+        with open(self.backups / ".cms-deploy.lock", "w") as lock:
+            import fcntl
+
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            result = self.restore("--dump", dump)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already running", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_url_download_writes_checksum_and_keeps_signature_off_argv(self):
+        import hashlib
+
+        sha = hashlib.sha256(b"dump-bytes").hexdigest()
+        result = self.restore("--url", self.URL, "--sha256", sha)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.backups / "blog-20261029T030000Z.dump.sha256").read_text(), f"{sha}  blog-20261029T030000Z.dump\n")
+        self.assertIn(self.URL, (self.root / "curl-config").read_text())
+        self.assertNotIn("never-print-this", (self.root / "curl-calls").read_text() + json.dumps(self.calls()) + result.stdout + result.stderr)
+
+    def test_checksum_mismatch_does_not_stop_cms(self):
+        result = self.restore("--url", self.URL, "--sha256", self.SHA)
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(["stop", "blog-cms"], self.calls())
+
+    def test_url_requires_sha256(self):
+        result = self.restore("--url", self.URL)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.root / "curl-calls").exists())
 
 
 SETUP_STUB = """#!/usr/bin/env python3
