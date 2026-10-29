@@ -281,7 +281,7 @@
   - 不開長期的雲端分支。能用同一種做法同時適用本機與雲端的，就不做成選項，例如定期維護是同一個指令 `python -m blog.maintenance`。
   - 只有真的不同的設定放進 `.env`，由 `backend/blog/config.py` 啟動時一次讀取並檢查。`CMS_ENV=local|cloud` 只決定預設值，每一項都能個別覆寫。
   - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式。workflow 透過 Tailscale 的 GitHub Action 連到主機，主機仍不開進站連接埠（BE-020）。
-- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行；選哪個運算服務仍待決定（`docs/backlog.md`）。
+- **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行。作者的運算服務見 BE-027。
 - **Supersedes**：無。
 
 ### BE-022：本機與雲端共用發布流程
@@ -350,6 +350,19 @@
   - 用 JWT 換 CMS 自己的 session cookie。在 Cloudflare 撤銷 session 後，cookie 仍然有效，除非每個請求還是檢查 JWT，那就不需要 cookie。
   - 信任 Access 而不驗證 JWT。tunnel 或 policy 設錯一次，CMS 就直接公開。
 - **Supersedes**：使用 Cloudflare Access 的部署不適用 BE-020。只用 Tailscale 存取的部署仍以 BE-020 為準，並繼續使用密碼登入。
+
+### BE-027：作者的雲端 CMS 放在 EC2，經 SSM 部署
+
+- **Status**：Confirmed（使用者 2026-10-29 決定）
+- **Context**：BE-021 讓 CMS 可以部署到雲端，但沒有選定運算服務。作者決定把 CMS 從本機搬到 AWS。Fork 的人仍預設在自己的電腦執行 CMS。
+- **Decision**：
+  - 單台 EC2（x86-64、Amazon Linux 2023）執行 CMS、PostgreSQL 與 `cloudflared` 三個容器。主機沒有進站規則，也沒有 SSH 金鑰，管理用 SSM Session Manager。
+  - 作者經 Cloudflare Tunnel 連到 `cms.<網域>`，登入方式見 BE-026。
+  - `cms-deploy.yml` 以 `CMS_DEPLOY_VIA=ssm` 選擇 SSM Run Command，GitHub Actions 用 OIDC 取得只能對這台主機執行 `AWS-RunShellScript` 的 role。主機上執行的部署腳本與 Tailscale 做法相同。
+  - 主機與周邊資源由 `infra/aws/cms-ec2.yaml` 建立，`cloud-host-setup.sh` 設定主機，`cloud-restore.sh` 搬入既有備份。每日備份同步到開啟版本控制的 S3 bucket，主機 role 只能寫入。
+  - 選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建。
+- **Consequences**：沒有設定 `CMS_DEPLOY_VIA` 時，部署仍走 Tailscale，fork 的行為不變。資料庫在主機的磁碟上，主機被取代時資料不會跟過去，所以 stack 固定 AMI ID，並保留被取代的主機。步驟見 `docs/cloud-ec2.md`。
+- **Supersedes**：無。BE-020 的 Tailscale 做法仍是 fork 的預設。
 
 ## Known gaps
 

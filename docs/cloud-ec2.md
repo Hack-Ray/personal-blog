@@ -34,9 +34,9 @@ Hop limit 1 讓 bridge network 的容器（PostgreSQL）拿不到 instance role 
 1. 在 Cloudflare Zero Trust 的 **Networks → Tunnels** 建立 tunnel，類型選 **Cloudflared**，由 Cloudflare 管理設定（remotely managed）。
 2. 安裝步驟頁面會顯示 tunnel token，先複製下來，第 3 節存進 SSM。不需要照頁面在主機安裝 `cloudflared`，主機設定腳本會用容器執行。
 3. 在 tunnel 的 **Public Hostname** 新增 `cms.<網域>`，Service 填 `http://127.0.0.1:8000`。
-4. 在 **Access → Applications** 新增 Self-hosted application，網域填 `cms.<網域>`。Policy 的動作選 Allow，只包含作者自己的 email。
+4. 照 [`cloud-access-cloudflare.md`](cloud-access-cloudflare.md) 第 1、2 節建立 GitHub 登入方式與 `cms.<網域>` 的 Access 應用程式，記下 team domain 與 AUD tag。
 
-Access 必須擋在 CMS 前面。CMS 本身只有一組密碼，沒有 Access 時，任何人都能嘗試登入。之後的 CMS 版本會加上驗證 Access JWT 的設定，作為第二層檢查。
+第 4 步要在第 3 步的 hostname 上線前做完，Access 才會從一開始就擋在 CMS 前面。CMS 也會檢查每個請求的 Access JWT，沒有通過 Access 的請求一律回 403。
 
 Zone 另外調整兩項設定。
 
@@ -53,6 +53,9 @@ Zone 另外調整兩項設定。
 | `/blog/cms/DATABASE_URL` | `postgresql+psycopg://blog:<密碼>@127.0.0.1:5432/blog`。主機會用這組帳號建立本機的 PostgreSQL 容器 |
 | `/blog/cms/ALLOWED_HOSTS` | `cms.<網域>` |
 | `/blog/cms/CMS_ORIGIN` | `https://cms.<網域>` |
+| `/blog/cms/CLOUDFLARE_ACCESS_TEAM_DOMAIN` | `<team>.cloudflareaccess.com` |
+| `/blog/cms/CLOUDFLARE_ACCESS_AUD` | 第 2 節的 AUD tag |
+| `/blog/cms/CLOUDFLARE_ACCESS_EMAILS` | 作者的 email，和 Access policy 相同 |
 | `/blog/cms/CMS_GITHUB_TOKEN` 等 | 發布用的 GitHub 設定，和本機的 `.env` 相同，見 `backend/.env.example` |
 | `/blog/cloudflared-token` | 第 2 節的 tunnel token |
 
@@ -83,7 +86,7 @@ aws cloudformation describe-stacks --region <region> --stack-name blog-cms --que
 
 `GitHubRepository` 的大小寫要和 GitHub 上的 repo 名稱一致，否則 GitHub 取不到部署 role。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
 
-`ImageId` 是固定的 AMI ID，記下第一行印出的值。之後更新 stack 時傳同一個值，主機就不會被換掉。只有刻意換新的 AMI 時，CloudFormation 才會建立新主機。舊主機與它的資料庫會保留，不會被終止，但仍連著同一個 tunnel。這時先在舊主機執行 `sudo bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups <BackupTarget>` 做一份備份，再執行 `sudo docker rm -f blog-cloudflared blog-cms`，讓兩台主機不會同時接收請求。接著在新主機執行第 5 節，把 GitHub 的 `CMS_INSTANCE_ID` 改成新的 `InstanceId`，部署一次，再用第 8 節還原那份備份。確認新主機正常後，到 EC2 主控台終止舊主機。
+`ImageId` 是固定的 AMI ID，記下第一行印出的值。之後更新 stack 時傳同一個值，主機就不會被換掉。只有刻意改變 `ImageId`、`SubnetId` 或 `VolumeSize` 時，CloudFormation 才會建立新主機。舊主機與它的資料庫會保留，不會被終止，但仍連著同一個 tunnel。這時先在舊主機執行 `sudo bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups <BackupTarget>` 做一份備份，再執行 `sudo docker rm -f blog-cloudflared blog-cms`，讓兩台主機不會同時接收請求。接著在新主機執行第 5 節，把 GitHub 的 `CMS_INSTANCE_ID` 改成新的 `InstanceId`，部署一次，再用第 8 節還原那份備份。確認新主機正常後，到 EC2 主控台終止舊主機。
 
 ## 5. 設定主機
 
@@ -102,7 +105,7 @@ sudo bash <repo>/backend/scripts/cloud-host-setup.sh --region <region> \
 2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。有 `--github-app-pem-param` 時，從 SSM 取出 GitHub App 私鑰，寫成只有 CMS 容器使用者（UID 1000）能讀的 `/srv/blog/secrets/github-app.pem`。
 3. 從 SSM 產生權限 600 的 `/srv/blog/cms.env`。
 4. `DATABASE_URL` 指向 `127.0.0.1` 時，建立 PostgreSQL 16 容器 `blog-db`，資料放在 volume `blog-pgdata`，只發布在主機的 `127.0.0.1:5432`。容器已經存在時只啟動它，不改資料與密碼。
-5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:30（UTC）備份並同步到 S3。備份和整點的維護錯開，因為兩者共用同一個鎖，同時開始時較晚的會直接放棄。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。
+5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:30（UTC）備份並同步到 S3。備份和整點的維護錯開，因為兩者共用同一個鎖，同時開始時較晚的會直接放棄。部署也使用這個鎖，所以不要在 03:30（UTC）前後推送 `cms-v*` tag，否則當天的備份會放棄。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。
 6. 從 SSM 讀取 tunnel token，寫入權限 600 的 `/etc/cloudflared/token.env`，啟動 `blog-cloudflared` 容器。容器使用 host network、唯讀檔案系統、移除全部 capabilities。Token 只在這個檔案裡，不出現在指令列。Token 或 image 改變時，腳本重建容器，否則保留原本的容器。Image 預設是固定版本的 `cloudflare/cloudflared`，用 `--cloudflared-image` 可以換成其他版本。
 
 這時 tunnel 已經連上，但 CMS 還沒部署，`https://cms.<網域>` 會回傳錯誤。
@@ -133,13 +136,7 @@ git push origin cms-v1.0.0
 
 Workflow 以 OIDC 取得短期 AWS 憑證，把 `deploy-cloud.sh` 與參數送到主機執行，再每 10 秒查詢一次結果，最多等 35 分鐘。主機上的輸出會顯示在 workflow log。腳本失敗或逾時時，workflow 也會失敗。逾時的指令不會被取消，可以在 Systems Manager 的 **Run Command → Command history** 查看。
 
-部署完成後，用 Session Manager 設定管理員密碼。
-
-```sh
-sudo docker exec -it blog-cms python -m blog.auth
-```
-
-接著開啟 `https://cms.<網域>/admin/`，Access 驗證作者的 email 後才會顯示登入頁。
+部署完成後開啟 `https://cms.<網域>/admin/`。Access 用 GitHub 驗證作者的 email 後，直接進入文章列表，不需要 CMS 的密碼。
 
 ## 8. 搬移資料
 
