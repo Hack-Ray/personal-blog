@@ -69,7 +69,9 @@ aws ssm put-parameter --region <region> --type SecureString --name /blog/cms/DAT
 
 `BACKUP_TARGET` 不用設定。主機的 cron 每天把備份寫到 `/srv/blog/backups`，再同步到 S3。
 
-使用 GitHub App 時，私鑰存成 `/blog/cms-github-app-pem`（`<路徑>-github-app-pem`），第 5 節的主機設定腳本加上 `--github-app-pem-param /blog/cms-github-app-pem`，會把它寫成 `/srv/blog/secrets/github-app.pem`。`/blog/cms/GITHUB_APP_PRIVATE_KEY_FILE` 設成容器內的路徑 `/run/secrets/github-app.pem`，GitHub 的 `CMS_SECRETS_DIR` 也要設定。其他 App 設定見 `portable-cms.md`。改用 RDS 時，`DATABASE_URL` 指向 RDS，主機設定腳本就不會建立本機的 PostgreSQL。
+使用 GitHub App 時，私鑰存成 `/blog/cms-github-app-pem`（`<路徑>-github-app-pem`），第 5 節的主機設定腳本加上 `--github-app-pem-param /blog/cms-github-app-pem`，會把它寫成 `/srv/blog/secrets/github-app.pem`。`/blog/cms/GITHUB_APP_PRIVATE_KEY_FILE` 設成容器內的路徑 `/run/secrets/github-app.pem`，GitHub 的 `CMS_SECRETS_DIR` 也要設定。其他 App 設定見 `portable-cms.md`。
+
+流量數據（`docs/analytics.md`）的 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ZONE_ID` 與 `GSC_SITE_URL` 照一般參數放在 `/blog/cms/`。Search Console 的服務帳戶 JSON 金鑰是多行內容，不能放在 `/blog/cms/` 底下，改存成 `/blog/cms-gsc-credentials`（`<路徑>-gsc-credentials`），主機設定腳本加上 `--gsc-credentials-param /blog/cms-gsc-credentials`，會把它寫成 `/srv/blog/secrets/search-console.json`。`/blog/cms/GSC_CREDENTIALS_FILE` 設成 `/run/secrets/search-console.json`。檔案寫好之前不要重新產生 `cms.env`，否則 CMS 找不到金鑰，啟動時會失敗。改用 RDS 時，`DATABASE_URL` 指向 RDS，主機設定腳本就不會建立本機的 PostgreSQL。
 
 ## 4. 建立 CloudFormation stack
 
@@ -108,7 +110,7 @@ sudo bash <repo>/backend/scripts/cloud-host-setup.sh --region <region> \
 腳本做以下幾件事，重複執行也安全。
 
 1. 安裝 Docker、cron、`dnf-automatic` 與 Git，啟動 Docker 與 cron。`dnf-automatic` 設成每天自動套用安全更新。Amazon Linux 2023 預設停在 AMI 當時的套件版本，所以腳本把 `/etc/dnf/vars/releasever` 設成 `latest`，讓安全更新能裝進來。核心更新要重新開機才生效，腳本不會自動重開。
-2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。有 `--github-app-pem-param` 時，從 SSM 取出 GitHub App 私鑰，寫成只有 CMS 容器使用者（UID 1000）能讀的 `/srv/blog/secrets/github-app.pem`。
+2. 建立 `/srv/blog/backups` 與 `/srv/blog/secrets`，複製 `cloud-maintenance.sh` 與 `ssm-env.sh`。有 `--github-app-pem-param` 時，從 SSM 取出 GitHub App 私鑰，寫成只有 CMS 容器使用者（UID 1000）能讀的 `/srv/blog/secrets/github-app.pem`。`--gsc-credentials-param` 用同樣的方式寫成 `/srv/blog/secrets/search-console.json`。內容不是預期的私鑰或服務帳戶金鑰時，腳本停止，不留下檔案。
 3. 從 SSM 產生權限 600 的 `/srv/blog/cms.env`。
 4. `DATABASE_URL` 指向 `127.0.0.1` 時，建立 PostgreSQL 16 容器 `blog-db`，資料放在 volume `blog-pgdata`，只發布在主機的 `127.0.0.1:5432`。容器已經存在時只啟動它，不改資料與密碼。
 5. 寫入 `/etc/cron.d/blog-cms`。每小時執行維護，每天 03:30（UTC）備份並同步到 S3。備份和整點的維護錯開，因為兩者共用同一個鎖，同時開始時較晚的會直接放棄。部署也使用這個鎖，所以不要在 03:30（UTC）前後推送 `cms-v*` tag，否則當天的備份會放棄。輸出記在 journal，用 `journalctl -t blog-cms-backup` 查看。

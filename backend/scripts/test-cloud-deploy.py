@@ -322,7 +322,9 @@ containers = root / "containers"
 containers.mkdir(exist_ok=True)
 if tool == "aws":
     if "get-parameters-by-path" in args: print((root / "parameters.json").read_text())
-    else: print((root / ("pem" if args[args.index("--name") + 1].endswith("pem") else "token")).read_text())
+    else:
+        name = args[args.index("--name") + 1]
+        print((root / ("pem" if name.endswith("pem") else "gsc" if name.endswith("gsc-credentials") else "token")).read_text())
 elif tool == "docker":
     if args[0] == "inspect":
         box = containers / args[-1]
@@ -426,6 +428,23 @@ class HostSetupTest(unittest.TestCase):
         result = self.setup_host("--github-app-pem-param", "/blog/cms-github-app-pem")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("does not hold a PEM private key", result.stderr)
+        self.assertEqual(list((self.srv / "secrets").iterdir()), [])
+
+    def test_search_console_key_is_written_for_the_cms_user_only(self):
+        (self.root / "gsc").write_text('{"type": "service_account", "private_key": "key"}')
+        result = self.setup_host("--gsc-credentials-param", "/blog/cms-gsc-credentials")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        key = self.srv / "secrets/search-console.json"
+        self.assertIn('"service_account"', key.read_text())
+        self.assertEqual(key.stat().st_mode & 0o777, 0o400)
+        temp = str(self.srv / "secrets/.search-console.json.")
+        self.assertTrue(any(call[:2] == ["chown", "1000:1000"] and call[-1].startswith(temp) for call in self.calls()))
+
+    def test_a_parameter_without_a_service_account_key_leaves_no_file(self):
+        (self.root / "gsc").write_text('{"type": "authorized_user"}')
+        result = self.setup_host("--gsc-credentials-param", "/blog/cms-gsc-credentials")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not hold a service account JSON key", result.stderr)
         self.assertEqual(list((self.srv / "secrets").iterdir()), [])
 
     def test_cron_runs_maintenance_hourly_and_backup_daily(self):

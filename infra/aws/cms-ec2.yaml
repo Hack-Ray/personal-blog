@@ -150,6 +150,7 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TunnelTokenParameter}
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}-github-app-pem
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}-gsc-credentials
               # aws s3 sync lists the prefix to skip files already uploaded.
               # There is no read or delete; versioning keeps overwritten backups.
               - Effect: Allow
