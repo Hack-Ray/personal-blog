@@ -37,10 +37,11 @@ frontend/test-results/
 frontend/playwright-report/
 
 # Database backups
-backend/backups/
+backend/backups
 
 # Service account keys and other credential files (docs/analytics.md)
 backend/secrets/
+*.pem
 
 # CMS server log (scripts/start.sh)
 backend/logs/

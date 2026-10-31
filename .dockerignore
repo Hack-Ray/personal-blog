@@ -9,3 +9,5 @@
 .claude
 cms/dist
 frontend
+**/secrets
+**/logs
