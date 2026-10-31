@@ -119,7 +119,7 @@ class InvalidTransition(Exception):
 
 
 def _get_or_create[T: (Topic, Tag, Series)](session: Session, model: type[T], taxa: list[Taxon]) -> list[T]:
-    """The name last saved for a slug wins, everywhere the slug is used (BE-003).
+    """The name last saved for a slug wins, everywhere the slug is used (BE-003, BE-013).
     Returns the rows in the order of `taxa`, which must not repeat a slug."""
     if not taxa:
         return []
