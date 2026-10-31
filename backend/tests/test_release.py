@@ -478,6 +478,13 @@ def test_the_token_endpoint_reports_an_unconfigured_token(client, configure):
     assert client.get("/api/github-token").json() == {"configured": False, "expires_at": None}
 
 
+def test_with_a_github_app_the_token_endpoint_never_calls_github(client, configure, monkeypatch):
+    """Installation tokens are short-lived and renewed by the CMS, so there is no expiry to warn about."""
+    configure(github_auth="app", deploy_repo="someone/personal-blog")
+    monkeypatch.setattr(release, "deployer_from_env", lambda: pytest.fail("called GitHub"))
+    assert client.get("/api/github-token").json() == {"configured": False, "expires_at": None}
+
+
 def test_a_token_without_a_deploy_repo_dispatches_nowhere(configure):
     configure(github_token="t", deploy_repo=None)
     assert release.deployer_from_env() is None

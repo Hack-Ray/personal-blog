@@ -1,8 +1,10 @@
 name: CMS image
 
 # Builds the CMS container image and checks that it migrates a database and
-# answers /healthz. Separate from CI so site deploys do not wait for it.
+# answers /healthz. Separate from CI so site deploys do not wait for it;
+# cms-deploy.yml calls it so a cms-v* tag deploys only an image that passed.
 on:
+  workflow_call:
   pull_request:
     paths: [Dockerfile, .dockerignore, backend/**, cms/**, .github/workflows/cms-image.yml]
   push:

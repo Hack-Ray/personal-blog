@@ -16,8 +16,12 @@ jobs:
     if: vars.CMS_DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/ci.yml
 
+  image:
+    if: vars.CMS_DEPLOY_ENABLED == 'true'
+    uses: ./.github/workflows/cms-image.yml
+
   deploy:
-    needs: verify
+    needs: [verify, image]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: cms-production
