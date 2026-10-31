@@ -94,7 +94,7 @@ cp .env.example .env
 | 變數 | 填什麼 | 何時需要 |
 |---|---|---|
 | `CMS_ENV` | 保持 `local` | 一定要（留空也是 `local`） |
-| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節） | 使用「更新網站」時 |
+| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節）。`.env.example` 裡這行是註解，拿掉 `#` 再填。改用 API 發布時改設 `CONTENT_REPO`，不需要 clone（[`portable-cms.md`](portable-cms.md)） | 使用「更新網站」時 |
 | `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` | 使用「更新網站」時 |
 | `CMS_GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token（舊的 `.env` 叫 `GITHUB_TOKEN`，仍然有效） | 使用「更新網站」時 |
 
@@ -251,37 +251,21 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 每個 CMS 有自己的資料庫，卻推送到同一個內容 repo。兩邊同時使用時，草稿與版本會分歧。換電腦或在本機與雲端之間切換時：
 
 1. 在原本的 CMS 備份（第 10 節）。
-2. 把備份還原到新的 CMS（上面的步驟，或第 13 節的 `--url`）。
+2. 把備份還原到新的 CMS（上面的步驟，雲端見第 13 節）。
 3. 停用原本的 CMS，之後只用新的。
 
 切回來時反向進行。「更新網站」會先檢查內容 repo：如果遠端有這個 CMS 沒有的 commit，就拒絕發布，並顯示「another CMS may be in use」。`restore.sh` 還原後會記下內容 repo 當下的 HEAD（第 11 節第 7 步），所以剛還原的 CMS 不會被擋，下一次發布以資料庫為準。
 
-## 13. 之後搬到 AWS
+## 13. 搬到雲端
 
-兩個腳本都支援 `--url`，直接對任何 PostgreSQL 備份或還原。這個模式需要本機裝有和資料庫同一個大版本（目前是 16）的 PostgreSQL 用戶端工具（`pg_dump`、`pg_restore`、`psql`）。密碼會透過 `PGPASSWORD` 傳給這些工具，不會出現在它們的命令列。`--url` 的網址本身仍會出現在 `backup.sh`/`restore.sh` 的命令列；不想這樣時改用 `--env`，從環境變數或 `.env` 的 `DATABASE_URL` 讀取。
+雲端 CMS 有兩種做法，都用容器部署，主機排程備份與清理：
 
-```sh
-# 從本機 Docker 備份
-scripts/backup.sh
-# 還原到雲端資料庫（例如 RDS），網址與 DATABASE_URL 相同格式
-scripts/restore.sh backups/<檔名>.dump --url 'postgresql+psycopg://<user>:<password>@<host>:5432/<db>'
-```
+- [`cloud-ec2.md`](cloud-ec2.md)：AWS EC2，經 Cloudflare Tunnel 與 Cloudflare Access 登入。作者使用這種做法。
+- [`cloud-tailscale.md`](cloud-tailscale.md)：任何 Linux 主機，經 Tailscale 連線，用 CMS 的密碼登入。
 
-雲端主機只讓作者的裝置透過 Tailscale 連線，設定步驟見 [`cloud-access.md`](cloud-access.md)。
+兩者共用的部署、還原與驗證見 [`cms-deployment.md`](cms-deployment.md)。搬移資料時，照上面「同一時間只用一個 CMS」停用本機 CMS 並備份，再在主機上用 `backend/scripts/cloud-restore.sh` 還原（[`cms-deployment.md`](cms-deployment.md) 第 5 節）。
 
-在雲端執行 CMS 時，設 `CMS_ENV=cloud`，並填 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉。CMS 必須放在網域的根目錄（例如 `https://cms.<tailnet>.ts.net/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
-
-雲端的 CMS 會一直開著，所以清理與備份要排程執行，例如在主機上用 cron：
-
-```cron
-PATH=/home/<user>/.local/bin:/usr/local/bin:/usr/bin:/bin
-0 * * * * cd /srv/personal-blog/backend && uv run --env-file .env python -m blog.maintenance
-0 3 * * * cd /srv/personal-blog/backend && scripts/backup.sh --env
-```
-
-cron 的 PATH 很短，第一行要包含 `uv` 和 `aws` 所在的目錄（`which uv aws` 可查）。`backup.sh --env` 從 `.env` 讀 `DATABASE_URL` 和 `BACKUP_TARGET`，後者設成 `s3://...` 時就會備份到 S3。S3 bucket 請開啟版本控制與加密，並設定保存天數。
-
-repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔，用法寫在檔案開頭。容器裡的 `127.0.0.1` 是容器自己，所以 `DATABASE_URL` 要改成容器連得到的位址。同一時間只跑一個容器；換新版前，先用一次性的容器備份，再執行 migration，任何一步失敗就停止。容器可透過 API 發布更新網站，設定方式見 [portable-cms.md](portable-cms.md)。
+repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映像檔。手動執行容器的方式寫在檔案開頭。
 
 ## 14. 常見問題
 
@@ -360,12 +344,12 @@ CMS 一直開著時，`start.sh` 很久才執行一次，到期的清理與啟�
 
 ### 16.5 裝置遺失
 
-照 [`cloud-access.md`](cloud-access.md) 第 5 節處理。先在 Tailscale 管理介面移除裝置，再從其他裝置按「登出所有裝置」。
+先在 Tailscale 管理介面的 Machines 頁面移除那台裝置，它立刻無法連到 CMS。再從其他裝置登入 CMS，按「登出所有裝置」。懷疑密碼也外洩時，執行 `uv run --env-file .env python -m blog.auth` 重設密碼。
 
 ### 16.6 之後要搬到雲端時
 
-照第 12 節停用 Mac 上的 CMS、備份並還原到新主機，再依 [`cms-deployment.md`](cms-deployment.md) 部署。Tailscale 的 policy 與裝置核准可以沿用。
+照第 13 節選一種雲端做法。改用 [`cloud-tailscale.md`](cloud-tailscale.md) 時，Tailscale 的裝置核准可以沿用，policy 要加上主機與 CI 的 tag。
 
 ## 本機與雲端共用程式
 
-既有 clone 設定與 `start.sh` 繼續可用。API 發布、GitHub App 和背景發布工作見 [portable-cms.md](portable-cms.md)。容器設定 API 發布後也可更新網站，不再需要掛載內容 repo。雲端部署見 [cms-deployment.md](cms-deployment.md)。
+既有 clone 設定與 `start.sh` 繼續可用。API 發布、GitHub App 和背景發布工作見 [portable-cms.md](portable-cms.md)。雲端的容器只能用 API 發布，見第 13 節。

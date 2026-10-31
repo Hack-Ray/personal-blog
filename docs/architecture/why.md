@@ -8,6 +8,8 @@
 
 Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持久背景工作。本機與雲端使用同一份程式。下面對 clone 與同步發布的理由描述原來的設計背景，不能解讀為 API 模式的現有限制。新的設定與取捨見 [portable-cms.md](../portable-cms.md)。
 
+2026-10-29 的 BE-026、BE-027 把作者的 CMS 搬到 AWS EC2，改由 Cloudflare Access 登入，2026-10-31 完成搬遷。第 3、7、9 節與檢查清單補上了這次變動，原本的證據保留，被取代的理由標為「已被取代」。
+
 ## 怎麼讀這份文件
 
 每個決策分四段：
@@ -86,7 +88,7 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 - [Direct] 上雲的連線方式選 Tailscale，並列出被否決的方案（old backlog:17-41，2026-10-22 作者決定）：
   - 「IP 白名單：家用與行動網路的 IP 會變，而且 IP 不代表身分。」
   - 「SSM port forwarding：每次都要先下指令，手機幾乎不能用。」
-  - Cloudflare Access 或 AWS Verified Access：「CMS 會有公開網址」。
+  - Cloudflare Access 或 AWS Verified Access：「CMS 會有公開網址」。**已被取代（作者的部署）**：BE-026 改用 Cloudflare Access，見本節最後。
   - 用 MAC 位址限制：「做不到」。
 - [Direct] 一份程式碼加 `.env`。old backlog:27「不開長期獨立的雲端分支。分支一分開，每個修正都要做兩次，CI 與部署也都綁在 `main`。」另寫「能用同一種做法同時適用兩邊的，就不做成選項」、「只有真的不同的地方才放進 `.env`，集中在一個設定模組讀取與檢查（A23）」。已轉錄為 BE-021（addendum-03:272）。
 - [Direct] `cms-v*` tag。addendum-03:279「合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先備份，再執行 migration，最後更新程式。」
@@ -107,8 +109,24 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 ### 不知道的事
 
 - 為何是 React SPA 而不是 server-rendered 管理頁，查不到理由。BE-006 只說同源讓 cookie session 不需處理 CORS。
-- 何時、在什麼條件下上雲：addendum-02 的 Open Questions 仍列「遷移至 AWS 的條件與時機」。
+- 何時、在什麼條件下上雲：addendum-02 的 Open Questions 仍列「遷移至 AWS 的條件與時機」。時機已由 BE-027（2026-10-29）回答，條件仍查不到。
 - Tailscale 等 2026-10-22 決定的原始措辭不在 repo，repo 內是 agent 整理的摘要（見「決策來源與可信度」）。
+
+### 2026-10-29 之後：作者的 CMS 放在 EC2，以 Cloudflare Access 登入
+
+- [Direct] BE-027（Confirmed 2026-10-29，addendum-03:354）：「作者決定把 CMS 從本機搬到 AWS」。單台 EC2 執行 CMS、PostgreSQL 與 `cloudflared` 三個容器，主機沒有進站規則與 SSH 金鑰，以 SSM 管理與部署；「選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建」。這也回答了上面「運算服務未決」那一條。
+- [Direct] BE-026（Confirmed 2026-10-29，addendum-03:337）：「雲端 CMS 改用 Cloudflare Tunnel 對外，放在 `cms.<網域>`，不再只有 tailnet 裡的裝置連得到。BE-020 的第一道驗證是通過核准的 Tailscale 裝置，這個前提不再成立。」決定由 Cloudflare Access 以 GitHub 登入，CMS 每個請求驗證 Access 的 JWT，不接受密碼。否決的做法是「用 JWT 換 CMS 自己的 session cookie」與「信任 Access 而不驗證 JWT。tunnel 或 policy 設錯一次，CMS 就直接公開。」
+- [Direct] 兩條都保留 fork 的選項：BE-026「只用 Tailscale 存取的部署仍以 BE-020 為準」；BE-027「BE-020 的 Tailscale 做法仍是 fork 的預設」，沒有設定 `CMS_DEPLOY_VIA` 時部署仍走 Tailscale。
+- [Direct] 2026-10-31 依 `docs/cloud-ec2.md` 完成搬遷，本機 CMS 停用（`docs/maintainer-notes.md`）。
+
+合理推論：
+
+- 2026-10-22 否決 Cloudflare Access 的理由是「CMS 會有公開網址」。BE-026 沒有否認這一點，而是接受公開網址，把風險改由兩層處理：Access 在 Cloudflare 擋下未登入的請求，CMS 再自己驗證 JWT，讓設定錯誤不會直接公開 CMS。所以舊理由對作者的部署已被取代，但對只用 Tailscale 的 fork 仍成立。
+- 同一天否決 SSM port forwarding 的理由是「手機幾乎不能用」。Cloudflare Access 只需要瀏覽器登入 GitHub，不必在裝置安裝 Tailscale，看起來也比較符合這個需求。這只是推論，BE-026 沒有寫出選 Cloudflare 而不留在 Tailscale 的理由。
+
+不知道的事：
+
+- 作者為什麼不繼續用 Tailscale，addendum 沒有寫。BE-026 的 Context 從「改用 Cloudflare Tunnel」開始，沒有記錄比較過程。
 
 ---
 
@@ -235,7 +253,8 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 
 ### 合理推論
 
-- 這是「本機與雲端各一個 DB」的直接後果。若上雲後本機 CMS 不再寫入，這條限制可能就變成單純的操作規則。但目前沒有文件說本機 CMS 上雲後會停用。
+- 這是「本機與雲端各一個 DB」的直接後果。若上雲後本機 CMS 不再寫入，這條限制可能就變成單純的操作規則。~~但目前沒有文件說本機 CMS 上雲後會停用。~~ **已更新（2026-10-31）**：`docs/maintainer-notes.md` 記錄作者的本機 CMS 已停用。對作者而言這條限制現在是操作規則；fork 仍可能同時有兩個 CMS。
+- [Direct] BE-022 的 API 模式在更新分支前以 parent 比對遠端 HEAD，其他 writer 改變 HEAD 時拒絕覆蓋（addendum-03 BE-022），這是 A5 方向的修正，但只在 API 模式生效。
 
 ### 不知道的事
 
@@ -276,12 +295,14 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 - [Direct] 每個位址的節流與退避（A3、PR #34），理由：「每 15 分鐘送 5 次錯誤密碼，作者就永遠無法登入」；「counted before scrypt runs, so concurrent guesses cannot get past the limit」。
 - [Direct] A11：同時最多 2 個 scrypt（每個約 32 MiB）、密碼上限 1024 字元。A15：絕對 3 天、閒置 1 天、「登出所有裝置」。
 - [Direct] BE-020（Confirmed 2026-10-22）：「放到雲端主機後，登入頁會對網際網路公開，而 CMS 只有一組密碼」；選 Tailscale；「不另外加 TOTP：通過核准的裝置是第一道驗證，密碼是第二道」（addendum-03:268）；「CMS 要開放給 tailnet 以外的網路時，必須重新評估第二道驗證」。
+- [Direct] BE-026（Confirmed 2026-10-29）：Cloudflare Access 擋在 `cms.<網域>` 前面；三個 `CLOUDFLARE_ACCESS_*` 都設定時 CMS 不接受密碼登入，每個請求驗證 `Cf-Access-Jwt-Assertion`；「主機不能有繞過 Cloudflare 的入口，因為撤銷 session 只在 Cloudflare 生效，CMS 只看 JWT 本身」。
 - [Direct] old backlog:20：「因為外人碰不到登入頁，以下項目已調降：A3、A4 由必修降為中，A10、A11 由高降為中，A15 由中降為低。A1、A2 和 A5–A8 與網路暴露無關，仍是必修。」
 - [Direct] `__Host-` cookie 與 HSTS 只在 `COOKIE_SECURE` 開啟時生效（PR #29）。
 
 ### 合理推論
 
 - 安全措施的優先順序明顯以「登入頁是否對外」為軸。改變網路暴露面（例如離開 tailnet）會讓 old backlog:20 調降過的項目重新變成必修，BE-020 也明寫要重新評估第二道驗證。
+- **已更新（2026-10-29）**：作者的部署離開了 tailnet。BE-026 的回應不是補強密碼登入，而是在 Cloudflare Access 模式下整個關掉密碼登入，由 GitHub 登入與每個請求的 JWT 驗證取代。所以 A3（登入節流）、A11（scrypt 並行上限）這類密碼登入的防護在作者的部署裡用不到；只用 Tailscale 的 fork 仍以 BE-020 與 old backlog:20 的調降為準。這是從 BE-026 的決定推得的，addendum 沒有逐項重新評估這些項目。
 
 ### 不知道的事
 
@@ -301,7 +322,7 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 ### 合理推論
 
 - 不用追蹤程式：網站已經在 Cloudflare proxy 後面，Cloudflare 本來就在統計每個請求；Search Console 本來就有搜尋報表。改從伺服器端讀，公開網站不多載入任何東西、不需要 cookie 同意，也不影響 FE 的 CSP 與效能預算。代價是數字較粗：訪客是每日 IP 估計，包含部分機器人，看不到停留時間或來源頁。
-- 不用排程：CMS 只在作者電腦上、作者需要時才開著（§1），排程器在關機時本來就不會跑，還得處理錯過的執行。改成開頁時判斷「上次成功是否超過 6 小時」，作者看的時候資料就夠新，不看的時候不打 API。每次同步都重抓最近幾天並覆蓋，所以隔多久開一次、重複幾次都會收斂到同一份資料。
+- 不用排程：CMS 只在作者電腦上、作者需要時才開著（§1），排程器在關機時本來就不會跑，還得處理錯過的執行。改成開頁時判斷「上次成功是否超過 6 小時」，作者看的時候資料就夠新，不看的時候不打 API。每次同步都重抓最近幾天並覆蓋，所以隔多久開一次、重複幾次都會收斂到同一份資料。**部分已被取代（2026-10-31）**：作者的 CMS 現在常駐在 EC2，「關機時排程器不會跑」這個前提對作者不再成立；開頁時才更新仍避免不看時打 API，fork 的本機 CMS 也仍適用原本的理由。
 - 沒有放進 `maintenance.run()`：那裡只在啟動時跑一次，而且會讓沒有開流量頁的啟動也去連外部 API；目前的需求是「看的時候才更新」。
 
 ### 其他可能的解釋
@@ -322,7 +343,7 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 ### Confirmed：使用者明確選定
 
 - baseline 0.1 定義「已確認」為「使用者已明確選定」，在「共同設計討論」中做成（baseline:6-14）。baseline 的「決策截止日：2026-10-11」。
-- 清單：ART-020、ART-021；PUB-001..006、PUB-008；BE-012..015、BE-017..020；FE-004..012；old backlog 標「2026-10-22 作者決定」的項目（Tailscale、一份程式碼加 `.env`、`cms-v*` tag、不允許原始 HTML，後兩者已轉錄為 BE-021、FE-013）。
+- 清單：ART-020、ART-021；PUB-001..006、PUB-008；BE-012..015、BE-017..020；FE-004..012；old backlog 標「2026-10-22 作者決定」的項目（Tailscale、一份程式碼加 `.env`、`cms-v*` tag、不允許原始 HTML，後兩者已轉錄為 BE-021、FE-013）。之後補上的 BE-022..027（2026-10-22 至 10-29）也都是 Confirmed，其中 BE-026、BE-027 是搬到 EC2 與 Cloudflare Access 的決定。
 
 ### Accepted (delegated)：作者授權採用助理建議
 
@@ -386,6 +407,8 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 - DB 發布成功與網站部署成功分開追蹤（Invariant 5）。
 - 文章不允許原始 HTML，網址走白名單（FE-013）。
 - 一份程式碼加 `.env`，不開長期雲端分支；`cms-v*` tag 才部署 CMS（BE-021）。
+- Cloudflare Access 模式下 CMS 自己驗證每個請求的 JWT，主機不留繞過 Cloudflare 的入口（BE-026）。
+- Fork 仍可選本機 CMS、Tailscale、密碼登入與 git 發布；作者的 EC2 做法是另一個選項，不是唯一做法（BE-026、BE-027）。
 
 ### Change（delegated 或已知過時，可以提出修改）
 
@@ -402,6 +425,7 @@ Addendum 03 BE-022 已新增可選的 Git Data API、GitHub App 與資料庫持�
 ### Risk
 
 - 本機與雲端 CMS 同時寫入會讓內容分歧；目前只有 `ls-remote` 防護，完整修正（A5）未做。
-- 離開 tailnet 或公開登入頁時，old backlog:20 調降的 A3、A4、A10、A11、A15 會重新變成必修，BE-020 要求重新評估第二道驗證。
+- 離開 tailnet 或公開登入頁時，old backlog:20 調降的 A3、A4、A10、A11、A15 會重新變成必修，BE-020 要求重新評估第二道驗證。作者的部署以 Cloudflare Access 取代密碼登入處理這一點（BE-026）；把密碼登入的 CMS 放到公開網址仍會觸發這條風險。
+- Cloudflare Access 的 session 撤銷只在 Cloudflare 生效。主機若多了繞過 tunnel 的入口（例如開了 inbound 規則），撤銷就失效（BE-026）。
 - preview renderer 與網站 renderer 是兩份程式碼，只改一份會造成預覽與上線結果不同（FE-012）。
-- `CONTENT_REPO_TOKEN` 有到期日；部署失敗時先查它（`docs/maintainer-notes.md`）。
+- Personal token 有到期日。用 `CONTENT_REPO_TOKEN` 的部署失敗時先查它。作者改用 GitHub App 後沒有到期日，失敗時先查 App 的安裝與私鑰（`docs/maintainer-notes.md`）。

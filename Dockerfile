@@ -1,6 +1,10 @@
 # The CMS (backend + built admin UI) as one image. The public site is built
 # by GitHub Actions and does not use this image.
 #
+# A cloud host runs it through backend/scripts/deploy-cloud.sh, which
+# cms-deploy.yml starts on a cms-v* tag (docs/cms-deployment.md). The rest of
+# this comment is for running it by hand:
+#
 #   docker build -t blog-cms .
 #   docker run --env-file backend/.env -p 127.0.0.1:8000:8000 blog-cms
 #
@@ -15,9 +19,10 @@
 # proxy's address as the container sees it, so sign-in limits count real
 # client addresses.
 #
-# For API publication set CONTENT_REPO and GitHub credentials. Mount the App
-# private key read-only when using GITHUB_AUTH=app. Clone publication remains
-# available when a clone and its git credentials are mounted explicitly.
+# Publish through the API: set CONTENT_REPO and GitHub credentials, and mount
+# the App private key read-only when using GITHUB_AUTH=app. deploy-cloud.sh
+# mounts no content repo clone, so git publication (CONTENT_REPO_DIR) works
+# only in a manual run that mounts a clone and its git credentials.
 #
 # Run one container at a time. Before starting a new image, back up and
 # migrate with one-off containers, stopping if either fails:

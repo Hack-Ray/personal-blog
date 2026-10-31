@@ -1,15 +1,15 @@
 # Backend
 
-Local CMS API (FastAPI + PostgreSQL), per Addendum 01 (ART-020, ART-021) and Addendum 02 (PUB-001).
+CMS API (FastAPI + PostgreSQL), per Addendum 01 (ART-020, ART-021) and Addendum 02 (PUB-001). It runs on your computer by default; the same code runs in a container on a cloud host (`docs/cloud-ec2.md`, `docs/cloud-tailscale.md`, `docs/cms-deployment.md`).
 
-Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding to `127.0.0.1` while the CMS runs locally.
+Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding to `127.0.0.1`, locally and in the cloud, where the host forwards to it.
 
 ## Run locally
 
 Step-by-step guide (Docker, first run, daily use, backup and restore): [`docs/local-setup.md`](../docs/local-setup.md).
 
 ```sh
-cp .env.example .env                 # then fill in CONTENT_REPO_DIR, DEPLOY_REPO and CMS_GITHUB_TOKEN
+cp .env.example .env                 # then fill in DEPLOY_REPO, CONTENT_REPO (or CONTENT_REPO_DIR) and CMS_GITHUB_TOKEN
 docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
 uv run --env-file .env alembic upgrade head
@@ -34,7 +34,7 @@ scripts/restore.sh backups/<file>.dump    # replaces the whole database, then mi
 uv run --env-file .env python -m blog.maintenance   # due purges, version cleanup, image GC
 ```
 
-Both scripts default to the Docker Compose database; `--url <DATABASE_URL>` targets any PostgreSQL, passing the password through `PGPASSWORD` rather than the command line. See `docs/local-setup.md` sections 10–13.
+Both scripts default to the Docker Compose database; `--url <DATABASE_URL>` targets any PostgreSQL, passing the password through `PGPASSWORD` rather than the command line. See `docs/local-setup.md` sections 10–12 and, for a cloud database, `docs/cms-deployment.md` section 4.
 
 ## Test
 
@@ -58,6 +58,7 @@ CI also runs `uv run ruff check` and `uv run ruff format --check`; `uv run ruff 
 - 更新網站 refuses a new release within 30 seconds of the previous one. Limit request size and rate per address at the proxy as well.
 - Requests that change data are refused when their `Origin` header names another site.
 - Set `COOKIE_SECURE=1` once the CMS is served over HTTPS.
+- Behind Cloudflare Access (all three `CLOUDFLARE_ACCESS_*` set), password sign-in is off: every request except `/healthz` needs a valid `Cf-Access-Jwt-Assertion` for an allowed email, and the CMS keeps no session of its own (`blog/cloudflare_access.py`, `docs/cloud-ec2.md`).
 
 ## Update the site
 
@@ -67,7 +68,9 @@ One release or retry runs at a time (a Postgres advisory lock; a second request 
 
 | Variable | Purpose |
 |---|---|
-| `CONTENT_REPO_DIR` | local clone of your content repo with push access |
+| `CONTENT_REPO` | `owner/name` of the content repo; when set, releases go through the GitHub API instead of a clone. A cloud container must use this (`docs/portable-cms.md`) |
+| `CONTENT_REPO_DIR` | git mode: local clone of your content repo with push access |
+| `GITHUB_AUTH`, `GITHUB_APP_*` | GitHub App authentication instead of `CMS_GITHUB_TOKEN` (`docs/portable-cms.md`) |
 | `DEPLOY_REPO` | your fork of this repo, e.g. `you/personal-blog`, whose `deploy.yml` a release starts |
 | `CMS_GITHUB_TOKEN` | fine-grained token with Actions read/write on `DEPLOY_REPO`; without it or `DEPLOY_REPO` releases stop at "無法啟動部署". `GITHUB_TOKEN` is still read when it is unset |
 | `DEPLOY_WORKFLOW`, `DEPLOY_REF`, `GITHUB_API_URL` | defaults `deploy.yml`, `main`, `https://api.github.com` |
