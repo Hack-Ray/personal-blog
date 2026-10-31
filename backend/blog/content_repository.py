@@ -186,4 +186,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Under `python -m` this file is __main__, and blog.release imports a second
+    # copy whose GitHubRepository is a different class; run the imported copy.
+    from blog.content_repository import main as imported_main
+
+    imported_main()

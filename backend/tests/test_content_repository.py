@@ -327,3 +327,16 @@ def test_prepares_the_real_database_snapshot(repository):
     assert result.versions == {doc_id: 1}
     manifest = json.loads(api.contents(result.commit, "manifest.json"))
     assert manifest["articles"] == [{"doc_id": doc_id, "version": 1}]
+
+
+def test_after_restore_runs_as_a_module_with_api_transport(repository, configure, monkeypatch, capsys):
+    """restore.sh runs `python -m blog.content_repository after-restore`."""
+    import runpy
+    import sys
+
+    repo, _ = repository
+    configure(content_transport="api")
+    monkeypatch.setattr(release, "repo_from_env", lambda: repo)
+    monkeypatch.setattr(sys, "argv", ["content_repository", "after-restore"])
+    runpy.run_module("blog.content_repository", run_name="__main__")
+    assert "Recorded" in capsys.readouterr().out
