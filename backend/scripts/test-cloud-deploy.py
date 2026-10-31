@@ -437,7 +437,8 @@ class HostSetupTest(unittest.TestCase):
         key = self.srv / "secrets/search-console.json"
         self.assertIn('"service_account"', key.read_text())
         self.assertEqual(key.stat().st_mode & 0o777, 0o400)
-        self.assertTrue(any(call[:2] == ["chown", "1000:1000"] and call[-1].startswith(str(self.srv / "secrets/.search-console.json.")) for call in self.calls()))
+        temp = str(self.srv / "secrets/.search-console.json.")
+        self.assertTrue(any(call[:2] == ["chown", "1000:1000"] and call[-1].startswith(temp) for call in self.calls()))
 
     def test_a_parameter_without_a_service_account_key_leaves_no_file(self):
         (self.root / "gsc").write_text('{"type": "authorized_user"}')
