@@ -261,7 +261,7 @@
 - **Decision**：
   - 不開長期的雲端分支。能用同一種做法同時適用本機與雲端的，就不做成選項，例如定期維護是同一個指令 `python -m blog.maintenance`（PUB-005）。
   - 只有真的不同的設定放進 `.env`，由 `backend/blog/config.py` 啟動時一次讀取並檢查。`CMS_ENV=local|cloud` 只決定預設值，每一項都能個別覆寫。
-  - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先跑 CI，建置並發布 image，再在主機上備份、執行 migration、啟動新容器並檢查 `/healthz`。workflow 經 Tailscale（預設，BE-020）或 AWS SSM（`CMS_DEPLOY_VIA=ssm`，BE-027）連到主機，主機不開進站連接埠。
+  - 合併到 `main` 只部署公開網站，不更新雲端 CMS。推送 `cms-v*` tag 時才部署 CMS：先跑 `ci.yml` 與 `cms-image.yml`（image 的 migration、備份還原與 `/healthz` 檢查），兩者都通過才建置並發布 image，再在主機上備份、執行 migration、啟動新容器並檢查 `/healthz`。workflow 經 Tailscale（預設，BE-020）或 AWS SSM（`CMS_DEPLOY_VIA=ssm`，BE-027）連到主機，主機不開進站連接埠。
 - **Consequences**：fork 這個專案的人可以自己選本機或雲端。`cms-v*` 的部署 workflow 是 `.github/workflows/cms-deploy.yml`，預設停用，repo variable `CMS_DEPLOY_ENABLED=true` 才會執行。作者的運算服務見 BE-027。步驟見 [`cms-deployment.md`](../cms-deployment.md)。
 
 ### BE-022：本機與雲端共用發布流程
