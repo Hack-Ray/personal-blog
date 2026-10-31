@@ -67,6 +67,10 @@ class Settings:
     gsc_api_url: str = "https://www.googleapis.com"
     backup_every_hours: int = 0
     access: CloudflareAccess | None = None
+    # The infrastructure page reads CloudWatch and S3 for this host and bucket.
+    aws_instance_id: str | None = None
+    aws_region: str | None = None
+    backup_bucket: str | None = None
 
     @property
     def session_cookie(self) -> str:
@@ -252,6 +256,16 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         raise ConfigError("GITHUB_TIMEOUT must be between 1 and 300 seconds")
     cloudflare_token, zone_id = _pair(env, "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID")
     site_url, credentials = _pair(env, "GSC_SITE_URL", "GSC_CREDENTIALS_FILE")
+    instance_id, aws_region = _pair(env, "AWS_INSTANCE_ID", "AWS_REGION")
+    if instance_id and not re.fullmatch(r"i-[0-9a-f]{8,17}", instance_id):
+        raise ConfigError("AWS_INSTANCE_ID must look like i-0123456789abcdef0")
+    if aws_region and not re.fullmatch(r"[a-z]{2}(-[a-z]+)+-[0-9]", aws_region):
+        raise ConfigError("AWS_REGION must be a region such as ap-northeast-1")
+    backup_bucket = _optional(env, "BACKUP_BUCKET")
+    if backup_bucket and not instance_id:
+        raise ConfigError("BACKUP_BUCKET needs AWS_INSTANCE_ID and AWS_REGION")
+    if backup_bucket and not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", backup_bucket):
+        raise ConfigError("BACKUP_BUCKET must be an S3 bucket name, without s3:// or a prefix")
     # A cloud host schedules backups itself (docs/cms-deployment.md), outside the container.
     backup_every = _optional(env, "BACKUP_EVERY_HOURS") or ("0" if cloud else "24")
     if not re.fullmatch(r"[0-9]+", backup_every):
@@ -286,6 +300,9 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         gsc_site_url=_site_url(site_url),
         gsc_credentials_file=_credentials_file(credentials),
         gsc_api_url=_api_url(_optional(env, "GSC_API_URL") or "https://www.googleapis.com", cloud, "GSC_API_URL"),
+        aws_instance_id=instance_id,
+        aws_region=aws_region,
+        backup_bucket=backup_bucket,
         backup_every_hours=int(backup_every),
         access=_access(env),
     )

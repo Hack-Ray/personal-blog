@@ -58,6 +58,8 @@ Zone 另外調整兩項設定。
 | `/blog/cms/CLOUDFLARE_ACCESS_EMAILS` | 作者的 email，和 Access policy 相同 |
 | `/blog/cms/CMS_GITHUB_TOKEN` 等 | 發布用的 GitHub 設定，和本機的 `.env` 相同，見 `backend/.env.example` |
 | `/blog/cloudflared-token` | 第 2 節的 tunnel token |
+| `/blog/cms/AWS_INSTANCE_ID`、`/blog/cms/AWS_REGION` | 選用。第 4 節 Outputs 的 `InstanceId` 與 region，CMS 的流量數據頁會顯示這台主機的 CPU、網路與狀態檢查 |
+| `/blog/cms/BACKUP_BUCKET` | 選用，需要上一列。Outputs 的 `BackupBucket`（只有 bucket 名稱），流量數據頁會顯示最近一次備份與 bucket 大小 |
 
 密碼用 `openssl rand -hex 24` 產生。十六進位字元不需要在網址裡跳脫。
 

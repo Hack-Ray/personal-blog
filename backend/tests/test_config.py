@@ -185,6 +185,8 @@ def test_traffic_sources_are_off_until_both_settings_of_a_pair_are_set(tmp_path)
         ({"CLOUDFLARE_ZONE_ID": ZONE}, "CLOUDFLARE_API_TOKEN"),
         ({"GSC_SITE_URL": "sc-domain:example.com"}, "GSC_CREDENTIALS_FILE"),
         ({"GSC_CREDENTIALS_FILE": "key.json"}, "GSC_SITE_URL"),
+        ({"AWS_INSTANCE_ID": "i-0123456789abcdef0"}, "AWS_REGION"),
+        ({"AWS_REGION": "ap-northeast-1"}, "AWS_INSTANCE_ID"),
     ],
 )
 def test_half_a_traffic_source_pair_names_the_missing_setting(env, missing):
@@ -203,6 +205,9 @@ def test_half_a_traffic_source_pair_names_the_missing_setting(env, missing):
         ({"GSC_SITE_URL": "sc-domain:example.com", "GSC_CREDENTIALS_FILE": "/nonexistent/key.json"}, "GSC_CREDENTIALS_FILE"),
         ({"CLOUDFLARE_API_URL": "http://example.com"}, "CLOUDFLARE_API_URL"),
         ({"GSC_API_URL": "https://user:pass@example.com"}, "GSC_API_URL"),
+        ({"AWS_INSTANCE_ID": "web-1", "AWS_REGION": "ap-northeast-1"}, "AWS_INSTANCE_ID"),
+        ({"AWS_INSTANCE_ID": "i-0123456789abcdef0", "AWS_REGION": "Tokyo"}, "AWS_REGION"),
+        ({"AWS_INSTANCE_ID": "i-0123456789abcdef0", "AWS_REGION": "ap-northeast-1", "BACKUP_BUCKET": "s3://bucket/cms/"}, "BACKUP_BUCKET"),
     ],
 )
 def test_malformed_traffic_settings_stop_the_start(env, name):
@@ -271,3 +276,12 @@ def test_cloudflare_access_needs_all_three_settings(missing):
 def test_malformed_cloudflare_access_settings_stop_the_start(name, value):
     with pytest.raises(config.ConfigError, match=f"^{name} must"):
         config.load({**ACCESS, name: value})
+
+
+def test_infrastructure_is_off_until_the_host_is_named():
+    s = config.load({})
+    assert (s.aws_instance_id, s.aws_region, s.backup_bucket) == (None, None, None)
+    s = config.load({"AWS_INSTANCE_ID": "i-0123456789abcdef0", "AWS_REGION": "ap-northeast-1", "BACKUP_BUCKET": "blog-backups"})
+    assert (s.aws_instance_id, s.aws_region, s.backup_bucket) == ("i-0123456789abcdef0", "ap-northeast-1", "blog-backups")
+    with pytest.raises(config.ConfigError, match="^BACKUP_BUCKET needs AWS_INSTANCE_ID"):
+        config.load({"BACKUP_BUCKET": "blog-backups"})

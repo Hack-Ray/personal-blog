@@ -146,6 +146,31 @@ export interface AnalyticsReport {
   top_pages: SearchItem[];
 }
 
+export interface HostDay {
+  day: string;
+  /** Percent; null when CloudWatch has no datapoint for the day. */
+  cpu_average: number | null;
+  cpu_maximum: number | null;
+  network_in: number;
+  network_out: number;
+  status_check_failures: number;
+}
+
+/** The CMS host and its backup bucket, read live from CloudWatch and S3. */
+export interface Infrastructure {
+  configured: boolean;
+  start: string;
+  end: string;
+  fetched_at: string | null;
+  error: string | null;
+  instance_id: string | null;
+  host: HostDay[];
+  bucket: string | null;
+  bucket_bytes: number | null;
+  bucket_objects: number | null;
+  latest_backup: { key: string; size: number; modified: string } | null;
+}
+
 type ErrorBody = { detail?: unknown; current_revision?: number; suggestion?: string };
 
 export class ApiError extends Error {
@@ -230,6 +255,7 @@ export const api = {
   analytics: (days: number) => request<AnalyticsReport>("GET", `/analytics?days=${days}`),
   /** Fetches the stale sources from Cloudflare and Google, or every configured one with `force`. */
   syncAnalytics: (force: boolean) => request<SourceStatus[]>("POST", "/analytics/sync", { force }),
+  infrastructure: (days: number, refresh: boolean) => request<Infrastructure>("GET", `/infrastructure?days=${days}${refresh ? "&refresh=true" : ""}`),
   uploadImage: (file: Blob) => {
     const form = new FormData();
     form.append("file", file);
