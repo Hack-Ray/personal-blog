@@ -1,22 +1,19 @@
 # Personal Blog — 系統需求與架構設計基線規格書
 
-> **這是設計紀錄，不是教學。** 記錄開發時的需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
+> **這是設計紀錄，不是教學。** 記錄需求與架構決策及其理由；實際行為以程式碼為準。要建立自己的部落格請看 [`fork-and-deploy.md`](../fork-and-deploy.md)。
 
 > **版本**：Baseline v1.0
-> **決策截止日**：2026-10-11
 > **專案**：`Hack-Ray/personal-blog`
-> **文件性質**：已確認需求／架構決策的累積基線（Decision Baseline），不是已完成實作的宣告
+> **文件性質**：需求與最上層架構決策。細部決策在 Addendum 01–04。所有內容描述目前的系統。
 
 ---
 
 ## 0. 本文件使用原則
 
-1. **「已確認」**表示在截至本文件日期的共同設計討論中，使用者已明確選定的業務規則或架構方向。
-2. **「方向已定、細節未定」**表示選擇的產品／技術方向已明確，但具體技術實作尚待討論；不得視為詳細設計已完成。
-3. **「未決定」**的項目只作待辦與決策議題紀錄，不代表預設採用任何選項。
-4. 本文件記錄決策及其約束，不自行導出未經討論的 ORM、資料表結構、API 端點、部署廠商或程式碼分層。
-5. 後續文件採增量方式：從本文件之後新確認的決策，寫入後續續篇或 Change Log；不再重製本份已記錄的規格。如需完整整合版，須另行明確提出。
-6. 本文件中的範例 ID、網址與流程是示意，不代表已存在的正式資料或部署環境。
+1. **「已確認」**表示使用者已明確選定的業務規則或架構方向。
+2. 本文件記錄需求、不變條件與最上層的架構。細部決策（資料表、API、部署方式）在 [Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md)、[02](./personal-blog-system-spec-addendum-02-publishing-pipeline.md)、[03](./personal-blog-system-spec-addendum-03-backend-foundation.md)、[04](./personal-blog-system-spec-addendum-04-public-site.md)，以決策 ID 引用。
+3. 文件維護規則見第 13 節。
+4. 本文件中的範例 ID、網址與流程是示意，不代表已存在的正式資料或部署環境。
 
 ## 1. 專案定位與目標
 
@@ -40,69 +37,74 @@
 
 ## 2. 系統整體架構
 
-### 2.1 已確認的主要構成
+### 2.1 主要構成（已確認）
 
 ```text
                          作者／管理員
                               │
                               ▼
-                     CMS（文章編輯）
+                 CMS（React SPA，與 API 同源）
                               │
                               ▼
                      FastAPI Backend
                               │
                               ▼
-                 PostgreSQL（V1 規劃）
+                       PostgreSQL 16
                    ├─ 文章／版本／草稿
                    └─ 圖片索引與內容
                               │
-                       發布／部署事件
+                 「更新網站」：匯出 Content Snapshot
+                              │
+                              ▼
+                 private 內容 repo（Snapshot）
+                              │
+                    workflow_dispatch 部署
                               │
                               ▼
                        GitHub Actions
-                   ├─ 讀取發布資料
-                   ├─ 產生靜態頁面
-                   └─ 匯出文章圖片
+                   ├─ 讀取 Snapshot 並驗證
+                   └─ Next.js Static Export
                               │
                               ▼
-             GitHub Pages（Next.js Static Export）
+                        GitHub Pages
                               │
                               ▼
                        公開網站訪客
                               │
-                  ├─ giscus 留言互動
-                  └─ 第三方網站流量分析
+                  └─ giscus 留言互動
 ```
 
-此圖為邏輯架構示意；例如 GitHub Actions 具體如何安全存取後端、後端實際部署在哪裡、CMS 前後端同源或分離，均尚未定案。
+- GitHub Actions 不連 FastAPI 或 PostgreSQL，只讀內容 repo 的 Snapshot（PUB-001、PUB-002）。
+- CMS 介面由 FastAPI 在 `/admin/` 提供，與 API 同源（BE-006）。
+- 作者的 CMS 跑在 AWS EC2，經 Cloudflare Tunnel 與 Access 連線（BE-026、BE-027）。Fork 預設在自己的電腦執行，也可以放在 Tailscale 主機（BE-020、BE-021）。
 
 ### 2.2 前端與公開網站（已確認）
 
 - 前端採用 Next.js + TypeScript。
 - 公開網站採用 Static Site Generation（SSG）；使用 Next.js `output: 'export'` 產生靜態檔案。
 - 由 GitHub Actions 建置並部署至 GitHub Pages。
-- 不在 V1 使用持續運作的 Next.js Server、SSR 或 ISR。
-- 使用 GitHub Pages 專案網站路徑時，須考慮 `basePath: '/personal-blog'`；自訂網域屬未來可能調整項目。
+- 不使用持續運作的 Next.js Server、SSR 或 ISR。
+- 網站的 origin 與 basePath 由部署環境提供，Pages 專案網址與自訂網域都不需要改程式（FE-014）。
 - 公開頁面以預先產生 HTML 為主；只有必要互動功能在瀏覽器端執行。
-- V1 每次發布採全站完整建置／部署（Full Build）。
-- 未來期望提升增量更新效率，但 GitHub Pages 的網站部署仍以整份站點產物為單位；不可將「增量建置」與「只部署單頁」混為一談。
+- 每次發布採全站完整建置／部署（Full Build）。
+- GitHub Pages 的網站部署以整份站點產物為單位；不可將「增量建置」與「只部署單頁」混為一談。
 
-### 2.3 後端（已確認的方向）
+### 2.3 後端（已確認）
 
-- 後端主要使用 Python FastAPI。
+- 後端使用 Python FastAPI，資料存在 PostgreSQL（BE-001）。
 - 核心責任是文章 CMS、草稿、發布版本、媒體管理及發布流程的服務端操作。
 - 公開文章閱讀由已部署的靜態網站服務，不要求訪客每次閱讀都查詢 FastAPI。
-- PostgreSQL 是 V1 的資料儲存規劃方向；設計需避免將公開永久識別碼綁死於 PostgreSQL 的內部主鍵。
-- 後端部署平台、常駐方式、ORM、遷移工具與具體專案分層：未決定。
+- 公開永久識別碼不綁 PostgreSQL 的內部主鍵（第 4.1 節）。
+- 本機與雲端使用同一份程式，差異只在環境設定（BE-021、BE-022）。
 
 ## 3. 公開網站功能範圍
 
 ### 3.1 內容與導覽（已確認）
 
 - 首頁、文章列表、文章閱讀頁、Topic／Tag 瀏覽與篩選、個人介紹／作品集內容。
-- 文章可依發表日期進行新到舊／舊到新排序。
-- 支援文章關鍵字搜尋；搜尋索引放在靜態站或由後端 API 提供，尚未決定。
-- 作品集／個人介紹包含經歷、成果或專案展示，以及 GitHub、LinkedIn、Email 等對外連結；內容由 CMS 或靜態程式碼管理尚未決定。
+- 歸檔頁依發表日期列出文章，可切換新到舊／舊到新（FE-011）。
+- 文章關鍵字搜尋在瀏覽器端進行，索引在 build 時產生（FE-002）。
+- 作品集／個人介紹包含經歷、成果或專案展示，以及 GitHub、LinkedIn、Email 等對外連結，由 CMS 編輯（FE-007）。
 
 ### 3.2 已簡化／移除的公開功能（已確認）
 
@@ -111,12 +113,11 @@
 - 留言與反應不自行開發一套帳號、留言、按讚系統，而是交由 giscus。
 - 一般讀者不需要建立本站帳號才能閱讀文章；參與 giscus 的 GitHub Discussions 互動則依 GitHub 的登入要求。
 
-### 3.3 第三方服務（已確認的範圍／尚未定的供應商）
+### 3.3 第三方服務（已確認）
 
-- 留言／反應：giscus，底層使用 GitHub Discussions。
-- 網站流量分析：採第三方分析服務；資料供管理員檢視，例如最熱門文章與流量，不在公開網站顯示瀏覽數。Cloudflare Web Analytics 是候選方案，尚未正式定案。
-- 廣告：未來可能放置 Google AdSense，原則上靠頁面下方、不干擾閱讀；不是 V1 必備交付功能。
-- giscus 與文章的對應應利用不隨標題改動的文章身分；確切 giscus mapping 設定仍待實作時確認。
+- 留言／反應：giscus，底層使用 GitHub Discussions，以 `doc_id` 對應討論串（FE-006）。
+- 網站流量分析：公開網站不放分析或追蹤程式。CMS 在伺服器端讀 Cloudflare 與 Google Search Console 的 API，只給管理員看（BE-024）。
+- 廣告：未來可能放置 Google AdSense，原則上靠頁面下方、不干擾閱讀；目前沒有實作。
 
 ## 4. Article Identity 與分類規則
 
@@ -126,8 +127,8 @@
 |---|---|
 | Article Internal ID | 資料庫內部主鍵，供內部資料關聯。 |
 | `doc_id` | 與內部主鍵**獨立**的公開永久識別碼。 |
-| 識別碼格式 | **ULID，26 字元**。 |
-| 公開路由 | `/posts/{docId}`。 |
+| 識別碼格式 | **ULID，26 字元**，大寫（BE-002）。 |
+| 公開路由 | 有 slug 時 `/posts/{slug}`，沒有時 `/posts/{docId}`（FE-015）。 |
 | 產生時機 | 建立 Article 時配置。 |
 | 可變性 | `doc_id` 建立後不可修改。 |
 | 重複使用 | 刪除文章後亦不得將既有 `doc_id` 分配給其他文章。 |
@@ -139,12 +140,13 @@ URL 示意：
 
 ```text
 /posts/01K7M4Y7P65BDCF8AHRTQY7ZQF
+/posts/my-first-post
 ```
 
 - Title 更名時，公開 URL 不因標題改動而改變。
-- 原本規劃的可變 Slug 與 Slug Redirect History 不再是現行公開文章路由需求。
+- slug 由作者手動設定，換過 slug 後，上線過的舊網址留下轉址頁（FE-015、BE-023）。
+- `doc_id` 是文章的身分；giscus 與 RSS 的 `<guid>` 以它為鍵，換 slug 不受影響。
 - `doc_id` 是公開識別碼，不是授權或私密存取憑證；草稿／未公開文章不得因 ID 難猜而視為受保護。
-- ULID 的大小寫慣例、產生套件與資料庫欄位型態等屬實作細節，尚未確認。
 
 ### 4.2 Topic 與 Tags（已確認）
 
@@ -153,26 +155,25 @@ URL 示意：
 - 建立 Working Draft 時，Topic 即為必填；不能先建立無 Topic 的文章草稿。
 - Tags 不必填。
 - Title、Topic、Tags 與 Markdown 共同納入文章版本管理；草稿變更不直接更動對外已發布的 Metadata。
-
-Topic／Tag 的管理介面、命名、改名、合併、刪除及別名策略：未決定。
+- Topic／Tag 的名稱屬於 Taxonomy 本身，改名、合併、刪除見 BE-013、BE-019。
 
 ## 5. CMS 與編輯體驗
 
 ### 5.1 管理功能（已確認）
 
 - 自建 CMS，支援文章建立、讀取、編輯、刪除、發布與下架等完整生命週期。
-- 編輯器以 Markdown 為內容形式，體驗參考 HackMD，可同時編輯與預覽（例如分割畫面）。
+- 編輯器以 Markdown 為內容形式，體驗參考 HackMD，可同時編輯與預覽（分割畫面）。
 - 支援標題及相關 Metadata 編修。
 - 支援 Auto Save（自動儲存 Working Draft）；Auto Save 不觸發網站重新部署。
 - 已發布文章再次編輯時，修改應存於 Working Draft，不應即時覆蓋線上版本。
-- CMS 管理員必須有身分驗證及適當授權；具體登入方案／Session／Token 設計未決定。
+- CMS 管理員必須有身分驗證及適當授權：密碼登入（BE-009），或 Cloudflare Access（BE-026）。
 
 ### 5.2 內文圖片上傳（已確認）
 
 - 只能透過文章 Markdown 編輯器的編輯流程上傳圖片，例如選取圖片、拖曳檔案、貼上截圖。
 - 上傳後在 Markdown 中插入引用，並可於編輯器中預覽。
-- V1 不建立獨立的媒體庫上傳工作流程／相簿管理產品功能。
-- 編輯階段的圖片預覽可由 FastAPI 提供；公開網站上的文章圖片，需在發布建置時匯出成靜態資產。
+- 不建立獨立的媒體庫上傳工作流程／相簿管理產品功能。
+- 編輯階段的圖片預覽由 FastAPI 提供；公開網站上的文章圖片，在發布時匯出成靜態資產（BE-007）。
 
 ## 6. Article Content Versioning
 
@@ -185,7 +186,7 @@ Topic／Tag 的管理介面、命名、改名、合併、刪除及別名策略�
 - 發布須將一組一致的內容與 Metadata 保存為新 Published Version；隨後才進入建置／部署流程。
 - 歷史版本還原方式：將選定版本的內容與 Metadata 複製至 Working Draft；重新發布時建立新版本，不修改舊版本。
 
-以下只是概念結構，尚不代表領域實體或資料表已定案：
+結構（ART-020）：
 
 ```text
 Article (stable doc_id)
@@ -201,9 +202,9 @@ Article (stable doc_id)
 
 - 除了 Auto Save 的當前草稿外，另外保留 Draft Snapshots，用於編輯過程中的復原。
 - Snapshot 儲存的是完整 Markdown 文字快照，不是文字 Diff。
-- 觸發條件考慮實際內容差異與經過時間／最大間隔，避免每次按鍵都建立 Snapshot；具體閾值尚未決定。
+- 觸發條件考慮實際內容差異與經過時間／最大間隔，避免每次按鍵都建立 Snapshot；閾值見 BE-008。
 - 當新 Published Version 已成功、持久地寫入資料庫，即可移除該次編輯週期的 Draft Snapshots，不必等待 GitHub Pages 部署成功。
-- 需避免延遲到達的 Auto Save 覆蓋使用者已確認發布的內容；版本號／併發控制的具體方案尚未決定。
+- 延遲到達的 Auto Save 不得覆蓋使用者已確認發布的內容；以 `revision` 樂觀併發控制處理（ART-021）。
 
 ### 6.3 Published Version Retention（已確認）
 
@@ -211,6 +212,7 @@ Article (stable doc_id)
 - 新版發布後，不可立即清除舊版；應等新版本對應的靜態網站成功部署後，才進行安全的舊版本清理。
 - 如部署失敗，或線上／待部署中的資產仍依賴某個較舊版本，允許暫時保留超過三版以避免遺失可用資料。
 - 版本清理必須與文章圖片的引用保護協調。
+- 規則見 BE-011。
 
 ## 7. Article Lifecycle 與公開網站行為
 
@@ -220,13 +222,14 @@ Article (stable doc_id)
 |---|---|---|
 | Draft | 文章尚未發布，資料僅於管理端 | **404** |
 | Published | 有目前的公開發布版本 | 顯示對應文章內容 |
-| Archived | 下架、保留文章與版本資料 | 原 `/posts/{docId}` 顯示固定的**「文章已封存」提示頁** |
+| Archived | 下架、保留文章與版本資料 | 原網址顯示固定的**「文章已封存」提示頁** |
 | Pending Deletion | 軟刪除等待期，保留復原所需資料 | **404** |
 | Permanently Deleted | 文章已永久清理 | **404**；不再重新分配 DocID |
 
 - 上表是部署成功後的期望結果。資料庫狀態變更到靜態部署完成前，公開網站可能仍顯示前一版內容。
-- 封存頁與一般文章頁不同；封存頁的搜尋引擎 noindex 與 Sitemap 移除是目前建議的 SEO 處置，具體技術操作尚待實作設計。
+- 封存頁與一般文章頁不同；封存頁 `noindex` 且不列入 Sitemap（FE-001）。
 - Pending Deletion 的文章必須從公開文章列表、Topic／Tag 頁、搜尋結果及 Sitemap 排除，並於部署後使原網址回傳 404。
+- 狀態轉換規則見 BE-005。
 
 ### 7.2 Unpublish / Archive（已確認）
 
@@ -242,78 +245,76 @@ Article (stable doc_id)
 - 管理員可在 CMS 待刪除區復原文章。
 - 管理員也可主動永久清除，不必等待滿 30 天。
 - 超過 30 天進行永久刪除／清理。
-- Pending Deletion 期間須保留文章、相關版本及復原所必需的圖片，不得被每週圖片清理誤刪。
+- Pending Deletion 期間須保留文章、相關版本及復原所必需的圖片，不得被圖片清理誤刪。
 - 需保護尚在線上或正在部署中引用的資料，避免刪除造成既有公開資產破損。
-- 恢復後仍沿用同一 `doc_id`；恢復到哪個編輯／公開狀態的細部規則尚待領域模型確認。
+- 恢復後沿用同一 `doc_id`，回到刪除前的狀態（BE-005）。
 
 ### 7.4 Republish（已確認）
 
 - 下架後重新發布，沿用原 `doc_id`。
-- 重新發布可產生新的不可變 Published Version。
+- 重新發布產生新的不可變 Published Version。
 - 文章對應的公開 URL 長期固定，以減少失效外連、搜尋索引與 giscus 討論關聯變動。
 
 ## 8. 圖片儲存、發布與垃圾回收
 
-### 8.1 V1 圖片儲存（已確認的方向）
+### 8.1 圖片儲存（已確認）
 
-- V1 圖片先存於 PostgreSQL，而非一開始即使用 Object Storage。
-- 將圖片 metadata／索引（概念上 ImageIndex）與二進位內容（概念上 ImageData，PostgreSQL BYTEA）區分管理。
-- 此為資料責任的初步劃分，不等同於已確定資料表結構。
-- 長期可考慮將圖片 Bytes 移至 Object Storage；在目前 V1 不強制實作遷移。
-- 不原地覆寫可能被 Published Version 引用的圖片內容；更換圖片應以新的圖片資源身分避免歷史版本損壞。
+- 圖片存於 PostgreSQL，不使用 Object Storage。
+- 圖片 metadata／索引（`images`）與二進位內容（`image_data`，BYTEA）分開（BE-007）。
+- 長期可考慮將圖片 Bytes 移至 Object Storage；目前不實作。
+- 不原地覆寫可能被 Published Version 引用的圖片內容；圖片 id 是內容雜湊，換圖即為新的圖片（BE-014）。
 
 ### 8.2 靜態輸出（已確認）
 
-- 每次需要發布的新網站 Build，GitHub Actions 依文章引用關係取得該版本圖片。
-- 將 Markdown 所用圖片輸出成 GitHub Pages 可直接服務的靜態圖片檔案。
+- 「更新網站」時，Exporter 把已匯出文章引用的圖片寫進 Snapshot（PUB-003）。
+- GitHub Actions 建置時把 Snapshot 的圖片輸出成 GitHub Pages 可直接服務的靜態檔案。
 - 訪客閱讀已發布文章時，圖片不需要透過 FastAPI 或 PostgreSQL 即時提供。
 
 ### 8.3 Image Garbage Collection（已確認）
 
 | 項目 | 規格 |
 |---|---|
-| 執行頻率 | **每週五**一次。 |
+| 執行時機 | 定期維護 `python -m blog.maintenance` 執行（PUB-005）。 |
 | 刪除前寬限期 | 圖片須持續**至少七天沒有任何有效引用**。 |
 | 從未被引用的上傳 | 至少經過上傳後七天，方可考慮清理。 |
-| 受保護引用 | Working Draft、仍保留的 Draft Snapshots、保留中的 Published Versions、實際線上部署，以及待部署／進行中的 Build。 |
+| 受保護引用 | Working Draft、仍保留的 Draft Snapshots、保留中的 Published Versions、關於頁的自我介紹。 |
 | 待刪除文章 | 30 天復原期限內所需的圖片必須保留。 |
 | 版本與部署協調 | 需考慮發布、Auto Save、圖片引用變動與清理工作競態；不能僅靠某一瞬間的引用計數即刪除。 |
 
 - 七天計時從最後一個有效引用消失後開始，而不是從圖片上傳那天起一律計算。
-- 如何記錄引用、清理鎖定及失敗重試：未決定。
+- 已部署網站的圖片在內容 repo 中，不依賴資料庫，所以清理不會破壞線上網站。
+- 引用記錄與鎖定方式見 BE-007。
 
 ## 9. Publish、CI/CD 與部署一致性
 
-### 9.1 已確認的發布語意
+### 9.1 發布語意（已確認）
 
 1. 管理員在 CMS 明確執行 Publish。
 2. 後端保存一份新的不可變 Published Version（Title、Topic、Tags、Markdown 一致）。
 3. 資料庫發布成功與網站部署成功是兩個不同事件；不能混為單一狀態。
-4. 將需要更新的網站交由 GitHub Actions Build，輸出文章／列表／分類等受影響的靜態頁面及圖片；V1 實作為全站 Build。
+4. 管理員按「更新網站」，後端匯出全站 Snapshot 到內容 repo，再啟動 GitHub Actions 全站 Build（PUB-001、BE-010）。
 5. 部署到 GitHub Pages 後才表示新版本已真正在線上可讀。
 6. 靜態網站最終必須趨近最新期望發布狀態（Latest State Wins）。
 
 ### 9.2 併發發布與過時版本（已確認）
 
-- 新發布版本出現時，取消已過時、尚未開始的重試工作。
+- 新發布版本出現時，取消已過時、尚未開始的工作。
 - 已經運行中的 Build 不必強制取消，可讓它完成。
-- 部署前須檢查 Build 產物是否已被更新的期望狀態取代；過時產物應略過部署，並確保後續有更新版本的 Build。
-- 部署應避免互相覆蓋；部署互斥／序列化是既有一致性要求。
-- 檢查「最新版本」到實際部署之間仍可能有 Race Condition，具體原子性／鎖／序列號協定尚待設計。
-- 不強制要求針對每一個 Build 儲存永久、完整、不可變的全站快照；但需有足夠版本／Manifest／狀態記錄辨識實際部署的是什麼。
+- 部署前須檢查 Build 產物是否已被更新的期望狀態取代；過時產物略過部署，由更新版本的 Build 接手。
+- 部署互斥／序列化。
+- 以內容 repo 的 commit 順序與部署前的 HEAD 檢查辨識最新狀態（PUB-004）。
+- 不針對每一個 Build 儲存永久、完整的全站快照；內容 repo 的 commit 與 `releases` 紀錄辨識實際部署的是什麼。
 
-### 9.3 失敗處理（方向已定、細節未定）
+### 9.3 失敗處理（已確認）
 
-- 需要監控 GitHub Actions Build／Deploy 的成功、失敗、逾時等結果。
-- 失敗應有有限次數重試機制；先前討論的**「最多約三次」仍為暫定值**，尚未確定計數、間隔與可重試錯誤分類。
-- 持續失敗需以 Email 通知管理員。
-- 由 GitHub Actions Webhook、Polling 或其他方式追蹤結果，尚未決定。
-- Durable Queue／Outbox、Trigger API、重試排程、憑證管理等實作尚未定案。
+- CMS 以 GitHub API 追蹤 Build／Deploy 的結果（BE-010）。
+- 不自動重試。最新一筆失敗的 release 可以在 CMS 手動重試，從失敗的那一步繼續（BE-010）。
+- 失敗通知使用 GitHub 內建的 workflow 失敗 Email（PUB-005）。
 - 即使網站部署失敗，資料庫中已成功持久化的 Published Version 不因此自動消失。
 
 ## 10. 資料一致性、安全與清理的不變條件
 
-以下是由已確認需求直接形成的設計約束；具體實作仍待後續設計。
+以下是由已確認需求直接形成的設計約束。
 
 1. **Identity**：一篇 Article 對應一個永久且不重複使用的 ULID `doc_id`；不等同於資料庫內部主鍵。
 2. **Draft Isolation**：Working Draft 的 Auto Save、Title／Topic／Tags／Markdown 修改，不得直接修改既有 Published Version。
@@ -324,15 +325,15 @@ Article (stable doc_id)
 7. **Public Access Boundary**：公開讀者只能讀取已部署公開內容；CMS 編輯／草稿／媒體預覽與管理操作須適當授權。
 8. **Low Runtime Dependency**：公開閱讀不應依賴即時 FastAPI API 成功回應。
 
-## 11. 已確認決策索引（本輪 Article 討論）
+## 11. Article 決策索引
 
-> 以下 `ART-*` 編號沿用本輪討論中已使用的決策代號；其他章節決策以本文件內容為準，不額外宣稱存在既有核准編號。
+> `ART-*` 是 Article 討論中使用的決策代號；其他決策以各 Addendum 的 ID 為準。
 
 | 決策編號 | 決策內容 |
 |---|---|
 | ART-009 | 文章 Title、Topic、Tags 等 Metadata 與 Markdown 一同進行草稿／發布版本管理。 |
 | ART-010 | 文章公開 `doc_id` 與內部資料庫 PK 分離。 |
-| ART-011 | 公開 `doc_id` 選擇 ULID，路由為 `/posts/{docId}`。 |
+| ART-011 | 公開 `doc_id` 選擇 ULID；沒有 slug 的文章路由為 `/posts/{docId}`。 |
 | ART-012 | Unpublish 後原網址顯示固定「文章已封存」頁面。 |
 | ART-013 | Delete 先進入 Soft Delete／Pending Deletion。 |
 | ART-014 | 待刪除保留 30 天。 |
@@ -340,62 +341,20 @@ Article (stable doc_id)
 | ART-016 | Republish 保留原有 ULID DocID。 |
 | ART-017 | Pending Deletion 保留可復原能力。 |
 | ART-018 | Pending Deletion 的公開文章 URL 顯示 HTTP 404。 |
-| ART-019 | 再次確認 30 天 Soft Delete 為防止誤刪，沒有取消復原機制。 |
+| ART-019 | 30 天 Soft Delete 為防止誤刪，保留復原機制。 |
 
-## 12. 尚未決定：不得視為已確認規格
+## 12. Open Questions（尚未確認）
 
 | 領域 | 待決事項 |
 |---|---|
-| **Domain Modeling（下一題）** | Working Draft／Published Version 使用**統一 `ArticleVersion`（方案 A）**，還是**分離 `WorkingDraft` 與 `PublishedVersion`（方案 B）**？如何保護不可變性及處理 Auto Save／Publish 競態？ |
-| Domain Relationships | Aggregate Boundary、Article／Version 的持久化關係、Transaction Boundary、具體 State Machine。 |
-| Database | PostgreSQL 詳細 Schema、關聯、Index、Constraint、Migration；ORM 是否採 SQLAlchemy 等。 |
-| Backend | FastAPI 內部模組分層、API 規格、執行／部署平台、是否常駐、監控方案。 |
-| CMS Auth | 管理員登入身分驗證、Session／Token、權限及私有媒體預覽控制。 |
-| Taxonomy | Topic／Tag 管理、重命名、合併、版本引用的精確處理方式。 |
-| Article Search | 純靜態前端索引、Build Time 索引或後端搜尋 API 等。 |
-| Portfolio | 個人介紹／作品集使用 CMS 維護或程式碼／靜態內容維護。 |
-| Draft Snapshot | 間隔、變更閾值、最大筆數、如何避免同時存檔覆蓋。 |
-| Image Management | 引用追蹤的資料模型、GC 排程器、併發保護、Object Storage 的遷移時機。 |
-| CI/CD | Build Trigger、Webhooks／Polling、重試參數、Email 服務、Manifest、部署鎖、Stale Check 原子性。 |
-| Analytics | 第三方分析產品的最終選型與資料政策。 |
-| SEO／404 | 封存頁 `noindex` 的具體作法、GitHub Pages 的 404 與 URL 處理、sitemap 的生成策略。 |
-| 恢復 | Pending Deletion Restore 時回到先前 Draft／Archived／Published 狀態的詳細規則及部署時序。 |
-| ULID | 實際產生套件、大小寫格式、欄位型別及資料驗證手段。 |
-| 未來優化 | Incremental Build／前端資料更新與 GitHub Pages 全站部署的協作方式。 |
+| Taxonomy | Topic／Tag 的別名策略（BE-019 沒有提供）。 |
+| 廣告 | 是否放置 Google AdSense、放在哪裡（第 3.3 節）。 |
+| 圖片 | 圖片 Bytes 移到 Object Storage 的時機（第 8.1 節）。 |
+| 建置 | Incremental Build 與 GitHub Pages 全站部署的協作方式。 |
 
-特別註明：先前討論過的 SQLAlchemy、Alembic、Pydantic、uv、pytest、HTTPX、Redis、AWS EC2、Docker、特定架構分層、Cloudflare Web Analytics 等，除非已在以上正文標記為確定內容，均不能自動視為已選定的 V1 設計。
+## 13. 文件維護規則
 
-## 13. 留待後續決定的主問題：Domain Model
-
-Working Draft 與 Published Version 如何建模，由 [Addendum 01](./personal-blog-system-spec-addendum-01-domain-model.md) 回答（選擇方案 B）。以下是當時列出的選項與檢驗情境。
-
-**方案 A：統一 ArticleVersion**
-
-```text
-Article
-└─ ArticleVersion
-   ├─ Draft
-   ├─ Published V1
-   └─ Published V2
-```
-
-**方案 B：分離 WorkingDraft 與 PublishedVersion**
-
-```text
-Article
-├─ WorkingDraft（Mutable）
-└─ PublishedVersion（Immutable）
-```
-
-需要以以下情境檢驗選擇：
-
-```text
-14:00:00 Auto Save 開始
-14:00:01 管理員按 Publish
-14:00:02 Publish 開始處理
-14:00:03 Auto Save 完成
-```
-
-取捨的面向：領域責任、不可變性、交易一致性、Auto Save／Publish 競態，以及維護成本。
-
-之後新確認的決策寫在 Addendum 01–04，每份只記錄新的決策與它修訂（Supersedes）的基線項目。
+- Baseline 與 Addendum 01–04 都描述目前的系統。決策被推翻或不再成立時，直接把該處改寫成目前的決策。被取代的內容、更新註記、「已被取代」標記與 Supersedes 鏈都不保留；舊的版本留在 git 歷史。
+- 決策 ID 保持不變，其他文件與程式註解以 ID 引用。刪除一條決策時，同時修正所有引用它的地方。
+- 新的決策寫進對應的 Addendum，取下一個 ID。
+- 使用者沒有確認的設計選項只列在 Open Questions，不寫成決策。標為 Accepted (delegated) 的決策是作者授權採用的設計建議，作者可隨時推翻。
