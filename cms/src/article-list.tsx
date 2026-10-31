@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ACCESS_LOGOUT, api, type ArticleState, type ArticleSummary, type SignInMethod } from "./api.ts";
 import { STATE_LABEL } from "./labels.ts";
 
@@ -23,6 +23,25 @@ export function ArticleList({ method }: { method: SignInMethod }) {
   const [filter, setFilter] = useState<Filter>("live");
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [error, setError] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const toolbar = useRef<HTMLDivElement>(null);
+
+  // On a phone the page links collapse into a menu; a click outside or Escape closes it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!toolbar.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const load = useCallback(async () => {
     const all = await api.list(filter === "pending_deletion" ? "pending_deletion" : undefined);
@@ -46,46 +65,51 @@ export function ArticleList({ method }: { method: SignInMethod }) {
 
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" ref={toolbar}>
         <h1>文章</h1>
-        <a className="button" href="#/new">
-          新增文章
-        </a>
-        <a className="button" href="#/taxa">
-          分類管理
-        </a>
-        <a className="button" href="#/profile">
-          網站與關於
-        </a>
-        <a className="button" href="#/releases">
-          網站發布
-        </a>
-        <a className="button" href="#/analytics">
-          流量數據
-        </a>
-        {method === "cloudflare" ? (
-          <a className="button" href={ACCESS_LOGOUT}>
-            登出
+        <button type="button" className="menu-toggle" aria-expanded={menuOpen} aria-controls="page-links" onClick={() => setMenuOpen((v) => !v)}>
+          選單
+        </button>
+        <nav id="page-links" className={menuOpen ? "page-links open" : "page-links"} aria-label="頁面">
+          <a className="button" href="#/new">
+            新增文章
           </a>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => api.signOut().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`))}
-            >
+          <a className="button" href="#/taxa">
+            分類管理
+          </a>
+          <a className="button" href="#/profile">
+            網站與關於
+          </a>
+          <a className="button" href="#/releases">
+            網站發布
+          </a>
+          <a className="button" href="#/analytics">
+            流量數據
+          </a>
+          {method === "cloudflare" ? (
+            <a className="button" href={ACCESS_LOGOUT}>
               登出
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!window.confirm("登出所有裝置與瀏覽器（包括這一個）？")) return;
-                api.signOutEverywhere().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`));
-              }}
-            >
-              登出所有裝置
-            </button>
-          </>
-        )}
+            </a>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => api.signOut().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`))}
+              >
+                登出
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("登出所有裝置與瀏覽器（包括這一個）？")) return;
+                  api.signOutEverywhere().then(() => location.reload(), (e) => setError(`登出失敗：${e instanceof Error ? e.message : String(e)}`));
+                }}
+              >
+                登出所有裝置
+              </button>
+            </>
+          )}
+        </nav>
       </div>
       <div role="tablist" className="tabs">
         <button type="button" role="tab" aria-selected={filter === "live"} onClick={() => setFilter("live")}>
@@ -101,7 +125,7 @@ export function ArticleList({ method }: { method: SignInMethod }) {
         </button>
       </div>
       {error && <p className="banner">{error}</p>}
-      <table>
+      <table className="card-table">
         <thead>
           <tr>
             <th>標題</th>
@@ -117,8 +141,8 @@ export function ArticleList({ method }: { method: SignInMethod }) {
                 {a.pinned && a.state !== "pending_deletion" && <span className="pin">置頂</span>}
                 {a.state === "pending_deletion" ? a.title || "（無標題）" : <a href={`#/edit/${a.doc_id}`}>{a.title || "（無標題）"}</a>}
               </td>
-              <td>{STATE_LABEL[a.state]}</td>
-              {filter === "pending_deletion" && <td>{a.purge_after && date.format(new Date(a.purge_after))}</td>}
+              <td className="muted-cell">{STATE_LABEL[a.state]}</td>
+              {filter === "pending_deletion" && <td data-label="永久刪除日">{a.purge_after && date.format(new Date(a.purge_after))}</td>}
               <td className="actions">
                 {a.state === "published" && (
                   <button type="button" onClick={() => act((id) => api.setPinned(id, !a.pinned), a.doc_id)}>
