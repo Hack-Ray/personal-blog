@@ -6,8 +6,10 @@ Description: >-
 Parameters:
   GitHubRepository:
     Type: String
-    Description: The code repository that may deploy, as owner/repo, with the same case as on GitHub.
-    AllowedPattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+    Description: >-
+      The code repository that may deploy, as the OIDC subject names it: owner/repo with the same case
+      as on GitHub, or owner@<id>/repo@<id> when the repo uses immutable subject claims.
+    AllowedPattern: ^[A-Za-z0-9_.-]+(@[0-9]+)?/[A-Za-z0-9_.-]+(@[0-9]+)?$
   GitHubEnvironment:
     Type: String
     Default: cms-production

@@ -33,7 +33,7 @@ Hop limit 1 讓 bridge network 的容器（PostgreSQL）拿不到 instance role 
 
 1. 在 Cloudflare Zero Trust 的 **Networks → Tunnels** 建立 tunnel，類型選 **Cloudflared**，由 Cloudflare 管理設定（remotely managed）。
 2. 安裝步驟頁面會顯示 tunnel token，先複製下來，第 3 節存進 SSM。不需要照頁面在主機安裝 `cloudflared`，主機設定腳本會用容器執行。
-3. 在 tunnel 的 **Public Hostname** 新增 `cms.<網域>`，Service 填 `http://127.0.0.1:8000`。
+3. 在 tunnel 的 **Routes** 分頁按 **Add route**，選 **Published application**（舊版介面叫 Public Hostname）。Hostname 填 `cms.<網域>`，Service URL 填 `http://127.0.0.1:8000`。**Additional application settings** 保持預設，不要設定 HTTP Host Header。CMS 只接受 `ALLOWED_HOSTS` 列出的 Host，改寫成 `127.0.0.1:8000` 會讓每個請求都回 400。
 4. 照 [`cloud-access-cloudflare.md`](cloud-access-cloudflare.md) 第 1、2 節建立 GitHub 登入方式與 `cms.<網域>` 的 Access 應用程式，記下 team domain 與 AUD tag。
 
 第 4 步要在第 3 步的 hostname 上線前做完，Access 才會從一開始就擋在 CMS 前面。CMS 也會檢查每個請求的 Access JWT，沒有通過 Access 的請求一律回 403。
@@ -84,7 +84,13 @@ aws cloudformation deploy --region <region> --stack-name blog-cms \
 aws cloudformation describe-stacks --region <region> --stack-name blog-cms --query 'Stacks[0].Outputs'
 ```
 
-`GitHubRepository` 的大小寫要和 GitHub 上的 repo 名稱一致，否則 GitHub 取不到部署 role。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
+`GitHubRepository` 要和 GitHub 送出的 OIDC subject 一致，否則 GitHub 取不到部署 role，workflow 會在 `configure-aws-credentials` 失敗，訊息是 `Not authorized to perform sts:AssumeRoleWithWebIdentity`。先查 repo 用哪一種格式：
+
+```sh
+gh api repos/<owner>/<repo>/actions/oidc/customization/sub
+```
+
+`use_immutable_subject` 是 `false` 時，填 `<owner>/<repo>`，大小寫和 GitHub 上的名稱一致。是 `true` 時，填 `sub_claim_prefix` 去掉開頭 `repo:` 的部分，例如 `Hack-Ray@93068284/personal-blog@1414022709`。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
 
 `ImageId` 是固定的 AMI ID，記下第一行印出的值。之後更新 stack 時傳同一個值，主機就不會被換掉。只有刻意改變 `ImageId`、`SubnetId` 或 `VolumeSize` 時，CloudFormation 才會建立新主機。舊主機與它的資料庫會保留，不會被終止，但仍連著同一個 tunnel。這時先在舊主機執行 `sudo bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups <BackupTarget>` 做一份備份，再執行 `sudo docker rm -f blog-cloudflared blog-cms`，讓兩台主機不會同時接收請求。接著在新主機執行第 5 節，把 GitHub 的 `CMS_INSTANCE_ID` 改成新的 `InstanceId`，部署一次，再用第 8 節還原那份備份。確認新主機正常後，到 EC2 主控台終止舊主機。
 
