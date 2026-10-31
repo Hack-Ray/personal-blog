@@ -493,7 +493,10 @@ class TokenOut(BaseModel):
 
 @app.get("/api/github-token")
 def github_token() -> TokenOut:
-    """The CMS's own CMS_GITHUB_TOKEN, so the releases page can warn before it expires."""
+    """The CMS's own CMS_GITHUB_TOKEN, so the releases page can warn before it expires.
+
+    Meaningful only in personal-token mode; with GITHUB_AUTH=app the CMS renews
+    its short-lived installation tokens itself."""
     deployer = release.deployer_from_env()
     if not isinstance(deployer, release.GitHubActions):
         return TokenOut(configured=False, expires_at=None)

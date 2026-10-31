@@ -56,7 +56,7 @@ Zone 另外調整兩項設定。
 | `/blog/cms/CLOUDFLARE_ACCESS_TEAM_DOMAIN` | `<team>.cloudflareaccess.com` |
 | `/blog/cms/CLOUDFLARE_ACCESS_AUD` | 第 2 節的 AUD tag |
 | `/blog/cms/CLOUDFLARE_ACCESS_EMAILS` | 作者的 email，和 Access policy 相同 |
-| `/blog/cms/CMS_GITHUB_TOKEN` 等 | 發布用的 GitHub 設定，和本機的 `.env` 相同，見 `backend/.env.example` |
+| `/blog/cms/CONTENT_REPO`、`/blog/cms/DEPLOY_REPO` 與認證 | 發布用的 GitHub 設定。容器裡沒有內容 repo 的 clone，所以只能用 API 發布：設定 `CONTENT_REPO`，不要設定 `CONTENT_REPO_DIR`。認證用 GitHub App（`GITHUB_AUTH=app` 與 `GITHUB_APP_*`，見下方），或對內容 repo 有 Contents 讀寫、對程式 repo 有 Actions 讀寫的 `CMS_GITHUB_TOKEN`。見 `backend/.env.example` |
 | `/blog/cloudflared-token` | 第 2 節的 tunnel token |
 | `/blog/cms/AWS_INSTANCE_ID`、`/blog/cms/AWS_REGION` | 選用。第 4 節 Outputs 的 `InstanceId` 與 region，CMS 的流量數據頁會顯示這台主機的 CPU、網路與狀態檢查 |
 | `/blog/cms/BACKUP_BUCKET` | 選用，需要上一列。Outputs 的 `BackupBucket`（只有 bucket 名稱），流量數據頁會顯示最近一次備份與 bucket 大小 |
@@ -94,7 +94,7 @@ aws cloudformation describe-stacks --region <region> --stack-name blog-cms --que
 gh api repos/<owner>/<repo>/actions/oidc/customization/sub
 ```
 
-`use_immutable_subject` 是 `false` 時，填 `<owner>/<repo>`，大小寫和 GitHub 上的名稱一致。是 `true` 時，填 `sub_claim_prefix` 去掉開頭 `repo:` 的部分，例如 `Hack-Ray@93068284/personal-blog@1414022709`。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
+`use_immutable_subject` 是 `false` 時，填 `<owner>/<repo>`，大小寫和 GitHub 上的名稱一致。是 `true` 時，填 `sub_claim_prefix` 去掉開頭 `repo:` 的部分，例如 `<owner>@<owner_id>/<repo>@<repo_id>`。記下 Outputs 的 `InstanceId`、`DeployRoleArn`、`BackupTarget` 與 `LogGroup`。
 
 `ImageId` 是固定的 AMI ID，記下第一行印出的值。之後更新 stack 時傳同一個值，主機就不會被換掉。只有刻意改變 `ImageId`、`SubnetId` 或 `VolumeSize` 時，CloudFormation 才會建立新主機。舊主機與它的資料庫會保留，不會被終止，但仍連著同一個 tunnel。這時先在舊主機執行 `sudo bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups <BackupTarget>` 做一份備份，再執行 `sudo docker rm -f blog-cloudflared blog-cms`，讓兩台主機不會同時接收請求。接著在新主機執行第 5 節，把 GitHub 的 `CMS_INSTANCE_ID` 改成新的 `InstanceId`，部署一次，再用第 8 節還原那份備份。確認新主機正常後，到 EC2 主控台終止舊主機。
 
@@ -189,4 +189,4 @@ sudo bash <repo>/backend/scripts/cloud-restore.sh --url '<presign 產生的網�
 
 ## 12. 驗證腳本
 
-`cms-deployment.md` 第 8 節的測試也涵蓋主機設定與還原腳本。CloudFormation template 用 `cfn-lint infra/aws/cms-ec2.yaml` 檢查。這些檢查都使用假的 AWS、Docker 與 Cloudflare。真正的 EC2、SSM Run Command、Cloudflare Tunnel 與還原尚未實測，第一次設定後要實際走一次部署與還原。
+`cms-deployment.md` 第 8 節的測試也涵蓋主機設定與還原腳本。CloudFormation template 用 `cfn-lint infra/aws/cms-ec2.yaml` 檢查。這些檢查都使用假的 AWS、Docker 與 Cloudflare。2026-10-31 作者照這份流程實際走完一次：建立 stack、設定主機、經 SSM Run Command 部署、以 `cloud-restore.sh` 還原備份，以及經 GitHub App 的「更新網站」都成功。自己第一次設定後，也要實際走一次部署與還原。

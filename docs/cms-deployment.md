@@ -134,13 +134,15 @@ bash backend/scripts/deploy-cloud.sh \
 ```cron
 PATH=/usr/local/bin:/usr/bin:/bin
 0 * * * * bash /srv/blog/cloud-maintenance.sh maintenance blog-cms /srv/blog/backups
-0 3 * * * bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups
+30 3 * * * bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups
 ```
+
+每日備份排在 03:30，不和整點的維護同時開始。兩者共用上面的鎖，同時開始時較晚的會直接放棄。
 
 備份留在主機仍不能防止主機或磁碟遺失。若使用 S3，在主機安裝 AWS CLI、設定 instance role，再把每日備份的 cron 改成以下指令。腳本只在備份成功後同步到 S3，同步失敗會回傳非零結束碼。
 
 ```cron
-0 3 * * * bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups s3://<bucket>/<prefix>/
+30 3 * * * bash /srv/blog/cloud-maintenance.sh backup blog-cms /srv/blog/backups s3://<bucket>/<prefix>/
 ```
 
 Bucket 開啟加密、版本控制與保存期限。S3 位置與排程由主機設定，image 不包含 AWS 憑證。Instance role 的權限見第 6 節。
@@ -162,7 +164,11 @@ bash /srv/blog/ssm-env.sh --path /blog/cms --env-file /srv/blog/cms.env --region
 ```sh
 aws ssm get-parameter --name /blog/cms-github-app-pem --with-decryption \
   --query Parameter.Value --output text > /srv/blog/secrets/github-app.pem
+sudo chown 1000:1000 /srv/blog/secrets/github-app.pem
+sudo chmod 400 /srv/blog/secrets/github-app.pem
 ```
+
+CMS 容器以 UID 1000 執行，讀不到這個檔案時無法啟動。
 
 ### Instance role 的最小權限
 
@@ -234,4 +240,4 @@ python backend/scripts/test-cloud-deploy.py
 cfn-lint infra/aws/cms-ec2.yaml
 ```
 
-測試以假的 Docker 與 AWS CLI 驗證執行順序、備份失敗恢復、migration 失敗停止、容器限制、參數檢查，以及 SSM 環境檔的產生。同一個檔案也測試 `cloud-host-setup.sh`（重複執行、密碼與 tunnel token 不出現在指令列、cron 內容）與 `cloud-restore.sh`（執行順序、鎖、沒有 CMS 容器時拒絕、checksum）。`cfn-lint` 用 `pip install cfn-lint` 安裝。2026-10-24 另在 Linux Docker 上實際部署過一次本機 registry 的 image，確認唯讀容器可以 migration、備份、維護、上傳暫存檔並通過健康檢查。這些測試不代表 Tailscale、registry、雲端 PostgreSQL 或正式還原已經實測。完成主機設定後，仍要實際走一次部署與還原演練。
+測試以假的 Docker 與 AWS CLI 驗證執行順序、備份失敗恢復、migration 失敗停止、容器限制、參數檢查，以及 SSM 環境檔的產生。同一個檔案也測試 `cloud-host-setup.sh`（重複執行、密碼與 tunnel token 不出現在指令列、cron 內容）與 `cloud-restore.sh`（執行順序、鎖、沒有 CMS 容器時拒絕、checksum）。`cfn-lint` 用 `pip install cfn-lint` 安裝。2026-10-24 另在 Linux Docker 上實際部署過一次本機 registry 的 image，確認唯讀容器可以 migration、備份、維護、上傳暫存檔並通過健康檢查。2026-10-31 作者在 EC2 上實際走完一次（`cloud-ec2.md`）：建立 stack、設定主機、經 SSM 部署、還原備份與「更新網站」都成功。Tailscale 做法與 RDS 仍沒有實測過。完成主機設定後，自己也要實際走一次部署與還原演練。

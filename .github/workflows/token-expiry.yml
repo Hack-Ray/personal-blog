@@ -1,8 +1,9 @@
 name: Token expiry reminder
 
-# Opens an issue when CONTENT_REPO_TOKEN, which deploy.yml uses to read the
-# content repo, is within 30 days of expiring or no longer works. The CMS's
-# own token is checked by the CMS on its 網站發布 page.
+# Personal-token mode only: opens an issue when CONTENT_REPO_TOKEN, which
+# deploy.yml uses to read the content repo, is within 30 days of expiring or
+# no longer works. With the GitHub App (vars.APP_CLIENT_ID set) the job skips
+# itself. The CMS's own CMS_GITHUB_TOKEN is checked on its 網站發布 page.
 on:
   schedule:
     - cron: "0 1 * * 1" # Mondays 09:00 Asia/Taipei
