@@ -115,7 +115,7 @@ export function Releases() {
       <p className="hint">把所有已發布、已封存的文章與「網站與關於」頁的內容匯出到內容 repo，並啟動 GitHub Pages 部署。</p>
       {latestJob && <p className={latestJob.status === "failed" ? "banner" : "banner ok"} role="status">{jobMessage(latestJob)}</p>}
       {message && <p className={message.ok ? "banner ok" : "banner"}>{message.text}</p>}
-      <table>
+      <table className="card-table">
         <thead>
           <tr>
             <th>時間</th>
@@ -128,7 +128,7 @@ export function Releases() {
           {releases.map((r, i) => (
             <tr key={r.id}>
               <td>{time.format(new Date(r.created_at))}</td>
-              <td>{LABEL[r.status]}</td>
+              <td data-label="狀態">{LABEL[r.status]}</td>
               <td>
                 {r.detail}
                 {r.run_url && (

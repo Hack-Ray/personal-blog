@@ -19,10 +19,10 @@ function Row({ kind, taxon, others, run }: { kind: TaxonKind; taxon: TaxonUsage;
           改名
         </button>
       </td>
-      <td>
+      <td data-label="slug">
         <code>{taxon.slug}</code>
       </td>
-      <td>{taxon.articles}</td>
+      <td data-label="篇數">{taxon.articles}</td>
       <td className="actions">
         {others.length > 0 && (
           <>
@@ -90,7 +90,7 @@ export function TaxaPage() {
             {taxa[kind].length === 0 ? (
               <p className="hint">沒有{label}。</p>
             ) : (
-              <table>
+              <table className="card-table">
                 <thead>
                   <tr>
                     <th>名稱</th>
