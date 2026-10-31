@@ -2,9 +2,9 @@
 
 [繁體中文](#繁體中文) · [English](#english)
 
-自架的部落格系統：在自己電腦上的 CMS 寫作，公開網站是部署在 GitHub Pages 的靜態網站。CMS 也可透過設定改在雲端執行，見 [`docs/portable-cms.md`](docs/portable-cms.md)。Fork 之後不需要改程式，照 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) 設定就能架出自己的部落格。
+自架的部落格系統：在自己的 CMS 寫作，公開網站是部署在 GitHub Pages 的靜態網站。CMS 預設跑在自己的電腦上，也可以放到雲端主機：作者的 CMS 在 AWS EC2，經 Cloudflare Access 登入（[`docs/cloud-ec2.md`](docs/cloud-ec2.md)），fork 另外可選 Tailscale（[`docs/cloud-tailscale.md`](docs/cloud-tailscale.md)）。Fork 之後不需要改程式，照 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) 設定就能架出自己的部落格。
 
-A self-hosted blog: you write in a CMS that runs on your own computer, and the public site is a static site on GitHub Pages. A fork needs no code changes; [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) (in Traditional Chinese) walks from the fork to the first published article.
+A self-hosted blog: you write in your own CMS, and the public site is a static site on GitHub Pages. The CMS runs on your computer by default and can move to a cloud host; the author's runs on AWS EC2 behind Cloudflare Access. A fork needs no code changes; [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) (in Traditional Chinese) walks from the fork to the first published article.
 
 範例 / Example: <https://hackray.dev/>
 
@@ -15,7 +15,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 ### 架構
 
 ```text
-你的電腦                                   GitHub
+你的電腦或雲端主機                         GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
 │ CMS 介面 (cms/)              │          │ 內容 repo（private）             │
 │   ↓ /api                    │  push    │   manifest.json、profile.json、   │
@@ -28,7 +28,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 
 | 目錄 | 內容 | 技術 |
 | --- | --- | --- |
-| `backend/` | 本機 CMS API。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
+| `backend/` | CMS API，在本機或雲端的容器執行。保存草稿、已發布版本、草稿快照、圖片與登入資料，並負責「更新網站」。 | Python 3.12+、FastAPI、PostgreSQL 16、SQLAlchemy、Alembic、uv |
 | `cms/` | CMS 介面，由後端在 `/admin/` 提供。 | Vite、React、TypeScript |
 | `frontend/` | 公開網站，從內容 Snapshot 產生靜態頁面。 | Next.js（`output: "export"`）、TypeScript、marked、shiki |
 | `docs/` | Fork 與部署教學、本機安裝步驟、網域與 CDN、流量數據、雲端 CMS、作者的部署紀錄；`docs/architecture/` 是架構導覽（系統怎麼運作、為什麼這樣設計）；`docs/design/` 是設計紀錄（Baseline 與 Addendum 01–04）；`docs/backlog.md` 是待辦事項。 | |
@@ -45,7 +45,7 @@ A self-hosted blog: you write in a CMS that runs on your own computer, and the p
 ### 優勢
 
 - **讀者端快又安全。** 公開網站是預先產生的 HTML，沒有伺服器與資料庫可以被攻擊，也不需要主機費用。每頁都帶 CSP，只執行網站自己的 script 與 giscus。
-- **CMS 只在你的電腦上。** 後端只綁定 `127.0.0.1`，以 scrypt 雜湊保存密碼，Session cookie 為 `HttpOnly`、`SameSite=Strict`，閒置 1 天或登入滿 3 天就要重新登入，也可以從介面登出所有裝置。同一個來源連續 5 次密碼錯誤後要等待，之後每錯一次等待時間加倍（最長 15 分鐘），其他來源不受影響。CMS 拒絕跨來源寫入與白名單以外的 Host，回應帶 CSP 等安全標頭。
+- **CMS 不對外開放。** 後端只綁定 `127.0.0.1`。放到雲端時，主機不開進站連接埠，只經 Cloudflare Access 或 Tailscale 連到。密碼登入時以 scrypt 雜湊保存密碼，Session cookie 為 `HttpOnly`、`SameSite=Strict`，閒置 1 天或登入滿 3 天就要重新登入，也可以從介面登出所有裝置。同一個來源連續 5 次密碼錯誤後要等待，之後每錯一次等待時間加倍（最長 15 分鐘），其他來源不受影響。CMS 拒絕跨來源寫入與白名單以外的 Host，回應帶 CSP 等安全標頭。
 - **不怕寫壞或誤刪。** 草稿自動儲存並保留快照，可以還原；發布會產生新版本而不覆蓋舊版本；刪除的文章保留 30 天可以復原。資料庫在 CMS 啟動時備份一次，開著的期間每 24 小時再備份一次；還原前會先備份目前的資料，還原後下一次「更新網站」會讓網站回到備份當時的內容。
 - **壞掉的內容不會上線。** 建置時會檢查 Snapshot 是否完整（版本一致、圖片都在），任何一項不符就停止部署；CI 沒過也不部署。較舊的程式碼建置不會蓋掉較新的部署。
 - **網址穩定。** 文章網址預設是不會改變的 ULID（`/posts/<docId>/`），也可以在 CMS 設定英文 slug（`/posts/<slug>/`）。上線過的舊網址會留下轉址頁，giscus 留言一律綁 ULID，改標題或 slug 都不會讓連結或留言失效。
@@ -103,7 +103,7 @@ Fork 後不需要改程式，只要設定以下項目（從 Fork 到發布第一
 | repo 的 Actions variable `PINNED_GITHUB_USER`（選用） | 你的 GitHub 帳號名稱；文章頁以外的每一頁會顯示它的釘選專案 |
 | `backend/.env` 的 `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` |
 
-文件只寫作者自己使用的做法：CMS 跑在本機，網站部署到 GitHub Pages。CMS 的本機與雲端設定、API 發布及 GitHub App 認證見 [`docs/portable-cms.md`](docs/portable-cms.md)。
+預設做法是 CMS 跑在本機，網站部署到 GitHub Pages。API 發布與 GitHub App 認證見 [`docs/portable-cms.md`](docs/portable-cms.md)。把 CMS 放到雲端見 [`docs/cloud-ec2.md`](docs/cloud-ec2.md)（作者使用的 EC2 與 Cloudflare）或 [`docs/cloud-tailscale.md`](docs/cloud-tailscale.md)，兩者共用的部署參考是 [`docs/cms-deployment.md`](docs/cms-deployment.md)。
 
 網站名稱、簡介、關於頁與頁尾在 CMS 的「網站與關於」頁編輯，第一次發布前請換掉預設的 `Your Name`。網站圖示與預設分享圖由 `frontend/public/icon.svg` 產生：換掉這個檔案，在 `frontend/` 執行 `npm run icons`，再 commit 產生的圖檔。
 
@@ -172,7 +172,7 @@ Fork 不會自動更新，要由你把原 repo 的新版本拉進來。原 repo 
 ### Architecture
 
 ```text
-Your computer                              GitHub
+Your computer or a cloud host              GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
 │ CMS UI (cms/)                │          │ content repo (private)           │
 │   ↓ /api                    │  push    │   manifest.json, profile.json,   │
@@ -186,7 +186,7 @@ Your computer                              GitHub
 
 | Directory | What it holds | Stack |
 | --- | --- | --- |
-| `backend/` | The local CMS API. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
+| `backend/` | The CMS API, run locally or in a cloud container. Stores drafts, published versions, draft snapshots, images and the sign-in, and runs "更新網站" (Update site). | Python 3.12+, FastAPI, PostgreSQL 16, SQLAlchemy, Alembic, uv |
 | `cms/` | The CMS UI, served by the backend at `/admin/`. | Vite, React, TypeScript |
 | `frontend/` | The public site, generated as static pages from a content Snapshot. | Next.js (`output: "export"`), TypeScript, marked, shiki |
 | `docs/` | Fork and deploy guide, local setup guide, domain and CDN, traffic data, cloud CMS, the author's deployment notes; `docs/architecture/` is the architecture guide (how the system works and why it is built this way); `docs/design/` holds the design record (Baseline and Addendum 01–04); `docs/backlog.md` lists open work. Written in Traditional Chinese. | |
@@ -203,7 +203,7 @@ The backend and the frontend talk only through the Snapshot. `frontend/src/conte
 ### Advantages
 
 - **Fast and safe for readers.** The public site is prebuilt HTML. There is no server or database to attack and no hosting bill. Every page carries a CSP that runs only the site's own scripts and giscus.
-- **The CMS stays on your computer.** The backend binds only to `127.0.0.1` and stores the password as a scrypt hash. The session cookie is `HttpOnly` and `SameSite=Strict`; a session ends after a day idle or three days in total, and the CMS can sign out every device. After five wrong passwords, that client address must wait, and each further failure doubles the wait (up to 15 minutes) without locking out other addresses. Cross-origin writes and Host headers outside the allow list are refused, and responses carry a CSP and other security headers.
+- **The CMS is not exposed.** The backend binds only to `127.0.0.1`. On a cloud host no inbound port is open, and the CMS is reached only through Cloudflare Access or Tailscale. With password sign-in it stores the password as a scrypt hash. The session cookie is `HttpOnly` and `SameSite=Strict`; a session ends after a day idle or three days in total, and the CMS can sign out every device. After five wrong passwords, that client address must wait, and each further failure doubles the wait (up to 15 minutes) without locking out other addresses. Cross-origin writes and Host headers outside the allow list are refused, and responses carry a CSP and other security headers.
 - **Hard to lose work.** Drafts autosave and keep snapshots you can restore. Publishing adds a new version instead of overwriting the old one. A deleted article can be restored for 30 days. The database is backed up when the CMS starts and every 24 hours while it runs. A restore first backs up the current data, and the next "更新網站" (Update site) after it takes the site back to what it showed at backup time.
 - **Broken content never goes live.** The build checks that the Snapshot is complete (matching versions, every image present) and stops the deploy if anything is off. A failing CI run also stops it. A build of older code never overwrites a newer deployment.
 - **Stable URLs.** Articles live at a fixed ULID (`/posts/<docId>/`) or at an English slug set in the CMS (`/posts/<slug>/`). Every URL that went live keeps a redirect page, and giscus comments stay keyed on the ULID, so changing a title or slug breaks neither links nor comments.
@@ -261,7 +261,7 @@ A fork needs no code changes, only these settings ([`docs/fork-and-deploy.md`](d
 | Actions variable `PINNED_GITHUB_USER` (optional) | Your GitHub login; every page except articles lists its pinned repositories |
 | `DEPLOY_REPO` in `backend/.env` | Your fork, e.g. `you/personal-blog` |
 
-The default setup runs the CMS locally and deploys the public site to GitHub Pages. The same CMS can run in the cloud with environment settings. See [`docs/portable-cms.md`](docs/portable-cms.md) for API publishing and GitHub App authentication.
+The default setup runs the CMS locally and deploys the public site to GitHub Pages. See [`docs/portable-cms.md`](docs/portable-cms.md) for API publishing and GitHub App authentication. To run the CMS on a cloud host, see [`docs/cloud-ec2.md`](docs/cloud-ec2.md) (the author's EC2 and Cloudflare setup) or [`docs/cloud-tailscale.md`](docs/cloud-tailscale.md); [`docs/cms-deployment.md`](docs/cms-deployment.md) covers what both share.
 
 The site name, description, About page and footer are edited in the CMS on the "網站與關於" (Site and About) page. Replace the placeholder `Your Name` before the first release. The site icon and the default share image come from `frontend/public/icon.svg`: replace that file, run `npm run icons` in `frontend/`, and commit the images it writes.
 

@@ -94,7 +94,7 @@ cp .env.example .env
 | 變數 | 填什麼 | 何時需要 |
 |---|---|---|
 | `CMS_ENV` | 保持 `local` | 一定要（留空也是 `local`） |
-| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節） | 使用「更新網站」時 |
+| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節）。`.env.example` 裡這行是註解，拿掉 `#` 再填。改用 API 發布時改設 `CONTENT_REPO`，不需要 clone（[`portable-cms.md`](portable-cms.md)） | 使用「更新網站」時 |
 | `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` | 使用「更新網站」時 |
 | `CMS_GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token（舊的 `.env` 叫 `GITHUB_TOKEN`，仍然有效） | 使用「更新網站」時 |
 

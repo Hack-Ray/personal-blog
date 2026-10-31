@@ -1,6 +1,6 @@
 # 系統如何運作：架構導覽
 
-> **這是導覽，不是規格。** 給要改程式的人快速建立心智模型。設計決策與理由在 [`docs/design/`](../design/)；本機操作在 [`local-setup.md`](../local-setup.md)。內容以 2026-10-27 的程式碼為準，行為有出入時以程式碼為準。
+> **這是導覽，不是規格。** 給要改程式的人快速建立心智模型。設計決策與理由在 [`docs/design/`](../design/)；本機操作在 [`local-setup.md`](../local-setup.md)，雲端 CMS 在 [`cloud-ec2.md`](../cloud-ec2.md)、[`cloud-tailscale.md`](../cloud-tailscale.md) 與 [`cms-deployment.md`](../cms-deployment.md)。內容以 2026-10-27 的程式碼為準，雲端 CMS、GitHub 認證與檔案位置的段落更新到 2026-10-31。行為有出入時以程式碼為準。
 
 ## 本機與雲端共用發布流程
 
@@ -10,39 +10,40 @@ API 模式不需要本機 clone 或 Git 身分。工作開始時才擷取當時�
 
 ## 1. 概觀
 
-這個專案由五個部分組成。作者在自己電腦上的 CMS 寫文章，資料存在 PostgreSQL。按「更新網站」時，後端把所有已發布內容匯出成一份 JSON Snapshot，commit 並 push 到 private 內容 repo `Hack-Ray/personal-blog-content`，再呼叫 GitHub Actions 的 `deploy.yml`。workflow 把這份 Snapshot 交給 Next.js 建置成純靜態網站，部署到 GitHub Pages。
+這個專案由五個部分組成。作者在 CMS 寫文章，資料存在 PostgreSQL。作者的 CMS 跑在 AWS EC2 的容器裡，經 Cloudflare Tunnel 與 Access 連線（`docs/cloud-ec2.md`）；fork 預設在自己的電腦上執行（`docs/local-setup.md`），也可以照 `docs/cloud-tailscale.md` 放到雲端。按「更新網站」時，後端把所有已發布內容匯出成一份 JSON Snapshot，寫進 private 內容 repo `Hack-Ray/personal-blog-content`（GitHub API，或本機 clone 的 git push），再呼叫 GitHub Actions 的 `deploy.yml`。workflow 把這份 Snapshot 交給 Next.js 建置成純靜態網站，部署到 GitHub Pages。
 
 公開網站在執行期不依賴後端或資料庫。後端只在作者寫作與發布時需要開著。兩邊唯一的介面是內容 repo 裡的 Snapshot 檔案，格式由 `frontend/src/content/parse.ts` 定義。
 
 ```mermaid
 flowchart LR
-  subgraph local["作者的電腦"]
+  subgraph cms["CMS（作者：AWS EC2 容器；fork 預設：自己的電腦）"]
     SPA["CMS SPA<br/>cms/ (React)<br/>/admin"]
     API["FastAPI 後端<br/>backend/blog/"]
     PG[("PostgreSQL 16<br/>文章、版本、圖片、發布紀錄")]
-    CLONE["內容 repo 的 clone<br/>CONTENT_REPO_DIR"]
+    CLONE["git 模式才有：內容 repo 的 clone<br/>CONTENT_REPO_DIR"]
   end
   CONTENT["GitHub: personal-blog-content<br/>(private)"]
   GHA["GitHub Actions<br/>deploy.yml / ci.yml"]
   PAGES["GitHub Pages<br/>公開網站 (frontend/out)"]
 
-  SPA -- "同源 JSON + cookie" --> API
+  SPA -- "同源 JSON（cookie 或 Cloudflare Access JWT）" --> API
   API --> PG
-  API -- "寫檔、git commit" --> CLONE
+  API -- "API 模式：Git Data API<br/>GitHub App 或 token" --> CONTENT
+  API -- "git 模式：寫檔、git commit" --> CLONE
   CLONE -- "git push（本機 git 認證）" --> CONTENT
-  API -- "CMS_GITHUB_TOKEN<br/>dispatch、查 run 狀態" --> GHA
-  GHA -- "CONTENT_REPO_TOKEN<br/>checkout content_sha、ls-remote" --> CONTENT
+  API -- "GitHub App 或 CMS_GITHUB_TOKEN<br/>dispatch、查 run 狀態" --> GHA
+  GHA -- "GitHub App 或 CONTENT_REPO_TOKEN<br/>checkout content_sha、ls-remote" --> CONTENT
   GHA -- "deploy-pages" --> PAGES
 ```
 
-兩個 GitHub token 用途不同：
+GitHub 認證有兩種，每一邊各選一種：
 
-| Token | 放在哪裡 | 權限 | 用途 |
+| 誰 | GitHub App（作者使用） | Personal token（fork 預設） | 用途 |
 |---|---|---|---|
-| `CMS_GITHUB_TOKEN` | 後端 `.env` | 部署 repo 的 Actions 讀寫 | dispatch `deploy.yml`、查 run 與 job 狀態、讀自己的到期日 |
-| `CONTENT_REPO_TOKEN` | 部署 repo 的 Actions secret | 內容 repo 的 Contents 唯讀 | build 時 checkout 內容、deploy 前 `ls-remote`、`token-expiry.yml` 檢查 |
+| 後端 | `GITHUB_AUTH=app` 與 `GITHUB_APP_*`。後端自己換短效 installation token | `CMS_GITHUB_TOKEN`，放在後端 `.env`。部署 repo 的 Actions 讀寫；API 模式另需內容 repo 的 Contents 讀寫 | dispatch `deploy.yml`、查 run 與 job 狀態、API 模式寫入內容 repo。token 模式另讀自己的到期日 |
+| `deploy.yml` | Actions variable `APP_CLIENT_ID` 與 secret `APP_PRIVATE_KEY`，以 `actions/create-github-app-token` 取得內容 repo 的唯讀 token | Actions secret `CONTENT_REPO_TOKEN`，內容 repo 的 Contents 唯讀 | build 時 checkout 內容、deploy 前 `ls-remote`。token 模式另由 `token-expiry.yml` 檢查到期 |
 
-push 到內容 repo 不用任何 token，用的是本機 git 的認證（SSH key 或 `gh auth`）。
+git 模式 push 到內容 repo 不用上面的認證，用的是本機 git 的認證（SSH key 或 `gh auth`）。
 
 ## 2. 重要概念
 
@@ -298,7 +299,7 @@ stateDiagram-v2
 
 ### 3.5 CMS 前端
 
-`cms/` 是 Vite + React 的 SPA，`base: "/admin/"`。`npm run build` 為 `tsc --noEmit && vite build`，輸出 `cms/dist`（gitignored），由後端在 `/admin` 提供。`npm run dev` 把 `/api` 代理到 `127.0.0.1:8000`。CMS 不部署到任何地方，只在作者電腦上跑。
+`cms/` 是 Vite + React 的 SPA，`base: "/admin/"`。`npm run build` 為 `tsc --noEmit && vite build`，輸出 `cms/dist`（gitignored），由後端在 `/admin` 提供。`npm run dev` 把 `/api` 代理到 `127.0.0.1:8000`。CMS 不單獨部署：雲端時它和後端一起打包在 repo 根目錄 `Dockerfile` 建置的 image 裡。
 
 `main.tsx` 是 hash router 與登入閘門。`api.ts` 是唯一的 fetch 包裝：同源 `/api${path}`，非 2xx 丟 `ApiError(status, body)`；非 `/session` 的 401 會發出 `cms:signed-out` 事件。wire type 是手寫鏡像，沒有 OpenAPI codegen。
 
@@ -363,9 +364,9 @@ stateDiagram-v2
 |---|---|---|
 | `ci.yml` | pull_request、`workflow_call`（push 到 main 時由 `deploy.yml` 呼叫） | **frontend**：單元測試、typecheck、build、`verify-site.sh`、`check-links`、`check-budget`（頁面位元組預算）、Playwright（含 axe 無障礙檢查）、Lighthouse（僅影響效能的異動或手動指定時執行；報告以 artifact 上傳）、空 Snapshot build。門檻都在 `frontend/quality-budget.json`（FE-021）。**cms**：測試、build。**backend**：Postgres 16 service、`ruff check`、`ruff format --check`、pytest（也安裝 frontend，因為 `test_exporter` 用前端 parser 驗證匯出結果） |
 | `deploy.yml` | push 到 main、`workflow_dispatch`（`content_sha`） | **ci**：只在 push 時呼叫 `ci.yml`。**site-changes**：只在 push 時執行，比對 `github.event.before` 與這次 commit，有改到 `frontend/`、`.nvmrc` 或 `deploy.yml` 才輸出 `changed=true`；找不到前一個 commit 時也視為有改。**build**：push 時只在 site-changes 不是 `false` 時執行，`workflow_dispatch` 一律執行；checkout 程式於觸發的 ref、checkout 內容 repo 於 `content_sha`（沒給就用 HEAD）到 `site-data`、`configure-pages`、`npm ci && npm run build`、`check-links.ts`、上傳 `frontend/out`。**deploy**：build 成功且 ci 成功或被 skip 時執行；`ls-remote` 內容 HEAD，等於建置的 commit 才執行 `Deploy to GitHub Pages` |
-| `token-expiry.yml` | 每週一 01:00 UTC | 讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
+| `token-expiry.yml` | 每週一 01:00 UTC | 只用於 personal token：設了 `APP_CLIENT_ID` 時整個 job 略過。讀 `CONTENT_REPO_TOKEN` 的 `github-authentication-token-expiration` header，30 天內到期或請求失敗時開 issue（已有未關閉的就不重開） |
 | `cms-image.yml` | 獨立 | 建 Docker image、跑 migration、測 backup／restore、探測 `/healthz` |
-| `cms-deploy.yml` | push `cms-v*` tag | repo variable `CMS_DEPLOY_ENABLED=true` 時才執行：先跑 `ci.yml`，建置並發布 image，再依 `CMS_DEPLOY_VIA` 經 Tailscale SSH（預設）或 AWS SSM Run Command（OIDC 取得短期憑證，輪詢結果最多 35 分鐘）在主機執行 `deploy-cloud.sh`（`docs/cms-deployment.md`、`docs/cloud-ec2.md`）。預設停用 |
+| `cms-deploy.yml` | push `cms-v*` tag | repo variable `CMS_DEPLOY_ENABLED=true` 時才執行：先跑 `ci.yml`，建置並發布 image，再依 `CMS_DEPLOY_VIA` 經 Tailscale SSH（預設）或 AWS SSM Run Command（OIDC 取得短期憑證，輪詢結果最多 35 分鐘）在主機執行 `deploy-cloud.sh`（`docs/cms-deployment.md`、`docs/cloud-ec2.md`、`docs/cloud-tailscale.md`）。預設停用；作者的 repo 已啟用並設 `CMS_DEPLOY_VIA=ssm` |
 
 `deploy.yml` 的 `run-name` 是 `Deploy content ${{ inputs.content_sha || 'HEAD' }}`。CMS 靠這個標題找 run，靠 step 名稱 `Deploy to GitHub Pages` 判斷是否真的部署。只有 deploy job 有 `pages: write` 與 `id-token: write`。內容 repo 由 `vars.CONTENT_REPO` 指定，預設 `<本 repo>-content`。
 
@@ -401,14 +402,23 @@ backend/
     auth.py         密碼、登入節流、session；CLI 設定密碼
     cloudflare_access.py  驗證 Cloudflare Access 的 JWT（雲端登入）
     exporter.py     render_snapshot、寫入 clone、commit、push、remote 檢查；CLI
+    content_repository.py  API 模式寫入內容 repo；adopt、after-restore CLI
+    github.py       GitHub REST client、GitHub App installation token
     release.py      Release 狀態機、GitHubActions REST client、refresh
+    release_jobs.py 「更新網站」的持久背景工作與 worker
     retention.py    Published Version 清理
     maintenance.py  到期工作的入口
+    backups.py      CMS 執行期間的每日備份排程
     analytics.py    Cloudflare 與 Search Console 的同步與報表
-  migrations/versions/  Alembic 0001..0012（含 trigger 與 CHECK）
-  scripts/          start.sh、stop.sh、backup.sh、restore.sh、lib.sh
+    infra.py        流量數據頁的主機與備份 bucket（CloudWatch、S3）
+  migrations/versions/  Alembic 0001..0016（含 trigger 與 CHECK）
+  scripts/          本機：start.sh、stop.sh、backup.sh、restore.sh、lib.sh
+                    雲端：deploy-cloud.sh（部署）、cloud-maintenance.sh（cron 的維護與備份）、
+                    cloud-restore.sh（還原）、cloud-host-setup.sh（EC2 主機設定）、ssm-env.sh（SSM 產生環境檔）、
+                    test-cloud-deploy.py（以上腳本的測試）
   tests/            每個模組一個測試檔，conftest.py 需要 TEST_DATABASE_URL
   compose.yaml      本機 Postgres 16
+infra/aws/cms-ec2.yaml  作者雲端 CMS 的 CloudFormation template（EC2、S3、IAM、OIDC）
 cms/src/
   main.tsx          hash router、登入閘門
   api.ts            fetch 包裝與 wire type
@@ -426,8 +436,8 @@ frontend/
   sample-site-data/ 本機與 CI 用的範例 Snapshot（3 篇已發布、1 篇封存、2 張圖）
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright
-.github/workflows/  ci.yml、deploy.yml、token-expiry.yml、cms-image.yml
-Dockerfile          CMS image（尚不能「更新網站」）
+.github/workflows/  ci.yml、deploy.yml、token-expiry.yml、cms-image.yml、cms-deploy.yml
+Dockerfile          CMS image（後端與建置好的 CMS；只能用 API 發布，除非手動掛載 clone）
 ```
 
 ### 新功能該放哪裡
@@ -490,7 +500,7 @@ Dockerfile          CMS image（尚不能「更新網站」）
 21. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
 22. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
 23. **Docker image 用 API 發布。** image 裡沒有內容 repo clone 與 git 身分，要設定 `CONTENT_TRANSPORT=api` 與 GitHub 認證（見 `portable-cms.md`）。
-24. **Token 到期**：`CONTENT_REPO_TOKEN` 約 2027-01-18 到期，由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
+24. **Token 到期**：只有 personal token 會到期。`CONTENT_REPO_TOKEN` 由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。GitHub App 的 token 是短效的，由後端與 workflow 每次自動重新取得，不需要提醒，但私鑰被撤銷時發布與部署會失敗。作者的設定改用 App，原本約 2027-01-18 到期的 `CONTENT_REPO_TOKEN` 隨之退役。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
 
 ## 6. 尚未確認
 

@@ -26,7 +26,7 @@ To learn the codebase quickly, read `docs/architecture/` first: `how-it-works.md
 
 ## Cloud Sessions
 
-- Cloud sessions are for development and testing only. The author publishes from the local CMS.
+- Cloud sessions are for development and testing only and never publish. The author publishes from the cloud CMS (the CMS on AWS EC2, `docs/cloud-ec2.md`), not from a session.
 - `Hack-Ray/personal-blog-content` holds the live site's content. Read it to build or test with real content; never commit or push to it. The next deploy builds its HEAD, so any change there goes live.
 - Never start the `Deploy site` workflow by hand (`workflow_dispatch`) from a cloud session.
 - A merge into `main` deploys the site when it changes `frontend/`, `.nvmrc` or `deploy.yml`; any other merge runs CI only. Merge a PR from a cloud session only when the user has authorized it and CI has passed on the PR's head commit. `deploy.yml` runs CI again on that push and deploys only if it passes. A content release from the CMS (`workflow_dispatch`) skips CI; its build still checks the content.
