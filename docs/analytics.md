@@ -73,6 +73,21 @@ Free 方案應該也能讀取每日流量（**推測**，依 Cloudflare 文件�
 
 用容器執行 CMS 時，把 JSON 檔以唯讀方式掛載進容器，不要放進 image。
 
+## 設定基礎設施（AWS）
+
+CMS 部署在 EC2（`cloud-ec2.md`）時，流量數據頁可以加上「基礎設施」區塊，顯示主機的每日 CPU（平均與最高）、網路流入與流出、狀態檢查失敗次數，以及備份 bucket 的最近一次備份、bucket 大小與檔案數。
+
+```sh
+AWS_INSTANCE_ID=i-0123456789abcdef0
+AWS_REGION=ap-northeast-1
+BACKUP_BUCKET=<stack Outputs 的 BackupBucket>
+```
+
+- `AWS_INSTANCE_ID` 與 `AWS_REGION` 要一起設定；沒設定時 CMS 不呼叫 AWS，也不顯示這個區塊。`BACKUP_BUCKET` 選用，只填 bucket 名稱。
+- 憑證來自主機的 instance role，不需要 access key。Role 要有 `cloudwatch:GetMetricStatistics`，以及備份 bucket `cms/` 前綴的 `s3:ListBucket`。`infra/aws/cms-ec2.yaml` 已經包含這兩項。
+- 只使用免費額度內的 API。資料不存進資料庫，每次開頁面時向 CloudWatch 查詢，結果在記憶體保留 5 分鐘，「立即更新」會重新查詢。
+- 主機沒有安裝 CloudWatch agent，所以沒有記憶體與磁碟用量。S3 的 bucket 大小與檔案數一天更新一次，約晚一天。
+
 ## 套用設定
 
 改完 `.env` 後重新啟動 CMS（`scripts/start.sh`）。設定是成對的：只設定 `CLOUDFLARE_API_TOKEN` 或 `CLOUDFLARE_ZONE_ID` 其中一個、或只設定 `GSC_SITE_URL` 或 `GSC_CREDENTIALS_FILE` 其中一個時，CMS 不會啟動，錯誤訊息會指出缺少哪一個。Zone ID 格式不對、`GSC_SITE_URL` 格式不對、JSON 檔不存在或讀不到，也會在啟動時報錯。

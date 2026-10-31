@@ -165,6 +165,11 @@ Resources:
               - Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
                 Resource: !GetAtt LogGroup.Arn
+              # The CMS's infrastructure page. GetMetricStatistics has no
+              # resource-level permissions and is in the CloudWatch free tier.
+              - Effect: Allow
+                Action: cloudwatch:GetMetricStatistics
+                Resource: "*"
 
   HostInstanceProfile:
     Type: AWS::IAM::InstanceProfile

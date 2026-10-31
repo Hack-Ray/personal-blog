@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from blog import analytics, articles, auth, backups, cloudflare_access, config, images, profile, release, release_jobs, taxa
+from blog import analytics, articles, auth, backups, cloudflare_access, config, images, infra, profile, release, release_jobs, taxa
 from blog.db import SessionLocal, get_session
 from blog.models import Article, ArticleState, Profile, PublishedVersion, Release, ReleaseJob, ReleaseStatus, WorkingDraft
 
@@ -599,6 +599,43 @@ def sync_analytics(session: SessionDep, body: SyncBody | None = None) -> list[So
     """Fetches the configured sources whose data is stale, or all of them with `force`."""
     statuses = analytics.sync(session, datetime.now(UTC), force=body.force if body else False)
     return [SourceStatusOut.model_validate(s) for s in statuses]
+
+
+class HostDayOut(BaseModel, from_attributes=True):
+    day: date
+    cpu_average: float | None
+    cpu_maximum: float | None
+    network_in: int
+    network_out: int
+    status_check_failures: int
+
+
+class BackupOut(BaseModel, from_attributes=True):
+    key: str
+    size: int
+    modified: datetime
+
+
+class InfrastructureOut(BaseModel, from_attributes=True):
+    configured: bool
+    start: date
+    end: date
+    fetched_at: datetime | None
+    error: str | None
+    instance_id: str | None
+    host: list[HostDayOut]
+    bucket: str | None
+    bucket_bytes: int | None
+    bucket_objects: int | None
+    latest_backup: BackupOut | None
+
+
+@app.get("/api/infrastructure")
+def get_infrastructure(days: int = 28, refresh: bool = False) -> InfrastructureOut:
+    """The CMS host's CloudWatch metrics and its backup bucket, cached for a few minutes."""
+    if days not in analytics.RANGES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"days must be one of {', '.join(map(str, analytics.RANGES))}")
+    return InfrastructureOut.model_validate(infra.report(days, datetime.now(UTC), refresh))
 
 
 class ProfileBody(BaseModel):

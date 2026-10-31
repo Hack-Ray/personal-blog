@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { api, type AnalyticsReport, type AnalyticsSourceName, type SearchItem, type SourceStatus } from "./api.ts";
+import { api, type AnalyticsReport, type AnalyticsSourceName, type Infrastructure, type SearchItem, type SourceStatus } from "./api.ts";
 import {
   RANGES,
   type Range,
@@ -31,8 +31,20 @@ export function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
+  const [infra, setInfra] = useState<Infrastructure>();
   const rangeRef = useRef(range);
   const latest = useRef(0);
+  const latestInfra = useRef(0);
+
+  const loadInfra = useCallback(async (refresh: boolean) => {
+    const request = ++latestInfra.current;
+    try {
+      const r = await api.infrastructure(rangeRef.current, refresh);
+      if (request === latestInfra.current) setInfra(r);
+    } catch (e) {
+      if (request === latestInfra.current) setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   // Only the newest request is shown, so a slow answer for an earlier range cannot replace it.
   const load = useCallback(async () => {
@@ -60,29 +72,31 @@ export function AnalyticsPage() {
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
-      await load();
+      await Promise.all([load(), force && loadInfra(true)]);
       setSyncing(false);
     },
-    [load],
+    [load, loadInfra],
   );
 
   // Opening the page refreshes stale data once; switching ranges only reads what is stored.
   useEffect(() => {
     let cancelled = false;
+    void loadInfra(false);
     void load().then((r) => {
       if (!cancelled && r && shouldAutoSync(r.sources)) void sync(false);
     });
     return () => void (cancelled = true);
-  }, [load, sync]);
+  }, [load, loadInfra, sync]);
 
   const choose = (r: Range) => {
     setRange(r);
     rangeRef.current = r;
     void load();
+    void loadInfra(false);
   };
 
   const status = (name: AnalyticsSourceName) => report?.sources.find((s) => s.source === name);
-  const anyConfigured = report?.sources.some((s) => s.configured) ?? false;
+  const anyConfigured = (report?.sources.some((s) => s.configured) ?? false) || (infra?.configured ?? false);
 
   return (
     <div className="analytics">
@@ -116,6 +130,7 @@ export function AnalyticsPage() {
           {report.sources.map((s) => s.configured && s.error && <SyncError key={s.source} status={s} />)}
           <TrafficSection report={report} status={status("cloudflare")!} />
           <SearchSection report={report} status={status("search_console")!} />
+          {infra?.configured && <InfrastructureSection infra={infra} />}
         </div>
       )}
     </div>
@@ -262,6 +277,74 @@ function SearchSection({ report, status }: { report: AnalyticsReport; status: So
           summary="每日數字"
           head={["日期", "點擊", "曝光", "點閱率", "平均排名"]}
           rows={report.search.map((d) => [d.day, formatCount(d.clicks), formatCount(d.impressions), formatPercent(d.ctr), formatPosition(d.position)])}
+        />
+      )}
+    </section>
+  );
+}
+
+const percent = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`);
+
+function InfrastructureSection({ infra }: { infra: Infrastructure }) {
+  const days = daysBetween(infra.start, infra.end);
+  const cpu = infra.host.map((d) => d.cpu_average).filter((n): n is number => n !== null);
+  const peak = infra.host.map((d) => d.cpu_maximum).filter((n): n is number => n !== null);
+  const failures = infra.host.reduce((sum, d) => sum + d.status_check_failures, 0);
+  const backup = infra.latest_backup;
+  return (
+    <section className="analytics-section">
+      <div className="section-header">
+        <h2>基礎設施</h2>
+        {infra.fetched_at && <span className="hint">更新於 {time.format(new Date(infra.fetched_at))}</span>}
+      </div>
+      {infra.error && <p className="banner">讀取 AWS 失敗：{infra.error}</p>}
+      <div className="tiles">
+        <Tile label="平均 CPU" value={percent(cpu.length ? cpu.reduce((a, b) => a + b, 0) / cpu.length : null)} />
+        <Tile label="最高 CPU" value={percent(peak.length ? Math.max(...peak) : null)} />
+        <Tile label="網路流入" value={formatBytes(infra.host.reduce((sum, d) => sum + d.network_in, 0))} />
+        <Tile label="網路流出" value={formatBytes(infra.host.reduce((sum, d) => sum + d.network_out, 0))} />
+        <Tile label="狀態檢查" value={failures === 0 ? "正常" : `${formatCount(failures)} 次失敗`} />
+      </div>
+      {infra.host.length === 0 ? (
+        <p className="hint">這段期間還沒有主機資料。</p>
+      ) : (
+        <div className="chart-pair">
+          <ChartCard title="每日 CPU（%）">
+            <LineChart
+              days={days}
+              series={[
+                { name: "平均", color: "var(--series-1)", values: seriesFor(days, infra.host, (d) => d.cpu_average ?? 0) },
+                { name: "最高", color: "var(--series-2)", values: seriesFor(days, infra.host, (d) => d.cpu_maximum ?? 0) },
+              ]}
+            />
+          </ChartCard>
+          <ChartCard title="每日網路流量（bytes）">
+            <LineChart
+              days={days}
+              series={[
+                { name: "流入", color: "var(--series-1)", values: seriesFor(days, infra.host, (d) => d.network_in) },
+                { name: "流出", color: "var(--series-2)", values: seriesFor(days, infra.host, (d) => d.network_out) },
+              ]}
+            />
+          </ChartCard>
+        </div>
+      )}
+      {infra.bucket && (
+        <div className="tiles">
+          <Tile label="最近一次備份" value={backup ? time.format(new Date(backup.modified)) : "沒有備份"} />
+          <Tile label="最近備份大小" value={backup ? formatBytes(backup.size) : "—"} />
+          <Tile label="備份 bucket 大小" value={infra.bucket_bytes === null ? "—" : formatBytes(infra.bucket_bytes)} />
+          <Tile label="備份 bucket 檔案數" value={infra.bucket_objects === null ? "—" : formatCount(infra.bucket_objects)} />
+        </div>
+      )}
+      <p className="hint note">
+        資料來自 CloudWatch 與 S3，每 5 分鐘最多讀取一次，「立即更新」會重新讀取。主機沒有安裝 CloudWatch agent，所以沒有記憶體與磁碟用量。S3 的 bucket 大小與檔案數一天更新一次，約晚一天；檔案數包含 checksum 檔與保留中的舊版本。
+      </p>
+      {infra.host.length > 0 && (
+        <DataTable
+          summary="每日數字"
+          head={["日期", "平均 CPU", "最高 CPU", "流入", "流出", "狀態檢查失敗"]}
+          rows={infra.host.map((d) => [d.day, percent(d.cpu_average), percent(d.cpu_maximum), formatBytes(d.network_in), formatBytes(d.network_out), formatCount(d.status_check_failures)])}
         />
       )}
     </section>
