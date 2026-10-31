@@ -38,7 +38,7 @@ uv run --env-file .env python -m blog.content_repository adopt
 
 ## 使用 GitHub App
 
-在自己的 GitHub 帳號建立並安裝 GitHub App，只授權給程式 repo 與內容 repo。Repository permissions 設定 Contents 讀寫、Actions 讀寫。停用 Webhook，不需要登入回呼或 CMS 公開網址。
+作者的雲端 CMS 用這種認證。在自己的 GitHub 帳號建立並安裝 GitHub App，只授權給程式 repo 與內容 repo。Repository permissions 設定 Contents 讀寫、Actions 讀寫。停用 Webhook，不需要登入回呼或 CMS 公開網址。
 
 下載 App 私鑰，存到程式 repo 之外。在 `.env` 設定以下項目。
 
@@ -71,4 +71,4 @@ GitHub 完成提交與 GitHub Pages 完成部署是兩個狀態。背景工作�
 
 先停用原來的 CMS，再備份並還原到新的位置，保持同一時間只有一套資料庫在寫入。切換網址或執行位置不會同步兩份資料庫。完整切換步驟見 [本機安裝文件](local-setup.md) 第 12 節。
 
-本機繼續使用 `scripts/start.sh`。雲端主機部署與排程見 [CMS 雲端部署](cms-deployment.md)。公開網站的網域與 CDN 見 [網域設定](site-domain.md)。這些程式不會自行建立 AWS、Tailscale、DNS 或 CDN 資源。
+本機繼續使用 `scripts/start.sh`。雲端的兩種做法見 [`cloud-ec2.md`](cloud-ec2.md)（作者使用）與 [`cloud-tailscale.md`](cloud-tailscale.md)，共用的部署參考見 [`cms-deployment.md`](cms-deployment.md)。雲端的容器裡沒有內容 repo 的 clone，只能用 API 發布。公開網站的網域與 CDN 見 [網域設定](site-domain.md)。這些程式不會自行建立 AWS、Tailscale、DNS 或 CDN 資源。

@@ -347,7 +347,7 @@ stateDiagram-v2
 4. `python -m blog.maintenance`。
 5. `uvicorn` 監聽 `127.0.0.1:8000`。預設由 `lib.sh` 的 `start_detached` 在背景執行，輸出寫到 `backend/logs/cms.log`，等 `/healthz` 回應後腳本才結束；`--log` 改為前景執行。`scripts/stop.sh` 用同一個 `stop_cms` 關閉。
 
-直接執行 `uvicorn` 不會跑維護。雲端的建議做法是 cron 每小時執行 `python -m blog.maintenance`（`local-setup.md` 第 13 節）。
+直接執行 `uvicorn` 不會跑維護。雲端主機用 cron 執行 `backend/scripts/cloud-maintenance.sh`：每小時 `maintenance`（在執行中的 CMS 容器裡跑 `python -m blog.maintenance`），每天 03:30 UTC `backup`（容器裡跑 `backup.sh`，再選擇性同步到 S3）。兩者與 `deploy-cloud.sh`、`cloud-restore.sh` 共用 `<備份目錄>/.cms-deploy.lock`，拿不到鎖就放棄。EC2 的排程由 `cloud-host-setup.sh` 寫入 `/etc/cron.d/blog-cms`（`cms-deployment.md` 第 3 節）。
 
 `maintenance.run()` 用 `pg_try_advisory_lock`，拿不到就跳過。依序執行：
 

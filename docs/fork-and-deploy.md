@@ -2,7 +2,7 @@
 
 這份文件帶你從 Fork 開始，到在自己的 GitHub Pages 上發布第一篇文章。全程不需要改程式，也不需要原作者的任何帳號或資源。
 
-這是作者自己實際使用的做法：CMS 與資料庫跑在自己的電腦上，公開網站由 GitHub Actions 部署到 GitHub Pages。要把 CMS 放到雲端，或把網站放在其他主機，都可以自行決定；`frontend/` 建置出來的 `out/` 是純靜態檔案，任何靜態主機都能提供。這份文件不涵蓋那些做法。
+這份文件寫最簡單的做法：CMS 與資料庫跑在自己的電腦上，用 personal token 與內容 repo 的 clone 發布，公開網站由 GitHub Actions 部署到 GitHub Pages。作者一開始也是這樣做，之後把 CMS 搬到 AWS EC2（[`cloud-ec2.md`](cloud-ec2.md)）。把 CMS 放到雲端的做法見 [`local-setup.md`](./local-setup.md) 第 13 節；改用 GitHub App 與 API 發布見 [`portable-cms.md`](portable-cms.md)。`frontend/` 建置出來的 `out/` 是純靜態檔案，任何靜態主機都能提供，這份文件不涵蓋其他主機。
 
 以下的 `<你的帳號>` 換成你的 GitHub 帳號。每一步都列出要做什麼、做完應該看到什麼、失敗時怎麼查。
 
@@ -74,7 +74,7 @@ Google Search Console（選用）：到 <https://search.google.com/search-consol
 | `actions/configure-pages` | 第 1 步的 Pages Source 沒選 GitHub Actions |
 | `deploy` job 被環境保護擋下 | Settings → Environments → `github-pages` 的部署分支規則要允許 `main` |
 
-每週一的 `Token expiry reminder` workflow 會在 token 到期前 30 天或失效時，在 fork 開 issue 提醒。
+每週一的 `Token expiry reminder` workflow 會在 token 到期前 30 天或失效時，在 fork 開 issue 提醒。不想管理會到期的 token 時，可以改用 GitHub App（Actions variable `APP_CLIENT_ID` 與 secret `APP_PRIVATE_KEY`，見 [`portable-cms.md`](portable-cms.md)），這個 workflow 會自動略過。
 
 ## 4. 建立本機 CMS 用的 token
 
@@ -128,4 +128,5 @@ CMS_GITHUB_TOKEN=<第 4 步的 token>
 ## 之後
 
 - 日常啟動、備份、還原與搬電腦：[`local-setup.md`](./local-setup.md) 第 9 到 12 節。
+- 把 CMS 搬到雲端：[`local-setup.md`](./local-setup.md) 第 13 節。
 - 跟上原 repo 的更新：在 fork 頁面按 Sync fork，再在本機 `git pull`，依 `local-setup.md` 第 9 節更新套件並重啟。完整步驟見 [README](../README.md) 的「跟上原 repo 的更新」。
