@@ -26,10 +26,10 @@ def managed(path: str) -> bool:
     return path in ("manifest.json", "profile.json") or path.startswith(("articles/", "images/"))
 
 
-def _empty(manifest: bytes) -> bool:
-    """An empty Snapshot (docs/fork-and-deploy.md step 2) has nothing a first release could overwrite."""
+def _empty(manifest: bytes, paths: dict[str, dict]) -> bool:
+    """An empty Snapshot (docs/fork-and-deploy.md step 2): no articles, profile or images a first release could overwrite."""
     data = json.loads(manifest)
-    return not data.get("articles") and not data.get("archived_articles")
+    return not data.get("articles") and not data.get("archived_articles") and not any(managed(p) and p != "manifest.json" for p in paths)
 
 
 class GitHubRepository:
@@ -67,7 +67,7 @@ class GitHubRepository:
             expected = {last.content_commit, last.content_parent} if last.status in UNPUSHED else {last.content_commit}
             if parent not in expected or last.content_target not in (None, self.target):
                 raise exporter.ExportError("content repository HEAD or destination changed; another CMS may be in use")
-        if last is None and "manifest.json" in current and not adopt and not _empty(self.read_blob(current["manifest.json"]["sha"])):
+        if last is None and "manifest.json" in current and not adopt and not _empty(self.read_blob(current["manifest.json"]["sha"]), current):
             raise exporter.ExportError("existing remote Snapshot has no local release history; restore its database or run the verified adopt command")
         with tempfile.TemporaryDirectory(prefix="blog-snapshot-") as tmp:
             root = Path(tmp)
@@ -172,7 +172,7 @@ def main() -> None:
     from blog import release
 
     if args.action == "after-restore" and not config.settings.content_repo:
-        print("CONTENT_REPO is not set: nothing to record; set it before the next website update.")
+        print("CONTENT_REPO is not set: nothing to record. After setting it, run this command again before the next website update.")
         return
     repo = release.repo_from_env()
     with release.exclusive(), SessionLocal() as session:

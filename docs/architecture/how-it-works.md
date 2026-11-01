@@ -183,7 +183,7 @@ sequenceDiagram
 2. `_exclusive()` 用獨立連線取 `pg_try_advisory_lock`，拿不到丟 `ReleaseBusy`（409）。retry 用同一把鎖。
 3. 冷卻：距離上一個 Release 不到 30 秒時拒絕。
 4. `GitHubRepository.prepare(latest)`（`content_repository.py`）：
-   - 讀內容分支的 HEAD 與整棵 tree。有上一個 Release 時，HEAD 必須是它的 commit（它還沒 push 時也可以是它的 parent），否則丟 `ExportError`「another CMS may be in use」。沒有 Release 而遠端已有非空的 Snapshot 時拒絕，要先還原資料庫或執行 `adopt`；空的 Snapshot（沒有任何文章）可以直接取代。
+   - 讀內容分支的 HEAD 與整棵 tree。有上一個 Release 時，HEAD 必須是它的 commit（它還沒 push 時也可以是它的 parent），否則丟 `ExportError`「another CMS may be in use」。沒有 Release 而遠端已有非空的 Snapshot 時拒絕，要先還原資料庫或執行 `adopt`；空的 Snapshot（只有沒列任何文章的 `manifest.json`）可以直接取代。
    - 在 REPEATABLE READ 交易中 `exporter.render_snapshot`：每篇 published 文章取最新版本（`DISTINCT ON`），輸出 `articles/<doc_id>.json`；加上 `profile.json`；`manifest.json` 為 `{schema_version: 1, release_id, created_at, articles: [{doc_id, version, slug?, redirect_from?}], archived_articles: [{doc_id, slug?, redirect_from?}]}`。`slug` 是目前的 slug，`redirect_from` 是 `article_urls` 中目前網址以外的片段，沒有時兩個 key 都省略。被引用的圖缺檔時丟 `ExportError`。
    - 檔案集合與 blob 雜湊只差在 manifest 的 `release_id`／`created_at` 時回傳 None（沒有變更）。否則只上傳遠端沒有的 blob（圖片 id 是內容雜湊，已有的不重傳），以 `base_tree` 建 tree，刪掉多餘的 Snapshot 檔，建立 parent 為 HEAD 的 commit。分支這時還不動。上次 crash 留下、沒有 Release 列的 commit 不會被發布；這次以同一個 parent 重新建立。
 5. 回傳 None，或該 Release 已存在：回傳 `{release: null}`，CMS 顯示「已發布的內容沒有變更」。
@@ -236,7 +236,7 @@ stateDiagram-v2
 - 部署後 `Check the live site` 以加了查詢字串的網址讀首頁，最多等 10 分鐘，確認回應含這次 build 的 Next build id（build job 的 `build_id` output）。網域、憑證或 CDN 有問題時 run 失敗，CMS 記為 failed，GitHub 也會寄失敗通知。
 - FAILED 重試會 dispatch 同一個 commit。保留的 `run_id` 當作「跳過 id 不大於它的 run」，避免又認到舊的失敗 run。
 
-**當機安全**有三處：export 後、建立 Release 列前當掉，下次 `head_release` 接手那個 commit；寫檔途中當掉，`_discard_interrupted_export` 清掉；push 或 dispatch 中斷，狀態停在可重試或被下一個 Release 取代，下一次 push 會一起帶上之前的 commit。
+**當機安全**：建立 commit 後、建立 Release 列前當掉，分支沒動，下次以同一個 parent 建立新的 commit，沒有紀錄的那個永遠不會發布；更新分支或 dispatch 中斷，狀態停在可重試或被下一個 Release 取代。
 
 ### 3.4 公開網站如何建置
 

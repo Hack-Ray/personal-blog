@@ -143,6 +143,17 @@ def test_a_first_release_replaces_an_empty_snapshot(repository, snapshot):
     assert result is not None and result.parent_commit == api.head()
 
 
+def test_a_first_release_refuses_an_article_free_snapshot_that_has_a_profile(repository, snapshot):
+    repo, api = repository
+    empty = (Path(__file__).resolve().parents[2] / "frontend/test-fixtures/empty-site-data/manifest.json").read_bytes()
+    api.git("read-tree", api.head())
+    for path, data in (("manifest.json", empty), ("profile.json", b'{"name":"Live"}')):
+        api.git("update-index", "--add", "--cacheinfo", f"100644,{api.git('hash-object', '-w', '--stdin', data=data)},{path}")
+    api.git("update-ref", "refs/heads/main", api.git("commit-tree", api.git("write-tree"), "-p", api.head(), "-m", "Live profile"))
+    with pytest.raises(exporter.ExportError, match="no local release history"):
+        repo.prepare(None)
+
+
 def test_retry_refuses_a_different_destination(repository, snapshot):
     repo, api = repository
     record = saved(repo.prepare(None))
