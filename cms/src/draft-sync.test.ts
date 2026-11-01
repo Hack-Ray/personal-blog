@@ -51,6 +51,10 @@ function fakeServer() {
       stored = c;
       revision += 1;
       published.push(c.markdown);
+      if (loseNextAnswer) {
+        loseNextAnswer = false;
+        throw new TypeError("Failed to fetch");
+      }
       return { doc_id: "D", version: published.length, revision, published_at: "" };
     },
     async restoreSnapshot(_docId, base, snapshotId) {
@@ -167,6 +171,34 @@ test("a lost answer is a conflict when the server then holds another series", as
   sync.edit(content("typed afterwards"));
   await Promise.all([sync.flush(), server.releaseAll()]);
   assert.deepEqual(sync.status, { kind: "conflict", currentRevision: 3 });
+});
+
+test("a publish stored by the server whose answer was lost is no conflict for the next edit", async () => {
+  const server = fakeServer();
+  const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
+  server.loseNextAnswer();
+  sync.edit(edited(content("published, answer lost")));
+  await Promise.all([sync.publish(), server.releaseAll()]);
+  assert.equal(sync.status.kind, "error");
+  sync.edit(edited(content("typed afterwards")));
+  await Promise.all([sync.flush(), server.releaseAll()]);
+  for (let i = 0; i < 500 && !server.calls.includes("save@2:typed afterwards"); i++) await new Promise((r) => setTimeout(r, 1));
+  await server.releaseAll();
+  await sync.close();
+  assert.equal(server.stored(), "typed afterwards");
+  assert.equal(sync.status.kind, "saved");
+});
+
+test("publishing again after a lost publish answer publishes instead of reporting a conflict", async () => {
+  const server = fakeServer();
+  const sync = new DraftSync(server.api, "D", { revision: 1, content: content("initial") }, () => {}, 60_000, 60_000);
+  server.loseNextAnswer();
+  sync.edit(edited(content("published, answer lost")));
+  await Promise.all([sync.publish(), server.releaseAll()]);
+  const [result] = await Promise.all([sync.publish(), server.releaseAll()]);
+  assert.equal(result?.revision, 3);
+  assert.deepEqual(server.published, ["published, answer lost", "published, answer lost"]);
+  assert.equal(sync.status.kind, "saved");
 });
 
 test("edits made while a save is in flight are saved afterwards", async () => {
