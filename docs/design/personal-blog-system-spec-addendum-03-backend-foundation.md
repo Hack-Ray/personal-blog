@@ -39,7 +39,7 @@
   - 從未發布的文章與所有 Working Draft 內容都不匯出。
   - 先在記憶體中產生完整 Snapshot，再寫入內容 repo；若與目前內容相比只有 `release_id`／`created_at` 不同，則不寫入也不 commit。
   - 只寫入 Snapshot 路徑 `manifest.json`、`profile.json`、`articles/`、`images/`；內容 repo 中的其他檔案不受影響。
-  - 寫入方式有兩種：本機 clone 的 git commit 與 push，或 Git Data API（BE-022）。
+  - 寫入方式有兩種：本機 clone 的 git commit 與 push，或 Git Data API（BE-022）。BE-028 起只用 Git Data API。
   - 前後端各自解析 Snapshot；後端測試以前端 parser（`frontend/scripts/check-snapshot.ts`）驗證匯出結果，作為兩邊的契約測試。
 
 ### BE-005：Article Lifecycle 狀態機
@@ -120,7 +120,7 @@
 - **Status**：Accepted (delegated)
 - **Context**：PUB-004（CMS 觸發 workflow）、PUB-005（失敗通知）、Baseline 9.1（DB 發布與部署成功是不同事件）、9.3。
 - **Decision**：
-  - CMS「網站發布 → 更新網站」建立一個背景工作（BE-022），依序：匯出 Snapshot 並寫入內容 repo（git push 或 Git Data API）→ 以 `workflow_dispatch` 啟動 `deploy.yml`，輸入該 commit。距上一筆 release 不到 30 秒時拒絕。
+  - CMS「網站發布 → 更新網站」建立一個背景工作（BE-022），依序：匯出 Snapshot 並寫入內容 repo（git push 或 Git Data API；BE-028 起只用 Git Data API）→ 以 `workflow_dispatch` 啟動 `deploy.yml`，輸入該 commit。距上一筆 release 不到 30 秒時拒絕。
   - 每次匯出記為一筆 `releases`，並以 `release_articles` 記錄其中每篇文章的版本（供 Baseline 6.3 的版本清理使用）。
   - Release 狀態：`exported → pushed → dispatched → building → deployed`；也可能是 `superseded`（被較新的 release 或 run 取代，或部署步驟被跳過）或 `push_failed`／`dispatch_failed`／`failed`。
   - 以 workflow 的 `run-name: Deploy content <sha>` 找到對應的 run：只列出最近一次 dispatch 前 5 分鐘（容許 CMS 與 GitHub 的時鐘誤差）之後建立的 `workflow_dispatch` run，取 id 大於上次記錄的 run（重試會再啟動一次）；dispatch 後 30 分鐘還找不到記為 failed。run 被取消記為 superseded；run 成功但 `Deploy to GitHub Pages` 步驟被跳過也記為 superseded。
@@ -266,7 +266,7 @@
 
 ### BE-022：本機與雲端共用發布流程
 
-- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Status**：Confirmed（使用者 2026-10-22 決定）。git 模式與 `CONTENT_TRANSPORT` 已由 BE-028 移除
 - **Decision**：
   - 同一份 CMS 程式以環境設定選擇資料庫、網址、備份位置與憑證。
   - 內容 repo 的寫入方式以 `CONTENT_TRANSPORT` 選擇：`git` 用 `CONTENT_REPO_DIR` 指向的本機 clone 與 git push；`api` 用 Git Data API 寫入 `CONTENT_REPO`，不需要 clone。預設 `auto`：有 `CONTENT_REPO` 時用 API，否則用 git。容器裡沒有 clone，所以雲端 CMS 用 API。
@@ -342,3 +342,13 @@
   - 主機 cron 每小時執行維護，每天備份到 `/srv/blog/backups` 並同步到開啟版本控制的 S3 bucket。主機 role 對 bucket 只能寫入與列出 `cms/` 前綴，不能讀取或刪除。
   - 選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建。
 - **Consequences**：沒有設定 `CMS_DEPLOY_VIA` 時，部署仍走 Tailscale，fork 的行為不變。資料庫在主機的磁碟上，主機被取代時資料不會跟過去，所以 stack 固定 AMI ID，並保留被取代的主機。步驟見 `docs/cloud-ec2.md`。
+
+### BE-028：只保留 GitHub API 發布
+
+- **Status**：Confirmed（使用者 2026-11-01 決定）
+- **Context**：BE-022 留下兩種寫入內容 repo 的方式。同一條「遠端有別人的 commit 就拒絕」規則因此寫了兩次（git 模式的 `ls-remote`、API 模式的 parent 比對），改發布流程要改兩邊、測兩邊。API 模式本機也能用，只多需要 token 對內容 repo 的 Contents 讀寫。
+- **Decision**：
+  - 移除 git 模式、`CONTENT_REPO_DIR`、`CONTENT_TRANSPORT` 與 `python -m blog.exporter` CLI。本機與雲端都設定 `CONTENT_REPO` 經 Git Data API 發布。
+  - 舊環境變數不再讀取，也不報錯；只設 `CONTENT_REPO_DIR` 的 `.env` 在按「更新網站」時得到「CONTENT_REPO and GitHub credentials … are required」。
+  - 沒有 release 紀錄的資料庫可以直接取代空的 Snapshot（只有沒列任何文章的 `manifest.json`，沒有 `profile.json`、`articles/` 或 `images/`），讓 fork 照 [`fork-and-deploy.md`](../fork-and-deploy.md) 第 2 步建立的內容 repo 可以第一次發布。其他遠端 Snapshot 仍要先還原資料庫或執行 `adopt`。
+- **Consequences**：git 模式留下的 release 紀錄 `content_target` 是空的，API 模式接受它們當 parent，只要內容分支的 HEAD 就是最後一次 release 的 commit。升級前最後一次 release 還沒 push（停在 exported 或 push 失敗）時，先用舊版完成它。

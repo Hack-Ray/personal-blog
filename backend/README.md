@@ -9,7 +9,7 @@ Every `/api/*` route except `/api/session` needs a signed-in admin. Keep binding
 Step-by-step guide (Docker, first run, daily use, backup and restore): [`docs/local-setup.md`](../docs/local-setup.md).
 
 ```sh
-cp .env.example .env                 # then fill in DEPLOY_REPO, CONTENT_REPO (or CONTENT_REPO_DIR) and CMS_GITHUB_TOKEN
+cp .env.example .env                 # then fill in DEPLOY_REPO, CONTENT_REPO and CMS_GITHUB_TOKEN
 docker compose up -d                 # PostgreSQL 16 on 127.0.0.1:5432
 uv sync
 uv run --env-file .env alembic upgrade head
@@ -62,35 +62,25 @@ CI also runs `uv run ruff check` and `uv run ruff format --check`; `uv run ruff 
 
 ## Update the site
 
-In the CMS, 網站發布 → 更新網站 queues a release job (`POST /api/release-jobs`, run by the CMS process) that exports the published content into `CONTENT_REPO_DIR`, pushes it, and starts the `deploy.yml` workflow with that commit. `POST /api/releases/refresh` asks GitHub about each dispatched release's workflow run and records whether it went live, was superseded (a newer commit, or a queued run cancelled by a newer one), or failed; a run not listed within 30 minutes counts as failed. The CMS polls it while a release is in flight. The latest release can be retried when its push, dispatch or build failed, when it stopped at exported or pushed, or when a code deploy superseded it. A retry follows only a run newer than the failed one.
+In the CMS, 網站發布 → 更新網站 queues a release job (`POST /api/release-jobs`, run by the CMS process) that exports the published content, commits it to `CONTENT_REPO` through the GitHub API, and starts the `deploy.yml` workflow with that commit. `POST /api/releases/refresh` asks GitHub about each dispatched release's workflow run and records whether it went live, was superseded (a newer commit, or a queued run cancelled by a newer one), or failed; a run not listed within 30 minutes counts as failed. The CMS polls it while a release is in flight. The latest release can be retried when its push, dispatch or build failed, when it stopped at exported or pushed, or when a code deploy superseded it. A retry follows only a run newer than the failed one.
 
-One release or retry runs at a time (a Postgres advisory lock; a second request gets 409), and git commands time out after 120 seconds. Before exporting, the CMS checks that the content repo's remote branch holds no commit its clone lacks; one that does means another CMS (or a manual push) wrote to it, and the release is refused. Use one CMS at a time ([`docs/local-setup.md`](../docs/local-setup.md), section 12).
+One release or retry runs at a time (a Postgres advisory lock; a second request gets 409). Before exporting, the CMS checks that the content branch's HEAD is the commit of its own last release; anything else means another CMS (or a manual push) wrote to it, and the release is refused. Use one CMS at a time ([`docs/local-setup.md`](../docs/local-setup.md), section 12).
 
 | Variable | Purpose |
 |---|---|
-| `CONTENT_REPO` | `owner/name` of the content repo; when set, releases go through the GitHub API instead of a clone. A cloud container must use this (`docs/portable-cms.md`) |
-| `CONTENT_REPO_DIR` | git mode: local clone of your content repo with push access |
+| `CONTENT_REPO`, `CONTENT_BRANCH` | `owner/name` of the content repo and its branch (default `main`), written through the GitHub API (`docs/portable-cms.md`) |
 | `GITHUB_AUTH`, `GITHUB_APP_*` | GitHub App authentication instead of `CMS_GITHUB_TOKEN` (`docs/portable-cms.md`) |
 | `DEPLOY_REPO` | your fork of this repo, e.g. `you/personal-blog`, whose `deploy.yml` a release starts |
-| `CMS_GITHUB_TOKEN` | fine-grained token with Actions read/write on `DEPLOY_REPO`; without it or `DEPLOY_REPO` releases stop at "無法啟動部署". `GITHUB_TOKEN` is still read when it is unset |
+| `CMS_GITHUB_TOKEN` | fine-grained token with Actions read/write on `DEPLOY_REPO` and Contents read/write on `CONTENT_REPO`; without credentials or `DEPLOY_REPO` releases stop at "無法啟動部署" |
 | `DEPLOY_WORKFLOW`, `DEPLOY_REF`, `GITHUB_API_URL` | defaults `deploy.yml`, `main`, `https://api.github.com` |
 
 ## Version retention
 
 After a release goes live, and whenever `blog.maintenance` runs, old Published Versions are deleted when all of these hold: the version is outside the article's newest 3; neither the live release nor any release still in progress contains it; a newer version was published before a release that has gone live; and the article is not pending deletion. Images those versions referenced then fall to the normal 7-day image garbage collection.
 
-## Export a release
+## What a release exports
 
-The CMS does this as part of 更新網站; the command is for doing it by hand. It writes the current public state into a local clone of `personal-blog-content` as one commit (Addendum 02, PUB-003). Nothing is committed when the published content has not changed.
-
-```sh
-uv run python -m blog.exporter ../../personal-blog-content          # commit only
-uv run python -m blog.exporter ../../personal-blog-content --push   # commit and push
-```
-
-Each article is exported at its latest Published Version, with `published_at` set to its first publication (`articles.first_published_at`, kept through republishing and version retention). Drafts and never-published articles are not exported.
-
-Each export first resets `manifest.json`, `profile.json`, `articles/` and `images/` to HEAD, so files left by an interrupted export are dropped. If 更新網站 fails after the commit but before the release is recorded, pressing it again records the release from HEAD and deploys it.
+Each article is exported at its latest Published Version, with `published_at` set to its first publication (`articles.first_published_at`, kept through republishing and version retention). Drafts and never-published articles are not exported. Nothing is committed when the published content has not changed. If 更新網站 fails after the commit was created but before the release is recorded, pressing it again makes a new commit on the same parent; the unrecorded one is never published.
 
 ## About page profile
 
@@ -102,7 +92,7 @@ Before an Auto Save overwrites the draft, the Markdown it replaces is kept as a 
 
 ## Images
 
-`POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It refuses with 413 an image over 40 million pixels, counting every frame of an animation, or an animation over 300 frames, since decoding holds every pixel in memory. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. An article references an image when its Markdown contains an image (inline or reference-style) whose URL starts with `images/`. Text in code, plain links and raw HTML `<img>` do not count. The frontend applies the same rule, and both test suites check it against `frontend/test-fixtures/image-refs.json`. Publishing an article, and saving a profile whose `intro` has one, fails with 422 when a link or image URL breaks the site's URL policy (`blog/url_policy.py`: https, http, mailto, anchors and relative links; `images/` and https images). It is a copy of `frontend/src/content/url-policy.ts`, and the backend, CMS and frontend tests all check it against `frontend/test-fixtures/url-policy.json`. The exporter copies every image the exported articles reference into `images/`, one at a time, and fails without writing anything if one is missing. An image already in the content repo is not read again: its file name is the hash of its bytes.
+`POST /api/images` (multipart `file`) accepts a PNG, JPEG, GIF or WebP up to 10 MB, detected from its bytes. It refuses with 413 an image over 40 million pixels, counting every frame of an animation, or an animation over 300 frames, since decoding holds every pixel in memory. It scales the image down to at most 1440px wide, re-encodes it as WebP (animation kept, EXIF dropped), and returns `![](images/<sha256>.webp)` to put in the Markdown. Uploading the same file again returns the same id. Images uploaded before this change keep their original format. `GET /api/images/{id}` serves it to the editor preview. An article references an image when its Markdown contains an image (inline or reference-style) whose URL starts with `images/`. Text in code, plain links and raw HTML `<img>` do not count. The frontend applies the same rule, and both test suites check it against `frontend/test-fixtures/image-refs.json`. Publishing an article, and saving a profile whose `intro` has one, fails with 422 when a link or image URL breaks the site's URL policy (`blog/url_policy.py`: https, http, mailto, anchors and relative links; `images/` and https images). It is a copy of `frontend/src/content/url-policy.ts`, and the backend, CMS and frontend tests all check it against `frontend/test-fixtures/url-policy.json`. The exporter includes every image the exported articles reference in `images/`, and fails without writing anything if one is missing. An image already in the content repo is not uploaded again: its file name is the hash of its bytes.
 
 Garbage collection runs in `blog.maintenance`: once at start-up through `scripts/start.sh`, and on a schedule for a CMS that stays up. An image is deleted once nothing has referenced it for 7 days, counting references from every Working Draft, Draft Snapshot and Published Version, which includes articles pending deletion.
 

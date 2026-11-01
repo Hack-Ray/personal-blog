@@ -5,7 +5,6 @@ be set on its own. A missing or malformed setting stops the CMS from
 starting instead of falling back to something unsafe.
 """
 
-import logging
 import os
 import re
 from collections.abc import Mapping
@@ -13,7 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
-log = logging.getLogger(__name__)
 LOCAL_DATABASE_URL = "postgresql+psycopg://blog:blog@127.0.0.1:5432/blog"
 DEFAULT_CMS_DIST = Path(__file__).resolve().parents[2] / "cms" / "dist"
 
@@ -43,7 +41,6 @@ class Settings:
     cms_origin: str | None
     cookie_secure: bool
     enable_docs: bool
-    content_repo_dir: Path | None
     deploy_repo: str | None
     github_token: str | None = field(repr=False)
     deploy_workflow: str
@@ -53,7 +50,6 @@ class Settings:
     cms_dist: Path
     content_repo: str | None = None
     content_branch: str = "main"
-    content_transport: str = "git"
     github_auth: str = "token"
     github_app_id: str | None = None
     github_installation_id: str | None = None
@@ -226,15 +222,7 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         cms_origin = _origin(cms_origin)
 
     token = _optional(env, "CMS_GITHUB_TOKEN")
-    if token is None and (token := _optional(env, "GITHUB_TOKEN")):
-        log.warning("GITHUB_TOKEN is deprecated for the CMS; rename it to CMS_GITHUB_TOKEN in backend/.env")
-    repo_dir = _optional(env, "CONTENT_REPO_DIR")
     content_repo = _repository(_optional(env, "CONTENT_REPO"), "CONTENT_REPO")
-    transport = _choice(env, "CONTENT_TRANSPORT", ("auto", "git", "api"), "auto")
-    if transport == "auto":
-        transport = "api" if content_repo else "git"
-    if transport == "api" and content_repo is None:
-        raise ConfigError("CONTENT_REPO must be set when CONTENT_TRANSPORT=api")
     app_id = _optional(env, "GITHUB_APP_ID")
     installation_id = _optional(env, "GITHUB_APP_INSTALLATION_ID")
     key_file = _optional(env, "GITHUB_APP_PRIVATE_KEY_FILE")
@@ -278,7 +266,6 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         cms_origin=cms_origin,
         cookie_secure=_flag(env, "COOKIE_SECURE", cloud),
         enable_docs=_flag(env, "ENABLE_DOCS", not cloud),
-        content_repo_dir=Path(repo_dir) if repo_dir else None,
         deploy_repo=_repository(_optional(env, "DEPLOY_REPO"), "DEPLOY_REPO"),
         github_token=token,
         deploy_workflow=_optional(env, "DEPLOY_WORKFLOW") or "deploy.yml",
@@ -288,7 +275,6 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         cms_dist=Path(_optional(env, "CMS_DIST") or DEFAULT_CMS_DIST),
         content_repo=content_repo,
         content_branch=_branch(_optional(env, "CONTENT_BRANCH") or "main", "CONTENT_BRANCH"),
-        content_transport=transport,
         github_auth=auth,
         github_app_id=app_id,
         github_installation_id=installation_id,

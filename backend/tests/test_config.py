@@ -62,10 +62,9 @@ def test_a_local_cms_backs_up_daily_and_a_cloud_one_leaves_it_to_the_host():
     assert config.load(CLOUD).backup_every_hours == 0
 
 
-def test_the_old_github_token_name_still_works(caplog):
-    assert config.load({"GITHUB_TOKEN": "old"}).github_token == "old"
-    assert "CMS_GITHUB_TOKEN" in caplog.text
-    assert config.load({"GITHUB_TOKEN": "old", "CMS_GITHUB_TOKEN": "new"}).github_token == "new"
+def test_only_cms_github_token_sets_the_token():
+    assert config.load({"GITHUB_TOKEN": "from-another-tool"}).github_token is None
+    assert config.load({"CMS_GITHUB_TOKEN": "cms"}).github_token == "cms"
 
 
 def test_hosts_come_from_the_settings_and_healthz_answers_any_host(configure):
@@ -105,18 +104,15 @@ def test_cms_origin_takes_the_form_browsers_send(value, origin):
     assert config.load({**CLOUD, "CMS_ORIGIN": value}).cms_origin == origin
 
 
-def test_api_transport_is_selected_without_a_clone():
+def test_the_content_repository_is_read_from_content_repo_and_content_branch():
     s = config.load({"CONTENT_REPO": "writer/content", "CONTENT_BRANCH": "publish/site"})
-    assert (s.content_transport, s.content_repo, s.content_branch, s.content_repo_dir) == ("api", "writer/content", "publish/site", None)
-    assert config.load({"CONTENT_REPO_DIR": "/tmp/content"}).content_transport == "git"
-    assert config.load({"CONTENT_REPO": "writer/content", "CONTENT_TRANSPORT": "git"}).content_transport == "git"
+    assert (s.content_repo, s.content_branch) == ("writer/content", "publish/site")
+    assert (config.load({}).content_repo, config.load({}).content_branch) == (None, "main")
 
 
 @pytest.mark.parametrize(
     "env",
     [
-        {"CONTENT_TRANSPORT": "api"},
-        {"CONTENT_TRANSPORT": "other"},
         {"CONTENT_REPO": "https://github.com/a/b"},
         {"DEPLOY_REPO": "a/b/c"},
         {"CONTENT_BRANCH": "../main"},

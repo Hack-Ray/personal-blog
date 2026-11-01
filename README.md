@@ -18,7 +18,7 @@ A self-hosted blog: you write in your own CMS, and the public site is a static s
 你的電腦或雲端主機                         GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
 │ CMS 介面 (cms/)              │          │ 內容 repo（private）             │
-│   ↓ /api                    │  push    │   manifest.json、profile.json、   │
+│   ↓ /api                    │  API     │   manifest.json、profile.json、   │
 │ 後端 (backend/) ── PostgreSQL│ ───────→ │   articles/、images/              │
 │   「更新網站」匯出 Snapshot   │          └───────────────┬──────────────────┘
 └──────────────┬──────────────┘                          │ checkout
@@ -37,7 +37,7 @@ A self-hosted blog: you write in your own CMS, and the public site is a static s
 網站內容不在這個 repo，而在你自己建立的 private 內容 repo。發布流程：
 
 1. 在 CMS 按「發布」：在資料庫建立一個新的 Published Version。這一步不會改變網站。
-2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章、網站名稱與簡介、關於頁匯出成 Snapshot（`manifest.json`、`profile.json`、`articles/`、`images/`），commit 並 push 到內容 repo，再啟動 `Deploy site` workflow。
+2. 在「網站發布」頁按「更新網站」：後端把所有已發布文章、網站名稱與簡介、關於頁匯出成 Snapshot（`manifest.json`、`profile.json`、`articles/`、`images/`），透過 GitHub API commit 到內容 repo，再啟動 `Deploy site` workflow。
 3. `.github/workflows/deploy.yml` 先跑 CI，再以這份 Snapshot 建置 `frontend/`，部署到 GitHub Pages。CMS 會追蹤這次部署，顯示成功或失敗。
 
 後端與前端之間只透過 Snapshot 溝通，格式以 `frontend/src/content/parse.ts` 為準；後端測試會用它驗證匯出結果。
@@ -77,7 +77,7 @@ python3 -m http.server --directory out 3000         # 打開 http://localhost:30
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16，只開放 127.0.0.1:5432
-cp .env.example .env                                 # 之後填 CONTENT_REPO_DIR、DEPLOY_REPO 與 CMS_GITHUB_TOKEN
+cp .env.example .env                                 # 之後填 CONTENT_REPO、DEPLOY_REPO 與 CMS_GITHUB_TOKEN
 uv sync
 uv run --env-file .env alembic upgrade head          # 建立資料表
 uv run --env-file .env python -m blog.auth           # 設定管理員密碼（至少 12 字元）
@@ -87,7 +87,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 打開 <http://127.0.0.1:8000/admin/> 登入。請保持 `--host 127.0.0.1`，不要改成 `0.0.0.0`。之後平常用 `scripts/start.sh` 啟動，它會先備份、執行 migration 與到期的清理（見 [`docs/local-setup.md`](docs/local-setup.md) 第 9 節）。
 
-要使用「更新網站」，還需要內容 repo 的本機 clone（`CONTENT_REPO_DIR`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`CMS_GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
+要使用「更新網站」，還需要你的內容 repo（`CONTENT_REPO`）、你的 fork（`DEPLOY_REPO`）與 GitHub token（`CMS_GITHUB_TOKEN`），設定方式見 [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md)。
 
 #### 3. 改成你自己的部落格
 
@@ -175,7 +175,7 @@ Fork 不會自動更新，要由你把原 repo 的新版本拉進來。原 repo 
 Your computer or a cloud host              GitHub
 ┌─────────────────────────────┐          ┌──────────────────────────────────┐
 │ CMS UI (cms/)                │          │ content repo (private)           │
-│   ↓ /api                    │  push    │   manifest.json, profile.json,   │
+│   ↓ /api                    │  API     │   manifest.json, profile.json,   │
 │ Backend (backend/) ─ Postgres│ ───────→ │   articles/, images/             │
 │   "Update site" exports      │          └───────────────┬──────────────────┘
 │   a Snapshot                 │                          │ checkout
@@ -195,7 +195,7 @@ Your computer or a cloud host              GitHub
 The site's content does not live in this repo. It lives in a private content repo you create. Publishing works like this:
 
 1. Press "發布" (Publish) in the CMS. This creates a new Published Version in the database and does not change the site.
-2. Press "更新網站" (Update site) on the "網站發布" (Releases) page. The backend exports every published article, the site name and description, and the About page as a Snapshot (`manifest.json`, `profile.json`, `articles/`, `images/`), commits and pushes it to the content repo, and starts the `Deploy site` workflow.
+2. Press "更新網站" (Update site) on the "網站發布" (Releases) page. The backend exports every published article, the site name and description, and the About page as a Snapshot (`manifest.json`, `profile.json`, `articles/`, `images/`), commits it to the content repo through the GitHub API, and starts the `Deploy site` workflow.
 3. `.github/workflows/deploy.yml` runs CI, builds `frontend/` from that Snapshot, and deploys it to GitHub Pages. The CMS follows the run and shows whether it succeeded.
 
 The backend and the frontend talk only through the Snapshot. `frontend/src/content/parse.ts` defines its format, and the backend tests run that parser on their exports.
@@ -235,7 +235,7 @@ Without `BASE_PATH`, the site is built under `/personal-blog/` (the deploy uses 
 ```sh
 cd personal-blog/backend
 docker compose up -d --wait                          # PostgreSQL 16, reachable only on 127.0.0.1:5432
-cp .env.example .env                                 # fill in CONTENT_REPO_DIR, DEPLOY_REPO and CMS_GITHUB_TOKEN later
+cp .env.example .env                                 # fill in CONTENT_REPO, DEPLOY_REPO and CMS_GITHUB_TOKEN later
 uv sync
 uv run --env-file .env alembic upgrade head          # create the tables
 uv run --env-file .env python -m blog.auth           # set the admin password (12+ characters)
@@ -245,7 +245,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 Open <http://127.0.0.1:8000/admin/> and sign in. Keep `--host 127.0.0.1`; do not change it to `0.0.0.0`. After this, start it with `scripts/start.sh`, which backs up, migrates and runs due maintenance first (see [`docs/local-setup.md`](docs/local-setup.md) section 9).
 
-"更新網站" (Update site) also needs a local clone of the content repo (`CONTENT_REPO_DIR`), your fork (`DEPLOY_REPO`) and a GitHub token (`CMS_GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
+"更新網站" (Update site) also needs your content repo (`CONTENT_REPO`), your fork (`DEPLOY_REPO`) and a GitHub token (`CMS_GITHUB_TOKEN`). [`docs/fork-and-deploy.md`](docs/fork-and-deploy.md) explains how to set them up.
 
 #### 3. Make it your own blog
 

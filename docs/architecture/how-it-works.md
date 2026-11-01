@@ -4,13 +4,11 @@
 
 ## 本機與雲端共用發布流程
 
-目前 CMS 可透過 CONTENT_TRANSPORT 選擇 git clone 或 Git Data API，並以 PAT 或 GitHub App 認證。「更新網站」先建立持久背景工作並回應 202；worker 匯出一致的 Snapshot，先保存 commit、parent 與內容及部署目的地，再更新遠端分支。重新開啟發布頁會讀回工作狀態。下面提到 clone、Git push 與同步呼叫的段落描述保留的 git 相容模式；CMS 介面使用新的背景工作 API。
-
-API 模式不需要本機 clone 或 Git 身分。工作開始時才擷取當時已發布內容；commit 已準備完成的工作則在重試時接續同一份內容。詳細設定與中斷處理見 [本機與雲端設定](../portable-cms.md)，決策見 Addendum 03 BE-022。
+CMS 透過 GitHub Git Data API 寫入內容 repo，以 PAT 或 GitHub App 認證，本機與雲端都不需要內容 repo 的 clone 或 Git 身分（2026-11 移除了原本的 git clone 模式）。「更新網站」先建立持久背景工作並回應 202；worker 匯出一致的 Snapshot，先保存 commit、parent 與內容及部署目的地，再更新遠端分支。重新開啟發布頁會讀回工作狀態。工作開始時才擷取當時已發布內容；commit 已準備完成的工作則在重試時接續同一份內容。詳細設定與中斷處理見 [本機與雲端設定](../portable-cms.md)，決策見 Addendum 03 BE-022。
 
 ## 1. 概觀
 
-這個專案由五個部分組成。作者在 CMS 寫文章，資料存在 PostgreSQL。作者的 CMS 跑在 AWS EC2 的容器裡，經 Cloudflare Tunnel 與 Access 連線（`docs/cloud-ec2.md`）；fork 預設在自己的電腦上執行（`docs/local-setup.md`），也可以照 `docs/cloud-tailscale.md` 放到雲端。按「更新網站」時，後端把所有已發布內容匯出成一份 JSON Snapshot，寫進 private 內容 repo `Hack-Ray/personal-blog-content`（GitHub API，或本機 clone 的 git push），再呼叫 GitHub Actions 的 `deploy.yml`。workflow 把這份 Snapshot 交給 Next.js 建置成純靜態網站，部署到 GitHub Pages。
+這個專案由五個部分組成。作者在 CMS 寫文章，資料存在 PostgreSQL。作者的 CMS 跑在 AWS EC2 的容器裡，經 Cloudflare Tunnel 與 Access 連線（`docs/cloud-ec2.md`）；fork 預設在自己的電腦上執行（`docs/local-setup.md`），也可以照 `docs/cloud-tailscale.md` 放到雲端。按「更新網站」時，後端把所有已發布內容匯出成一份 JSON Snapshot，經 GitHub API 寫進 private 內容 repo `Hack-Ray/personal-blog-content`，再呼叫 GitHub Actions 的 `deploy.yml`。workflow 把這份 Snapshot 交給 Next.js 建置成純靜態網站，部署到 GitHub Pages。
 
 公開網站在執行期不依賴後端或資料庫。後端只在作者寫作與發布時需要開著。兩邊唯一的介面是內容 repo 裡的 Snapshot 檔案，格式由 `frontend/src/content/parse.ts` 定義。
 
@@ -20,7 +18,6 @@ flowchart LR
     SPA["CMS SPA<br/>cms/ (React)<br/>/admin"]
     API["FastAPI 後端<br/>backend/blog/"]
     PG[("PostgreSQL 16<br/>文章、版本、圖片、發布紀錄")]
-    CLONE["git 模式才有：內容 repo 的 clone<br/>CONTENT_REPO_DIR"]
   end
   CONTENT["GitHub: personal-blog-content<br/>(private)"]
   GHA["GitHub Actions<br/>deploy.yml / ci.yml"]
@@ -28,9 +25,7 @@ flowchart LR
 
   SPA -- "同源 JSON（cookie 或 Cloudflare Access JWT）" --> API
   API --> PG
-  API -- "API 模式：Git Data API<br/>GitHub App 或 token" --> CONTENT
-  API -- "git 模式：寫檔、git commit" --> CLONE
-  CLONE -- "git push（本機 git 認證）" --> CONTENT
+  API -- "Git Data API<br/>GitHub App 或 token" --> CONTENT
   API -- "GitHub App 或 CMS_GITHUB_TOKEN<br/>dispatch、查 run 狀態" --> GHA
   GHA -- "GitHub App 或 CONTENT_REPO_TOKEN<br/>checkout content_sha、ls-remote" --> CONTENT
   GHA -- "deploy-pages" --> PAGES
@@ -40,10 +35,8 @@ GitHub 認證有兩種，每一邊各選一種：
 
 | 誰 | GitHub App（作者使用） | Personal token（fork 預設） | 用途 |
 |---|---|---|---|
-| 後端 | `GITHUB_AUTH=app` 與 `GITHUB_APP_*`。後端自己換短效 installation token | `CMS_GITHUB_TOKEN`，放在後端 `.env`。部署 repo 的 Actions 讀寫；API 模式另需內容 repo 的 Contents 讀寫 | dispatch `deploy.yml`、查 run 與 job 狀態、API 模式寫入內容 repo。token 模式另讀自己的到期日 |
+| 後端 | `GITHUB_AUTH=app` 與 `GITHUB_APP_*`。後端自己換短效 installation token | `CMS_GITHUB_TOKEN`，放在後端 `.env`。部署 repo 的 Actions 讀寫，加上內容 repo 的 Contents 讀寫 | dispatch `deploy.yml`、查 run 與 job 狀態、寫入內容 repo。token 模式另讀自己的到期日 |
 | `deploy.yml` | Actions variable `APP_CLIENT_ID` 與 secret `APP_PRIVATE_KEY`，以 `actions/create-github-app-token` 取得內容 repo 的唯讀 token | Actions secret `CONTENT_REPO_TOKEN`，內容 repo 的 Contents 唯讀 | build 時 checkout 內容、deploy 前 `ls-remote`。token 模式另由 `token-expiry.yml` 檢查到期 |
-
-git 模式 push 到內容 repo 不用上面的認證，用的是本機 git 的認證（SSH key 或 `gh auth`）。
 
 ## 2. 重要概念
 
@@ -95,7 +88,6 @@ Starlette 依註冊順序的**反向**執行 middleware。`api.py` 依序註冊 
 | `UnsupportedImage` | 415 | |
 | 登入被鎖 `TooManyAttempts` | 429 | `Retry-After` |
 | scrypt 忙碌 | 503 | |
-| `CONTENT_REPO_DIR` 不是 git clone | 503 | |
 | 讀 GitHub token 到期日失敗 | 502 | |
 
 **登入**（`auth.py`）：密碼以 scrypt（N=2^15，約 32 MiB）存在 `admin_credentials` 唯一一列。`sign_in` 先依 `request.client.host` 計失敗次數，先加一再驗密碼。5 次以上失敗後鎖定 `min(15 分鐘, 30 秒 × 2^(n−5))`。scrypt 外面有每個 process 2 個名額的 semaphore，等 10 秒拿不到回 503。成功後刪掉失敗紀錄與過期 session，建立 `admin_sessions`（只存 token 的 sha256）。cookie 為 httponly、`SameSite=Strict`、3 天；`COOKIE_SECURE` 時名稱是 `__Host-cms_session`，否則 `cms_session`。閒置超過 1 天也失效，`last_seen_at` 最多每 5 分鐘寫一次。`set_password` 會登出所有 session。CLI：`python -m blog.auth`。
@@ -156,21 +148,21 @@ PURGE 靠 `ON DELETE CASCADE` 一起刪掉草稿、版本、快照、`release_ar
 sequenceDiagram
   actor A as 作者
   participant SPA as CMS releases.tsx
-  participant API as release.py / exporter.py
+  participant API as release.py / content_repository.py
   participant DB as PostgreSQL
-  participant Git as 內容 repo clone
-  participant GH as GitHub API
+  participant Git as 內容 repo（Git Data API）
+  participant GH as GitHub Actions API
   participant WF as deploy.yml
   participant P as GitHub Pages
 
   A->>SPA: 按「更新網站」
   SPA->>API: POST /api/release-jobs（202，背景 worker 接手）
   API->>DB: pg_try_advisory_lock（拿不到回 409）
-  API->>Git: unknown_remote_commit（ls-remote）
+  API->>Git: 讀分支 HEAD 與 tree，HEAD 須是上次 release 的 commit
   API->>DB: REPEATABLE READ 讀已發布內容
-  API->>Git: 寫檔、git commit "Release <ULID>"
+  API->>Git: 上傳新 blob、建立 tree 與 commit "Release <ULID>"（分支不動）
   API->>DB: 新增 Release(EXPORTED)，舊的可重試 Release 改 SUPERSEDED
-  API->>Git: git push（120 秒逾時）
+  API->>Git: fast-forward 分支到該 commit
   API->>DB: PUSHED
   API->>GH: dispatch deploy.yml {content_sha}
   API->>DB: DISPATCHED
@@ -189,18 +181,15 @@ sequenceDiagram
 
 1. `release_jobs.submit` 先用 `release.repo_from_env()` 確認發布設定（否則 409），建立 queued 工作並回 202。背景 worker（`release_jobs.run_once`，每秒查一次，有工作才取鎖）再呼叫 `release.create`。`deployer_from_env()` 在 `CMS_GITHUB_TOKEN` 與 `DEPLOY_REPO` 都設定時才回傳 `GitHubActions`，否則為 None。舊的同步路由 `POST /api/releases` 與 `/retry` 已移除。
 2. `_exclusive()` 用獨立連線取 `pg_try_advisory_lock`，拿不到丟 `ReleaseBusy`（409）。retry 用同一把鎖。
-3. `exporter.unknown_remote_commit` 對 upstream `ls-remote`。遠端的 tip 不是本地 HEAD 的祖先，代表別的 CMS 推過內容，丟 `ReleaseError`。git 出錯時放行。
-4. 冷卻：距離上一個 Release 不到 30 秒時拒絕。
-5. `export`：
-   - 在 REPEATABLE READ 交易中 `render_snapshot`：每篇 published 文章取最新版本（`DISTINCT ON`），輸出 `articles/<doc_id>.json`；加上 `profile.json`；`manifest.json` 為 `{schema_version: 1, release_id, created_at, articles: [{doc_id, version, slug?, redirect_from?}], archived_articles: [{doc_id, slug?, redirect_from?}]}`。`slug` 是目前的 slug，`redirect_from` 是 `article_urls` 中目前網址以外的片段，沒有時兩個 key 都省略。被引用的圖缺檔時丟 `ExportError`。
-   - `_discard_interrupted_export` 把四個 Snapshot 路徑還原到 HEAD，清掉上次中斷留下的半成品。
-   - `write_snapshot`：若檔案集合與內容只差在 `release_id`／`created_at`，回傳 None（沒有變更）。否則刪掉多餘檔案、寫入新檔，圖片只寫新的（id 是內容雜湊，不必重讀舊檔）。
-   - `git add --all` 只對 `SNAPSHOT_PATHS`，`git commit -m "Release <release_id>"`。這一步不 push。
-   - export 回傳 None 時，`create` 再用 `head_release` 看 HEAD 是不是一個還沒有 Release 列的 release commit（上次 crash 留下的），有的話接手它。
-6. 兩者皆無，或該 Release 已存在：回傳 `{release: null}`，CMS 顯示「已發布的內容沒有變更」。
-7. 否則 `record_export` 先取得 slug 鎖（`articles.lock_slugs`，`set_slug` 也取同一把，直到 commit），再新增 `Release(EXPORTED)` 與 `release_articles`，並依 manifest 把每篇已發布與封存文章這次的網址片段寫進 `article_urls`（已存在就略過；這次 release 後來失敗也只是多一個轉址頁），把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
-8. `_advance` 從目前狀態往下推：
-   - EXPORTED、PUSH_FAILED：`git push --quiet`（`GIT_TERMINAL_PROMPT=0`）。成功 PUSHED；失敗或逾時 PUSH_FAILED，`detail` 存遮蔽過的 stderr 最後 500 字。
+3. 冷卻：距離上一個 Release 不到 30 秒時拒絕。
+4. `GitHubRepository.prepare(latest)`（`content_repository.py`）：
+   - 讀內容分支的 HEAD 與整棵 tree。有上一個 Release 時，HEAD 必須是它的 commit（它還沒 push 時也可以是它的 parent），否則丟 `ExportError`「another CMS may be in use」。沒有 Release 而遠端已有非空的 Snapshot 時拒絕，要先還原資料庫或執行 `adopt`；空的 Snapshot（只有沒列任何文章的 `manifest.json`）可以直接取代。
+   - 在 REPEATABLE READ 交易中 `exporter.render_snapshot`：每篇 published 文章取最新版本（`DISTINCT ON`），輸出 `articles/<doc_id>.json`；加上 `profile.json`；`manifest.json` 為 `{schema_version: 1, release_id, created_at, articles: [{doc_id, version, slug?, redirect_from?}], archived_articles: [{doc_id, slug?, redirect_from?}]}`。`slug` 是目前的 slug，`redirect_from` 是 `article_urls` 中目前網址以外的片段，沒有時兩個 key 都省略。被引用的圖缺檔時丟 `ExportError`。
+   - 檔案集合與 blob 雜湊只差在 manifest 的 `release_id`／`created_at` 時回傳 None（沒有變更）。否則只上傳遠端沒有的 blob（圖片 id 是內容雜湊，已有的不重傳），以 `base_tree` 建 tree，刪掉多餘的 Snapshot 檔，建立 parent 為 HEAD 的 commit。分支這時還不動。上次 crash 留下、沒有 Release 列的 commit 不會被發布；這次以同一個 parent 重新建立。
+5. 回傳 None，或該 Release 已存在：回傳 `{release: null}`，CMS 顯示「已發布的內容沒有變更」。
+6. 否則 `record_export` 先取得 slug 鎖（`articles.lock_slugs`，`set_slug` 也取同一把，直到 commit），再新增 `Release(EXPORTED)` 與 `release_articles`，並依 manifest 把每篇已發布與封存文章這次的網址片段寫進 `article_urls`（已存在就略過；這次 release 後來失敗也只是多一個轉址頁），把較舊、未終結、可重試的 Release 改成 SUPERSEDED，commit，進入 `_advance`。
+7. `_advance` 從目前狀態往下推：
+   - EXPORTED、PUSH_FAILED：`GitHubRepository.publish` 以 `force: false` 把分支 fast-forward 到這個 commit；分支已在該 commit 時直接成功，HEAD 不是它的 parent 時拒絕。成功 PUSHED；失敗 PUSH_FAILED，`detail` 存 GitHub 的錯誤訊息。
    - PUSHED、DISPATCH_FAILED、FAILED：沒有 deployer 直接 DISPATCH_FAILED。否則 `POST /repos/{DEPLOY_REPO}/actions/workflows/{DEPLOY_WORKFLOW}/dispatches`，`ref` 為 `DEPLOY_REF`，`inputs.content_sha` 為 commit。成功 DISPATCHED，重設 `dispatched_at`，清掉 `run_url`，**刻意保留** `run_id`。
 
 **狀態追蹤**（`refresh_in_flight`，`POST /api/releases/refresh`）：
@@ -247,7 +236,7 @@ stateDiagram-v2
 - 部署後 `Check the live site` 以加了查詢字串的網址讀首頁，最多等 10 分鐘，確認回應含這次 build 的 Next build id（build job 的 `build_id` output）。網域、憑證或 CDN 有問題時 run 失敗，CMS 記為 failed，GitHub 也會寄失敗通知。
 - FAILED 重試會 dispatch 同一個 commit。保留的 `run_id` 當作「跳過 id 不大於它的 run」，避免又認到舊的失敗 run。
 
-**當機安全**有三處：export 後、建立 Release 列前當掉，下次 `head_release` 接手那個 commit；寫檔途中當掉，`_discard_interrupted_export` 清掉；push 或 dispatch 中斷，狀態停在可重試或被下一個 Release 取代，下一次 push 會一起帶上之前的 commit。
+**當機安全**：建立 commit 後、建立 Release 列前當掉，分支沒動，下次以同一個 parent 建立新的 commit，沒有紀錄的那個永遠不會發布；更新分支或 dispatch 中斷，狀態停在可重試或被下一個 Release 取代。
 
 ### 3.4 公開網站如何建置
 
@@ -356,7 +345,7 @@ stateDiagram-v2
 - **`retention.cleanup_versions`**：還沒有任何 DEPLOYED Release 時不做事。受保護的版本是最新一個 DEPLOYED Release 與所有 exported／pushed／dispatched／building Release 中的版本。一個版本在以下條件都成立時才刪除：在該文章中排名第 4 以後（`KEEP_LATEST = 3`）、文章不是 pending_deletion、有一個較新版本的 `published_at` 不晚於上線 Release 的 `created_at`、不在受保護集合中。
 - **`images.collect_garbage`**：以 `LOCK TABLE ... IN SHARE MODE` 鎖住草稿、快照、版本、profile，解析所有 Markdown（含 profile 的 intro），設定或清除 `unreferenced_since`，刪除未被引用滿 7 天的圖。從未被引用的上傳也會在 7 天後刪除。
 
-**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 先停掉本機 CMS、把備份轉成 SQL，再用 `backup.sh` 備份目前資料（放到 `BACKUP_TARGET`，沒設定時放在備份檔旁；不套用 `BACKUP_KEEP`），然後把 SQL 連同 `DROP SCHEMA public CASCADE` 在同一個交易內執行（失敗時舊資料不變；`pg_restore` 17 以上寫出的 `SET transaction_timeout` 會先拿掉），接著 `alembic upgrade head`、清空 `admin_sessions`、把排隊或執行中的 `release_jobs` 標為 failed，最後執行 `python -m blog.content_repository after-restore`。API 模式下它把內容 repo 目前的 HEAD 記成最新 Release，下一次「更新網站」就以它為 parent，用資料庫的內容覆蓋遠端（網站倒回備份時的內容）；git 模式下 clone 本身就是基準，不需要記錄。`backup.sh` 有 `BACKUP_KEEP` 時只保留資料夾中最新 N 份。CMS 執行期間，`blog/backups.py` 的 `Scheduler`（在 `api.py` 的 lifespan 啟動）每 10 分鐘看一次牆上時間，距離上次成功備份滿 `BACKUP_EVERY_HOURS`（本機預設 24，雲端預設 0 即關閉）就以子程序執行 `scripts/backup.sh`；起點是 CMS 啟動的時間，因為 `start.sh` 剛備份過。失敗只記 log，下次檢查再試。子程序在自己的 process group，CMS 關閉時整組送 SIGTERM（`backup.sh` 的 EXIT trap 會刪掉 `.partial`），`stop_cms` 等 CMS 程序結束（最多 30 秒）而不是只等 port 關閉，所以先停 CMS 的 `restore.sh` 與 `start.sh` 不會與排程備份的 `BACKUP_KEEP` 清理同時進行。例外是強制結束（第二次 Ctrl+C、SIGKILL、當機）：uvicorn 跳過 lifespan shutdown，正在跑的備份會自己跑完。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
+**備份與還原**：`backup.sh` 以 `pg_dump -Fc` 輸出並附 `.sha256`，目標可以是資料夾或 `s3://`。`restore.sh` 先停掉本機 CMS、把備份轉成 SQL，再用 `backup.sh` 備份目前資料（放到 `BACKUP_TARGET`，沒設定時放在備份檔旁；不套用 `BACKUP_KEEP`），然後把 SQL 連同 `DROP SCHEMA public CASCADE` 在同一個交易內執行（失敗時舊資料不變；`pg_restore` 17 以上寫出的 `SET transaction_timeout` 會先拿掉），接著 `alembic upgrade head`、清空 `admin_sessions`、把排隊或執行中的 `release_jobs` 標為 failed，最後執行 `python -m blog.content_repository after-restore`。它把內容 repo 目前的 HEAD 記成最新 Release，下一次「更新網站」就以它為 parent，用資料庫的內容覆蓋遠端（網站倒回備份時的內容）；沒設定 `CONTENT_REPO` 時不需要記錄。`backup.sh` 有 `BACKUP_KEEP` 時只保留資料夾中最新 N 份。CMS 執行期間，`blog/backups.py` 的 `Scheduler`（在 `api.py` 的 lifespan 啟動）每 10 分鐘看一次牆上時間，距離上次成功備份滿 `BACKUP_EVERY_HOURS`（本機預設 24，雲端預設 0 即關閉）就以子程序執行 `scripts/backup.sh`；起點是 CMS 啟動的時間，因為 `start.sh` 剛備份過。失敗只記 log，下次檢查再試。子程序在自己的 process group，CMS 關閉時整組送 SIGTERM（`backup.sh` 的 EXIT trap 會刪掉 `.partial`），`stop_cms` 等 CMS 程序結束（最多 30 秒）而不是只等 port 關閉，所以先停 CMS 的 `restore.sh` 與 `start.sh` 不會與排程備份的 `BACKUP_KEEP` 清理同時進行。例外是強制結束（第二次 Ctrl+C、SIGKILL、當機）：uvicorn 跳過 lifespan shutdown，正在跑的備份會自己跑完。`lib.sh` 以 `PGPASSWORD` 傳密碼，不放在 argv。圖片在 Postgres 裡，所以一份 `pg_dump` 涵蓋內容 repo 以外的所有資料。
 
 ### 3.7 CI 與部署 workflow
 
@@ -401,8 +390,8 @@ backend/
     profile.py      ProfileContent 與 revision 檢查
     auth.py         密碼、登入節流、session；CLI 設定密碼
     cloudflare_access.py  驗證 Cloudflare Access 的 JWT（雲端登入）
-    exporter.py     render_snapshot、寫入 clone、commit、push、remote 檢查；CLI
-    content_repository.py  API 模式寫入內容 repo；adopt、after-restore CLI
+    exporter.py     render_snapshot：把已發布內容轉成 Snapshot 的檔案
+    content_repository.py  經 Git Data API 寫入內容 repo；adopt、after-restore CLI
     github.py       GitHub REST client、GitHub App installation token
     release.py      Release 狀態機、GitHubActions REST client、refresh
     release_jobs.py 「更新網站」的持久背景工作與 worker
@@ -437,7 +426,7 @@ frontend/
   test-fixtures/    跨專案共用的測試資料
   e2e/              Playwright
 .github/workflows/  ci.yml、deploy.yml、token-expiry.yml、cms-image.yml、cms-deploy.yml
-Dockerfile          CMS image（後端與建置好的 CMS；只能用 API 發布，除非手動掛載 clone）
+Dockerfile          CMS image（後端與建置好的 CMS）
 ```
 
 ### 新功能該放哪裡
@@ -486,7 +475,7 @@ Dockerfile          CMS image（後端與建置好的 CMS；只能用 API 發布
 7. **Published Version 不是完全不可變。** 合併 Taxon 時會 UPDATE `topic_id`／`series_id`，資料保留會 DELETE 舊版本。
 8. **沒有變更時要按「重試」。** 「沒有變更」的判斷忽略 `release_id`，所以 FAILED 之後若沒有新內容，「更新網站」只會說沒有變更，必須按最新那一列的「重試」。
 9. **狀態只在頁面開著時更新。** refresh 是拉取式，沒有人開「網站發布」頁就沒有人問 GitHub，DEPLOYED 也就不會被記錄，版本清理不會進行。
-10. **remote 檢查只在建立時做，而且失敗時放行。** 另一台電腦推過內容時會擋下（訊息指向 `local-setup.md` 第 12 節）；解法是在 clone 裡 `git pull`（第 14 節）。CMS 從不 fetch 或 pull。
+10. **內容 repo 的 HEAD 檢查只在建立時做。** 內容分支的 HEAD 不是上次 release 的 commit 時會擋下（訊息「another CMS may be in use」，見 `local-setup.md` 第 12、14 節）。CMS 從不合併遠端的內容。
 11. **`/admin` 只在 import 時掛載。** 第一次 `npm run build` 之後要重啟後端。
 12. **設定與 engine 在 import 時讀取。** 測試的 `conftest.py` 先把 `TEST_DATABASE_URL` 複製到 `DATABASE_URL` 才 import `blog`。程式在呼叫時讀 `config.settings.X`，所以 monkeypatch 有效。
 13. **測試是破壞性的。** `conftest.py` 會對 `TEST_DATABASE_URL` 做 `alembic downgrade base` 再 upgrade，每個測試後 truncate。不要指向真正的資料庫。`pytest -n auto`（CI 用這個）讓每個 worker 另建 `<名稱>_gw0`、`<名稱>_gw1`… 資料庫來用。
@@ -499,12 +488,12 @@ Dockerfile          CMS image（後端與建置好的 CMS；只能用 API 發布
 20. **目錄 id 依賴兩條程式路徑同步。** `renderMarkdown` 與 `tocHeadings` 都用 `slugger()`，順序必須一致；頁面上固定的 id（`toc`、`related-title`）要列在 `headings.ts` 的保留清單。
 21. **時區**：顯示日期、彙整分年、搜尋 chunk 分年都用 `Asia/Taipei`。
 22. **一次 Release 可能佔用三條資料庫連線**（advisory lock、REPEATABLE READ 匯出、ORM session）。`export` 內 `git commit` 失敗會回 500 而不是 409，下一次會重做。
-23. **Docker image 用 API 發布。** image 裡沒有內容 repo clone 與 git 身分，要設定 `CONTENT_TRANSPORT=api` 與 GitHub 認證（見 `portable-cms.md`）。
+23. **發布需要 `CONTENT_REPO` 與 GitHub 認證。** 沒設定時 CMS 仍可寫作，「更新網站」回 409（見 `portable-cms.md`）。
 24. **Token 到期**：只有 personal token 會到期。`CONTENT_REPO_TOKEN` 由 `token-expiry.yml` 開 issue 提醒；`CMS_GITHUB_TOKEN` 由 CMS 網站發布頁提醒。GitHub App 的 token 是短效的，由後端與 workflow 每次自動重新取得，不需要提醒，但私鑰被撤銷時發布與部署會失敗。作者的設定改用 App，原本約 2027-01-18 到期的 `CONTENT_REPO_TOKEN` 隨之退役。新 fork 第一次部署要手動執行 `Deploy site`，內容 repo 以 `test-fixtures/empty-site-data/manifest.json` 起始（見 `fork-and-deploy.md`）。
 
 ## 6. 尚未確認
 
-- **內容 repo 的分支**：clone push 到其 upstream 分支，而 `deploy.yml` 的 `ls-remote ... HEAD` 與「沒給 `content_sha` 時 checkout 預設分支」都假設那就是內容 repo 的預設分支。程式沒有檢查兩者一致。
+- **內容 repo 的分支**：CMS 寫入 `CONTENT_BRANCH`（預設 `main`）並把它傳給 workflow，但程式更新觸發的建置讀 Actions variable `CONTENT_BRANCH`，沒設定時 `deploy.yml` 的 `ls-remote ... HEAD` 與「沒給 `content_sha` 時 checkout 預設分支」都假設那就是內容 repo 的預設分支。程式沒有檢查兩者一致。
 - **`test_scripts.py` 的涵蓋範圍**：本次沒有細讀。
 
 已確認的事項（不再列為未確認）：

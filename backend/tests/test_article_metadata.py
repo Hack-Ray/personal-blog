@@ -1,13 +1,10 @@
 import io
-import json
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 from PIL import Image as Pillow
-
-from blog.exporter import export
 
 BACKEND = {"slug": "backend", "name": "Backend"}
 SERIES = {"slug": "build-a-cms", "name": "自建 CMS"}
@@ -34,18 +31,6 @@ def upload(client) -> str:
     r = client.post("/api/images", files={"file": ("x.png", out.getvalue(), "image/png")})
     assert r.status_code == 201, r.text
     return r.json()["id"]
-
-
-def git(repo, *args):
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
-
-
-@pytest.fixture
-def repo(tmp_path):
-    git(tmp_path, "init", "--quiet")
-    git(tmp_path, "config", "user.email", "test@example.com")
-    git(tmp_path, "config", "user.name", "Test")
-    return tmp_path
 
 
 def test_a_new_draft_has_no_excerpt_cover_or_series(client):
@@ -89,23 +74,23 @@ def test_pinning_an_unknown_article_is_404(client):
     assert client.put("/api/articles/01K7M4Y7P65BDCF8AHRTQY7ZQA/pinned", json={"pinned": True}).status_code == 404
 
 
-def test_export_leaves_out_unset_metadata(client, repo):
+def test_export_leaves_out_unset_metadata(client, content):
     doc_id = create(client)["doc_id"]
     publish(client, doc_id, 1)
-    export(repo)
-    article = json.loads((repo / f"articles/{doc_id}.json").read_text())
+    content.release()
+    article = content.json(f"articles/{doc_id}.json")
     assert not {"updated_at", "excerpt", "cover", "series", "pinned_at"} & article.keys()
 
 
-def test_export_writes_metadata_and_the_update_time_of_a_republished_article(client, repo):
+def test_export_writes_metadata_and_the_update_time_of_a_republished_article(client, content, tmp_path):
     image_id = upload(client)
     doc_id = create(client)["doc_id"]
     first = publish(client, doc_id, 1).json()
     md = f"![](images/{image_id})"
     second = publish(client, doc_id, 2, markdown=md, excerpt="Short", cover=image_id, series=SERIES).json()
     client.put(f"/api/articles/{doc_id}/pinned", json={"pinned": True})
-    export(repo)
-    article = json.loads((repo / f"articles/{doc_id}.json").read_text())
+    content.release()
+    article = content.json(f"articles/{doc_id}.json")
 
     def z(iso):
         return iso.replace("+00:00", "Z")
@@ -116,5 +101,7 @@ def test_export_writes_metadata_and_the_update_time_of_a_republished_article(cli
     assert "pinned_at" in article
 
     if shutil.which("node"):
-        result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True)
+        result = subprocess.run(
+            ["node", "scripts/check-snapshot.ts", str(content.checkout(tmp_path / "snapshot"))], cwd=FRONTEND, capture_output=True, text=True
+        )
         assert result.returncode == 0, result.stderr

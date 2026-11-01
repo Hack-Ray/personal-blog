@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import subprocess
@@ -17,16 +16,9 @@ BACKEND = {"slug": "backend", "name": "Backend"}
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
 
-def git(repo, *args):
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
-
-
 @pytest.fixture
-def repo(tmp_path):
-    git(tmp_path, "init", "--quiet")
-    git(tmp_path, "config", "user.email", "test@example.com")
-    git(tmp_path, "config", "user.name", "Test")
-    return tmp_path
+def repo(content):
+    return content
 
 
 def create(client) -> str:
@@ -49,8 +41,8 @@ def set_slug(client, doc_id, slug):
 def release_site(repo) -> dict:
     """Exports and records a release the way 「更新網站」 does, and returns the manifest."""
     with SessionLocal() as s:
-        assert release.create(s, repo, None) is not None
-    return json.loads((repo / "manifest.json").read_text())
+        assert release.create(s, repo.repo, None) is not None
+    return repo.json("manifest.json")
 
 
 def entry(manifest, doc_id):
@@ -101,17 +93,17 @@ def test_an_article_first_exported_with_a_slug_gets_no_doc_id_redirect(client, r
     doc_id = published(client)
     set_slug(client, doc_id, "hello")
     assert entry(release_site(repo), doc_id) == {"doc_id": doc_id, "version": 1, "slug": "hello"}
-    assert "slug" not in json.loads((repo / f"articles/{doc_id}.json").read_text())
+    assert "slug" not in repo.json(f"articles/{doc_id}.json")
 
 
-def test_a_slug_added_after_the_doc_id_url_went_live_redirects_from_the_doc_id(client, repo):
+def test_a_slug_added_after_the_doc_id_url_went_live_redirects_from_the_doc_id(client, repo, tmp_path):
     doc_id = published(client)
     assert entry(release_site(repo), doc_id) == {"doc_id": doc_id, "version": 1}
     set_slug(client, doc_id, "hello")
     assert entry(release_site(repo), doc_id) == {"doc_id": doc_id, "version": 1, "slug": "hello", "redirect_from": [doc_id]}
 
     if shutil.which("node"):
-        result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True)
+        result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo.checkout(tmp_path / "snapshot"))], cwd=FRONTEND, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
 
 
@@ -194,7 +186,7 @@ def test_a_slug_moved_to_another_article_during_an_export_stays_with_that_articl
 
         release.exporter.render_snapshot = moved_mid_export
         try:
-            assert release.create(s, repo, None) is not None
+            assert release.create(s, repo.repo, None) is not None
         finally:
             release.exporter.render_snapshot = render
     with engine.connect() as conn:
@@ -225,7 +217,7 @@ def test_a_slug_claimed_while_an_export_is_being_recorded_is_never_claimed_twice
             claims.append(pool.submit(set_slug, client, b, "x"))
             wait(claims, timeout=1)
 
-        release.create(s, repo, None, on_prepared=claim_before_the_release_commits)
+        release.create(s, repo.repo, None, on_prepared=claim_before_the_release_commits)
         claimed = claims[0].result(timeout=10).status_code == 200
     if not b_published:
         client.post(f"/api/articles/{b}/publish", json={"base_revision": 1, "title": "Hello", "topic": BACKEND, "markdown": "body"})

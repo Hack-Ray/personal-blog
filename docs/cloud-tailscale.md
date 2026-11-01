@@ -104,7 +104,7 @@ CONTENT_REPO=<你的帳號>/personal-blog-content
 DEPLOY_REPO=<你的帳號>/personal-blog
 ```
 
-容器裡沒有內容 repo 的 clone，所以用 API 發布：設定 `CONTENT_REPO`，不要設定 `CONTENT_REPO_DIR`。認證用 GitHub App 或 personal token，見 [`portable-cms.md`](portable-cms.md)。
+CMS 透過 GitHub API 發布：設定 `CONTENT_REPO`。認證用 GitHub App 或 personal token，見 [`portable-cms.md`](portable-cms.md)。
 
 CMS 的網址是 `https://<主機名稱>.<tailnet>.ts.net/admin/`。
 

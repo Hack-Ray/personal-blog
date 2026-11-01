@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import shutil
@@ -12,7 +13,7 @@ from sqlalchemy.exc import DBAPIError
 
 from blog import images, maintenance
 from blog.db import SessionLocal, engine
-from blog.exporter import ExportError, export, render_snapshot, write_snapshot
+from blog.exporter import ExportError
 
 
 def encode(fmt, size=(8, 4), color="red", **save):
@@ -262,70 +263,59 @@ def test_maintenance_collects_garbage(client):
     assert not exists(image_id)
 
 
-def _repo(tmp_path):
-    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
-    for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
-        subprocess.run(["git", "-C", str(tmp_path), "config", key, value], check=True)
-    return tmp_path
-
-
-def test_export_includes_only_images_of_published_versions(client, tmp_path):
-    repo = _repo(tmp_path)
+def test_export_includes_only_images_of_published_versions(client, content):
     used, draft_only = upload(client, PNG).json(), upload(client, JPEG).json()
     doc_id = client.post("/api/articles", json=draft(used["markdown"])).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json=draft(used["markdown"], base_revision=1))
     client.put(f"/api/articles/{doc_id}/draft", json=draft(draft_only["markdown"], base_revision=2))
 
-    export(repo)
+    content.release()
 
-    assert sorted(p.name for p in (repo / "images").iterdir()) == [used["id"]]
-    assert (repo / "images" / used["id"]).read_bytes() == client.get(f"/api/images/{used['id']}").content
+    assert content.images() == [used["id"]]
+    assert content.read_bytes(f"images/{used['id']}") == client.get(f"/api/images/{used['id']}").content
 
 
-def test_export_reads_only_images_the_repo_lacks(client, tmp_path):
-    repo = _repo(tmp_path)
+def test_export_uploads_only_images_the_repo_lacks(client, content):
     first, second = upload(client, PNG).json(), upload(client, JPEG).json()
     doc_id = client.post("/api/articles", json=draft(first["markdown"])).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json=draft(first["markdown"], base_revision=1))
-    export(repo)
+    content.release()
 
     both = f"{first['markdown']}\n\n{second['markdown']}"
     client.post(f"/api/articles/{doc_id}/publish", json=draft(both, base_revision=2))
-    read = []
-    with SessionLocal() as s:
-        files, image_ids = render_snapshot(s)
-        assert write_snapshot(files, image_ids, repo, lambda i: read.append(i) or images.load(s, i)[1])
+    content.api.calls.clear()
+    content.release()
 
-    assert read == [second["id"]]
-    assert sorted(p.name for p in (repo / "images").iterdir()) == sorted([first["id"], second["id"]])
+    first_bytes, second_bytes = (client.get(f"/api/images/{i['id']}").content for i in (first, second))
+    uploaded = [base64.b64decode(body["content"]) for method, path, body in content.api.calls if method == "POST" and path.endswith("/git/blobs")]
+    assert [data for data in uploaded if data in (first_bytes, second_bytes)] == [second_bytes]
+    assert content.images() == sorted([first["id"], second["id"]])
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the frontend snapshot parser")
-def test_frontend_parser_accepts_exported_images(client, tmp_path):
-    repo = _repo(tmp_path)
+def test_frontend_parser_accepts_exported_images(client, content, tmp_path):
     ref = upload(client, PNG).json()
     doc_id = client.post("/api/articles", json=draft(ref["markdown"])).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json=draft(f"text\n\n{ref['markdown']}", base_revision=1))
 
-    export(repo)
+    content.release()
 
-    result = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo)], cwd=FRONTEND, capture_output=True, text=True)
+    result = subprocess.run(["node", "scripts/check-snapshot.ts", str(content.checkout(tmp_path / "snapshot"))], cwd=FRONTEND, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
 
 
-def test_export_includes_images_of_the_profile_intro(client, tmp_path):
-    repo = _repo(tmp_path)
+def test_export_includes_images_of_the_profile_intro(client, content):
     ref = upload(client, PNG).json()
     profile_with_intro(client, f"hello\n\n{ref['markdown']}")
 
-    export(repo)
+    content.release()
 
-    assert sorted(p.name for p in (repo / "images").iterdir()) == [ref["id"]]
+    assert content.images() == [ref["id"]]
 
 
-def test_export_fails_without_writing_when_an_image_is_missing(client, tmp_path):
+def test_export_fails_without_writing_when_an_image_is_missing(client, content):
     # Publishing checks the images exist, so remove one behind its back.
-    repo = _repo(tmp_path)
+    head = content.api.head()
     missing = upload(client, PNG).json()["id"]
     doc_id = client.post("/api/articles", json=draft("x")).json()["doc_id"]
     client.post(f"/api/articles/{doc_id}/publish", json=draft(f"![](images/{missing})", base_revision=1))
@@ -334,8 +324,8 @@ def test_export_fails_without_writing_when_an_image_is_missing(client, tmp_path)
         conn.execute(text("DELETE FROM images WHERE id = :id"), {"id": missing})
 
     with pytest.raises(ExportError, match=missing):
-        export(repo)
-    assert not (repo / "manifest.json").exists()
+        content.release()
+    assert content.api.head() == head
 
 
 def test_publishing_an_article_whose_image_is_missing_is_rejected(client):

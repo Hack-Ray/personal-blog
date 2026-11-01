@@ -13,7 +13,7 @@ CMS 可以放到一台有 Docker 的 Linux x86-64 主機。有兩種做法，主
 
 雲端的 CMS 設 `CMS_ENV=cloud`，並且必須設定 `DATABASE_URL`、`ALLOWED_HOSTS`、`CMS_ORIGIN`（範例在 `backend/.env.example`）。這時 cookie 自動加上 Secure、回應加上 HSTS，`/docs` 關閉，CMS 執行期間的每日備份也關閉，改由主機排程。CMS 必須放在網域的根目錄（例如 `https://cms.<網域>/admin/`），不能放在子路徑下。監控可以用 `GET /healthz`，它不檢查 Host，會查詢一次資料庫。
 
-容器裡沒有內容 repo 的 clone，所以雲端的 CMS 用 API 發布：設定 `CONTENT_REPO`，不設定 `CONTENT_REPO_DIR`。認證用 GitHub App 或 personal token，見 [`portable-cms.md`](portable-cms.md)。
+CMS 透過 GitHub API 發布：設定 `CONTENT_REPO`。認證用 GitHub App 或 personal token，見 [`portable-cms.md`](portable-cms.md)。
 
 部署腳本把主機的私鑰目錄唯讀掛載成容器內的 `/run/secrets/`。例如主機的 `github-app.pem` 在容器內是 `/run/secrets/github-app.pem`。CMS 容器以 UID 1000 執行，檔案必須讓 UID 1000 可讀。
 

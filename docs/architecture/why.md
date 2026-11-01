@@ -185,7 +185,7 @@
 
 - [Direct] baseline 9.1「資料庫發布成功與網站部署成功是兩個不同事件；不能混為單一狀態」；baseline 10 Invariant 5「**Deployment Awareness**：不能因 DB 已更新便宣稱公開網站已更新；必須追蹤線上部署狀態。」baseline 9.1「Latest State Wins」。
 - [Direct] BE-010（delegated）：狀態、以 run-name 比對並容許 5 分鐘時鐘誤差、「不自動重試」。baseline 9.3 也寫「不自動重試」。
-- [Direct] BE-016（delegated）：「git 與資料庫無法放在同一個交易」，所以 git 模式匯出前先把路徑重設到 HEAD，並認領 `Release <id>` commit。
+- [Direct] BE-016（delegated）：「git 與資料庫無法放在同一個交易」，所以 git 模式匯出前先把路徑重設到 HEAD，並認領 `Release <id>` commit。git 模式已由 BE-028 移除。
 - [Direct] BE-022（Confirmed 2026-10-22）：「更新網站」先存成背景工作並回 202，中斷後重試接續同一個 commit。
 - [Direct] PR #28：用 run_id 判斷「because run ids only grow」；cancelled 對應 superseded，即「a queued run replaced by a newer one through `concurrency`」；更新狀態是 POST，「ends the database transaction first and writes with a conditional `UPDATE`」；30 分鐘後放棄。
 - [Direct] `.github/workflows/deploy.yml` 的 build job 註解：「One build and one deploy at a time; a newer queued job replaces an older queued one and a running job finishes (Baseline 9.2).」
@@ -234,7 +234,7 @@
 ### 找到的證據
 
 - [Direct] old backlog A24（:194）：「本機 CMS 和雲端 CMS 各有自己的資料庫，卻都推送到同一個內容 repo。兩邊同時使用時，草稿和版本會分歧，而且後推送的一方會覆蓋或被拒絕。」並列出切換程序與防護。
-- [Direct] git 模式：PR #28 加入 `ls-remote` 防護。`backend/blog/release.py` 的錯誤訊息「another CMS may be in use」。`docs/local-setup.md` §12「同一時間只用一個 CMS」。
+- [Direct] git 模式（BE-028 已移除）：PR #28 加入 `ls-remote` 防護。`backend/blog/release.py` 的錯誤訊息「another CMS may be in use」。`docs/local-setup.md` §12「同一時間只用一個 CMS」。
 - [Direct] API 模式：BE-022「API 模式以 parent 比對遠端 HEAD，其他 writer 改變 HEAD 時拒絕覆蓋」。這是 old backlog A5（「parent 必須是目前的 HEAD」）的做法。
 - [Direct] `release.py` 的 advisory lock：`exclusive()` 的註解「Lets one release or retry run at a time.」
 - [Direct] 作者的本機 CMS 在 2026-10-31 搬到 EC2 後停用（`docs/maintainer-notes.md`）。
@@ -398,7 +398,7 @@
 
 ### Risk
 
-- 同時有兩個 CMS 寫入同一個內容 repo 時內容會分歧。git 模式只有 `ls-remote` 防護，API 模式以 parent 拒絕覆蓋，兩者都不合併資料。
+- 同時有兩個 CMS 寫入同一個內容 repo 時內容會分歧。CMS 以 parent 拒絕覆蓋，不合併資料。
 - 把密碼登入的 CMS 放到公開網址，會讓 old backlog:20 調降的 A3、A4、A10、A11、A15 重新變成必修；BE-020 要求這種情況改用 BE-026。
 - Cloudflare Access 的 session 撤銷只在 Cloudflare 生效。主機若多了繞過 tunnel 的入口（例如開了 inbound 規則），撤銷就失效（BE-026）。
 - preview renderer 與網站 renderer 是兩份程式碼，只改一份會造成預覽與上線結果不同（FE-012）。
