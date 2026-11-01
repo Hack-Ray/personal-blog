@@ -1,6 +1,6 @@
 # 為什麼架構長這樣
 
-> **文件性質**：給要改架構前想先知道「為什麼」的工程師（常常是作者本人或 AI agent）的導讀。內容反映 2026-10-31 的 `main`。
+> **文件性質**：給要改架構前想先知道「為什麼」的工程師（常常是作者本人或 AI agent）的導讀。內容反映 2026-10-31 的 `main`；第 3 節離開 Tailscale 的理由更新到 2026-11-01。
 >
 > **權威紀錄在 `docs/design/`**。本文件只整理證據與可信度，不新增決策。兩者不一致時以 `docs/design/` 為準，並回報不一致處。
 
@@ -89,6 +89,7 @@
 - [Direct] 運算服務的成本比較（old backlog:38-41）：單台 Lightsail 或 EC2「每月約 US$5–15」；Fargate + RDS + ALB「每月約 US$40 以上」；不用 API Gateway + Lambda，因為請求大小上限與 10 MB 圖片上傳衝突。
 - [Direct] BE-027（Confirmed 2026-10-29）：單台 EC2 執行 CMS、PostgreSQL 與 `cloudflared` 三個容器，主機沒有進站規則與 SSH 金鑰，以 SSM 管理與部署；「選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建」。
 - [Direct] BE-026（Confirmed 2026-10-29）：作者的 CMS 經 Cloudflare Tunnel 放在 `cms.<網域>`，「不只 tailnet 裡的裝置連得到，所以 BE-020 以核准裝置當第一道驗證的做法不適用」。決定由 Cloudflare Access 以 GitHub 登入，CMS 每個請求驗證 Access 的 JWT，不接受密碼。否決的做法是「用 JWT 換 CMS 自己的 session cookie」與「信任 Access 而不驗證 JWT。tunnel 或 policy 設錯一次，CMS 就直接公開。」
+- [Direct] 離開 Tailscale 的理由，作者 2026-11-01 確認：「手機要能用，而且網域已經在 Cloudflare」。已寫入 BE-026 的 Context。網域在 2026-10-26 改由 Cloudflare 管 DNS 與 CDN（81e720d），兩天後 backlog 改成 EC2 ＋ Cloudflare Tunnel，取代 Tailscale（2b4d474）。
 - [Direct] 兩種雲端做法並存：BE-026「只用 Tailscale 存取的部署以 BE-020 為準，使用密碼登入」；`cms-deploy.yml` 沒有設定 `CMS_DEPLOY_VIA` 時走 Tailscale。
 - [Direct] 2026-10-31 依 `docs/cloud-ec2.md` 完成搬遷，作者的本機 CMS 停用（`docs/maintainer-notes.md`）。
 
@@ -96,7 +97,8 @@
 
 - 單台主機而不是 Fargate + RDS，看起來延續 old backlog 的成本比較與 baseline 1.2 的預算；BE-027 只寫了 EC2 對 Lightsail 的理由，沒有寫為什麼不用 Fargate。
 - 2026-10-22 的 Tailscale 決定把 Cloudflare Access 列為否決，理由是「CMS 會有公開網址」（old backlog:24）。BE-026 接受公開網址，把風險改由兩層處理：Access 在 Cloudflare 擋下未登入的請求，CMS 再自己驗證 JWT，讓設定錯誤不會直接公開 CMS。這個理由對只用 Tailscale、仍用密碼登入的 fork 仍成立。
-- 否決 SSM port forwarding 的理由是「手機幾乎不能用」。Cloudflare Access 只需要瀏覽器登入 GitHub，不必在裝置安裝 Tailscale，看起來也比較符合這個需求。這只是推論，BE-026 沒有寫出選 Cloudflare 而不留在 Tailscale 的理由。
+- 「手機要能用」從 2026-10-22 就是需求：當時否決 SSM port forwarding 的理由是「手機幾乎不能用」。Tailscale 要在每台裝置安裝 app、加入 tailnet 並經裝置核准；Cloudflare Access 只需要瀏覽器登入 GitHub。作者確認的理由與這個差異一致，但「每台裝置都要安裝」是否就是手機上的痛點，作者沒有細說。
+- 「網域已經在 Cloudflare」看起來讓 Tunnel 與 Access 幾乎不必多付成本：DNS 已經在同一個帳號，兩者的免費方案也夠用。這是推論，作者只確認了「網域已經在 Cloudflare」這個事實是理由之一。
 
 ### 其他可能的解釋
 
@@ -106,7 +108,7 @@
 ### 不知道的事
 
 - 為何是 React SPA 而不是 server-rendered 管理頁，查不到理由。BE-006 只說同源讓登入不需處理 CORS。
-- 作者為什麼不繼續用 Tailscale，addendum 沒有寫。BE-026 的 Context 從 Cloudflare Tunnel 開始，沒有記錄比較過程。
+- 2026-10-28 改用 Cloudflare 時有沒有比較其他做法，查不到；作者 2026-11-01 補的是理由，不是比較過程。
 - Tailscale 等 2026-10-22 決定的原始措辭不在 repo，repo 內是 agent 整理的摘要（見「決策來源與可信度」）。
 
 ---
@@ -355,13 +357,14 @@
 - **Issue／工單**：GitHub Issues 已查，`gh issue list --state all` 為空。沒有其他工單系統。
 - **長篇文件**：Claude Docs 共 3 份全數列出。讀完「部落格待開發功能盤點」與「部落格可擴充項目（第二輪）」（皆 2026-10-21，無留言串），兩者都說自己整理自 `main` 與 `docs/` 規格，只有次要的重述。第三份自傳以關鍵字搜尋 17 處命中，皆與部落格架構無關。
 - **即時聊天**：未搜尋。沒有對應的 MCP。決策對話所在的 Claude project thread 也無法搜尋。
+- **直接詢問作者**（2026-11-01）：離開 Tailscale 的理由。查過 PR #98、#112–#114、2b4d474 的 backlog、Personal Brain 與本機記憶都沒有記錄，所以直接問作者。
 - **基礎設施觀測**：未搜尋。沒有對應的 MCP。
 - **錯誤追蹤**：未搜尋。沒有對應的 MCP。
 - **產品分析**：未搜尋。沒有對應的 MCP。
 
 ### 整體可信度
 
-「為什麼靜態、為什麼私有內容 repo、為什麼分表、為什麼 ULID、為什麼禁止原始 HTML、為什麼 Tailscale 與 Cloudflare Access」都有直接的書面理由。發布狀態機、搜尋、多數安全細節屬 delegated，理由由 agent 寫成並經作者概括授權。託管平台與框架選型、`workflow_dispatch` 對 `repository_dispatch`、Proposal B-01 的替代方案、離開 Tailscale 的理由則查不到。所有作者決定都只有 agent 摘要，沒有作者原話。
+「為什麼靜態、為什麼私有內容 repo、為什麼分表、為什麼 ULID、為什麼禁止原始 HTML、為什麼 Tailscale 與 Cloudflare Access、為什麼離開 Tailscale」都有直接的書面理由。發布狀態機、搜尋、多數安全細節屬 delegated，理由由 agent 寫成並經作者概括授權。託管平台與框架選型、`workflow_dispatch` 對 `repository_dispatch`、Proposal B-01 的替代方案則查不到。作者決定幾乎都只有 agent 摘要；唯一的作者原話是離開 Tailscale 的理由（2026-11-01 在 Claude Code session 中確認）。
 
 ---
 
