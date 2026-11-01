@@ -104,18 +104,15 @@ def test_cms_origin_takes_the_form_browsers_send(value, origin):
     assert config.load({**CLOUD, "CMS_ORIGIN": value}).cms_origin == origin
 
 
-def test_api_transport_is_selected_without_a_clone():
+def test_the_content_repository_is_read_from_content_repo_and_content_branch():
     s = config.load({"CONTENT_REPO": "writer/content", "CONTENT_BRANCH": "publish/site"})
-    assert (s.content_transport, s.content_repo, s.content_branch, s.content_repo_dir) == ("api", "writer/content", "publish/site", None)
-    assert config.load({"CONTENT_REPO_DIR": "/tmp/content"}).content_transport == "git"
-    assert config.load({"CONTENT_REPO": "writer/content", "CONTENT_TRANSPORT": "git"}).content_transport == "git"
+    assert (s.content_repo, s.content_branch) == ("writer/content", "publish/site")
+    assert (config.load({}).content_repo, config.load({}).content_branch) == (None, "main")
 
 
 @pytest.mark.parametrize(
     "env",
     [
-        {"CONTENT_TRANSPORT": "api"},
-        {"CONTENT_TRANSPORT": "other"},
         {"CONTENT_REPO": "https://github.com/a/b"},
         {"DEPLOY_REPO": "a/b/c"},
         {"CONTENT_BRANCH": "../main"},

@@ -2,7 +2,7 @@
 
 這份文件帶你從 Fork 開始，到在自己的 GitHub Pages 上發布第一篇文章。全程不需要改程式，也不需要原作者的任何帳號或資源。
 
-這份文件寫最簡單的做法：CMS 與資料庫跑在自己的電腦上，用 personal token 與內容 repo 的 clone 發布，公開網站由 GitHub Actions 部署到 GitHub Pages。作者一開始也是這樣做，之後把 CMS 搬到 AWS EC2（[`cloud-ec2.md`](cloud-ec2.md)）。把 CMS 放到雲端的做法見 [`local-setup.md`](./local-setup.md) 第 13 節；改用 GitHub App 與 API 發布見 [`portable-cms.md`](portable-cms.md)。`frontend/` 建置出來的 `out/` 是純靜態檔案，任何靜態主機都能提供，這份文件不涵蓋其他主機。
+這份文件寫最簡單的做法：CMS 與資料庫跑在自己的電腦上，用 personal token 透過 GitHub API 發布，公開網站由 GitHub Actions 部署到 GitHub Pages。作者一開始也是這樣做，之後把 CMS 搬到 AWS EC2（[`cloud-ec2.md`](cloud-ec2.md)）。把 CMS 放到雲端的做法見 [`local-setup.md`](./local-setup.md) 第 13 節；改用 GitHub App 見 [`portable-cms.md`](portable-cms.md)。`frontend/` 建置出來的 `out/` 是純靜態檔案，任何靜態主機都能提供，這份文件不涵蓋其他主機。
 
 以下的 `<你的帳號>` 換成你的 GitHub 帳號。每一步都列出要做什麼、做完應該看到什麼、失敗時怎麼查。
 
@@ -13,7 +13,7 @@
 | 程式 repo（你的 fork） | `<你的帳號>/personal-blog`，公開 | 程式碼與部署 workflow |
 | 內容 repo | `<你的帳號>/personal-blog-content`，private | 「更新網站」時匯出的 Snapshot |
 | `CONTENT_REPO_TOKEN` | fork 的 Actions secret | 讓部署 workflow 讀取內容 repo |
-| 本機 CMS token | 你電腦上的 `backend/.env` | 讓 CMS 啟動部署並查詢結果 |
+| 本機 CMS token | 你電腦上的 `backend/.env` | 讓 CMS 寫入內容 repo、啟動部署並查詢結果 |
 | 資料庫與 CMS | 你的電腦 | 寫文章、發布 |
 
 ## 1. Fork 並開啟 GitHub Pages
@@ -29,19 +29,9 @@
 ## 2. 建立內容 repo
 
 1. 在 GitHub 建立 **private** repo `personal-blog-content`。名稱預設是「fork 名稱加 `-content`」；用別的名稱時，第 3 步要設定 `CONTENT_REPO`。
-2. 放入一份**空的** Snapshot，第一次部署才有東西可以 build。不要放 `frontend/sample-site-data/`，否則範例文章會出現在你的網站上：
-
-   ```sh
-   # 在 personal-blog 以外的位置，例如家目錄
-   git clone https://github.com/<你的帳號>/personal-blog.git ~/personal-blog
-   git clone https://github.com/<你的帳號>/personal-blog-content.git ~/personal-blog-content
-   cp ~/personal-blog/frontend/test-fixtures/empty-site-data/manifest.json ~/personal-blog-content/
-   cd ~/personal-blog-content && git add manifest.json && git commit -m "Empty site" && git push
-   ```
+2. 放入一份**空的** Snapshot，第一次部署才有東西可以 build。在內容 repo 的 GitHub 頁面按 Add file → Create new file，檔名 `manifest.json`，內容貼上 [`frontend/test-fixtures/empty-site-data/manifest.json`](../frontend/test-fixtures/empty-site-data/manifest.json) 的內容，按 Commit。不要放 `frontend/sample-site-data/`，否則範例文章會出現在你的網站上。第一次「更新網站」會用你的資料取代這份空的 Snapshot。
 
 預期結果：內容 repo 的 `main` 有一個 commit，只含 `manifest.json`。
-
-失敗時：`git clone` 或 `git push` 要求登入或回 403，代表這台電腦的 git 沒有 GitHub 認證。設定 SSH key 或執行 `gh auth login` 後再試。
 
 ## 3. 設定 fork 的 Actions secret 與 variables
 
@@ -78,14 +68,14 @@ Google Search Console（選用）：到 <https://search.google.com/search-consol
 
 ## 4. 建立本機 CMS 用的 token
 
-Fine-grained token：Repository access 只選你的 fork，Permissions 只給 **Actions: Read and write**（啟動部署、查詢結果）。這個 token 只存在你電腦上的 `backend/.env`，不要 commit。
+Fine-grained token：Repository access 選你的 fork 與內容 repo，Permissions 給 **Actions: Read and write**（啟動部署、查詢結果）與 **Contents: Read and write**（寫入內容 repo）。這個 token 只存在你電腦上的 `backend/.env`，不要 commit。
 
 ## 5. 在本機啟動 CMS
 
 依 [`local-setup.md`](./local-setup.md) 第 1 到 7 節安裝工具、建立資料庫、設定管理員密碼並啟動 CMS。第 4 節填 `.env` 時，「更新網站」需要的三項是：
 
 ```sh
-CONTENT_REPO_DIR=/Users/<你>/personal-blog-content   # 第 2 步的 clone
+CONTENT_REPO=<你的帳號>/personal-blog-content   # 第 2 步的內容 repo
 DEPLOY_REPO=<你的帳號>/personal-blog
 CMS_GITHUB_TOKEN=<第 4 步的 token>
 ```
@@ -99,7 +89,7 @@ CMS_GITHUB_TOKEN=<第 4 步的 token>
 ## 7. 發布第一篇文章並更新網站
 
 1. 在 CMS 建立一篇測試文章（可以附一張圖片），按「發布」。這一步只寫入資料庫，網站不會變。
-2. 到「網站發布」按「更新網站」。CMS 會把已發布內容匯出到 `CONTENT_REPO_DIR`、commit、push，再啟動 fork 上的 `Deploy site` workflow。
+2. 到「網站發布」按「更新網站」。CMS 會把已發布內容匯出，透過 GitHub API commit 到內容 repo，再啟動 fork 上的 `Deploy site` workflow。
 
 預期結果：內容 repo 多一個 commit；fork 的 Actions 出現一次 `Deploy content <commit>`；CMS 的發布紀錄最後顯示已上線。
 
@@ -107,8 +97,8 @@ CMS_GITHUB_TOKEN=<第 4 步的 token>
 
 | 發布紀錄顯示 | 原因與處理 |
 |---|---|
-| 「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完重啟後端 |
-| 「push 失敗」 | 在內容 repo 目錄試 `git push --dry-run`，修好 git 認證後按「重試」 |
+| 「CONTENT_REPO and GitHub credentials … are required」 | `.env` 沒設 `CONTENT_REPO` 或 `CMS_GITHUB_TOKEN`；改完重啟後端 |
+| 「push 失敗」 | token 沒有內容 repo 的 Contents read/write，或內容 repo 的分支不存在；修好後按「重試」 |
 | 「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 沒有 fork 的 Actions read/write；修好後重啟後端並按「重試」 |
 | 部署失敗 | 打開紀錄裡的 workflow 連結，對照第 3 步的表格 |
 

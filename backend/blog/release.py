@@ -3,8 +3,6 @@ PUB-004): export a snapshot, push it to the content repo, start the deploy
 workflow, and follow that run until the site is live."""
 
 import json
-import re
-import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -12,7 +10,6 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Protocol
 
 from sqlalchemy import func, select, update
@@ -157,30 +154,21 @@ def deployer_from_env() -> Deployer | None:
     client = client_from_settings()
     if client is None or not s.deploy_repo:
         return None
-    return GitHubActions(client, s.deploy_repo, s.deploy_workflow, s.deploy_ref, s.content_branch if s.content_transport == "api" else "")
+    return GitHubActions(client, s.deploy_repo, s.deploy_workflow, s.deploy_ref, s.content_branch)
 
 
-def repo_from_env() -> Path | GitHubRepository:
+def repo_from_env() -> GitHubRepository:
     s = config.settings
-    if s.content_transport == "api":
-        client = client_from_settings()
-        if client is None or not s.content_repo:
-            raise ReleaseError("CONTENT_REPO and GitHub credentials are required for API publication")
-        return GitHubRepository(client, s.content_repo, s.content_branch)
-    if s.content_repo_dir is None or not (s.content_repo_dir / ".git").exists():
-        raise ReleaseError("CONTENT_REPO_DIR must point at a content repository clone, or configure CONTENT_REPO for API publication")
-    return s.content_repo_dir
+    client = client_from_settings()
+    if client is None or not s.content_repo:
+        raise ReleaseError("CONTENT_REPO and GitHub credentials (CMS_GITHUB_TOKEN or the GitHub App) are required to update the site")
+    return GitHubRepository(client, s.content_repo, s.content_branch)
 
 
 def _set(release: Release, status: ReleaseStatus, detail: str | None = None) -> None:
     release.status = status
     release.detail = detail
     release.updated_at = func.now()
-
-
-def _redact(text: str) -> str:
-    """Drops credentials from URLs in git output, e.g. https://token@github.com/."""
-    return re.sub(r"(\w+://)[^/\s@]+@", r"\1", text)
 
 
 @contextmanager
@@ -192,27 +180,18 @@ def exclusive() -> Iterator[None]:
         yield
 
 
-def _advance(session: Session, release: Release, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
+def _advance(session: Session, release: Release, repo: GitHubRepository, deployer: Deployer | None) -> Release:
     """Pushes and dispatches as far as possible; failures leave a retryable status."""
     if release.deployment_target is not None and getattr(deployer, "target", None) != release.deployment_target:
         raise ReleaseError("deployment destination differs from current settings; restore the original settings before retrying")
-    if release.content_target is not None and (not isinstance(repo, GitHubRepository) or repo.target != release.content_target):
+    if release.content_target is not None and repo.target != release.content_target:
         raise ReleaseError("release destination differs from current settings; restore the original settings before retrying")
     if release.status in (R.EXPORTED, R.PUSH_FAILED):
         try:
-            if isinstance(repo, GitHubRepository):
-                repo.publish(release)
-            else:
-                if release.content_target is not None:
-                    raise exporter.ExportError("this release requires its original API publication settings")
-                exporter.push(repo)
+            repo.publish(release)
             _set(release, R.PUSHED)
         except (GitHubError, exporter.ExportError) as e:
             _set(release, R.PUSH_FAILED, str(e))
-        except subprocess.CalledProcessError as e:
-            _set(release, R.PUSH_FAILED, _redact(e.stderr or str(e)).strip()[-500:])
-        except subprocess.TimeoutExpired:
-            _set(release, R.PUSH_FAILED, f"git push did not finish within {exporter.GIT_TIMEOUT} seconds")
         session.commit()
     if release.status in (R.PUSHED, R.DISPATCH_FAILED, R.FAILED, R.SUPERSEDED):
         # run_id stays: it is now the earlier attempt's run, for refresh to skip.
@@ -234,27 +213,20 @@ def latest(session: Session) -> Release | None:
     return session.scalars(select(Release).order_by(Release.id.desc()).limit(1)).first()
 
 
-def create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
+def create(session: Session, repo: GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
     """Exports the published content and starts deploying it. Returns None
     when nothing changed since the last release."""
     with exclusive():
         return _create(session, repo, deployer, on_prepared)
 
 
-def _create(session: Session, repo: Path | GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
-    if not isinstance(repo, GitHubRepository) and (unknown := exporter.unknown_remote_commit(repo)):
-        raise ReleaseError(
-            f"the content repo has commit {unknown[:7]} that this CMS did not make; another CMS may be in use. See docs/local-setup.md, section 12"
-        )
+def _create(session: Session, repo: GitHubRepository, deployer: Deployer | None, on_prepared: Callable[[Release], None] | None = None) -> Release | None:
     last = session.scalar(select(func.max(Release.created_at)))
     if last is not None and (wait := last + COOLDOWN - datetime.now(UTC)) > timedelta(0):
         raise ReleaseBusy(f"a release was just started; try again in {int(wait.total_seconds()) + 1} seconds")
-    previous = latest(session) if isinstance(repo, GitHubRepository) else None
+    previous = latest(session)
     session.commit()
-    if isinstance(repo, GitHubRepository):
-        result = repo.prepare(previous)
-    else:
-        result = exporter.export(repo) or exporter.head_release(repo)
+    result = repo.prepare(previous)
     if result is None or session.get(Release, result.release_id) is not None:
         return None
     release = record_export(session, result, deployer)
@@ -296,12 +268,12 @@ def record_export(session: Session, result: exporter.ExportResult, deployer: Dep
     return release
 
 
-def retry(session: Session, release_id: str, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
+def retry(session: Session, release_id: str, repo: GitHubRepository, deployer: Deployer | None) -> Release:
     with exclusive():
         return _retry(session, release_id, repo, deployer)
 
 
-def _retry(session: Session, release_id: str, repo: Path | GitHubRepository, deployer: Deployer | None) -> Release:
+def _retry(session: Session, release_id: str, repo: GitHubRepository, deployer: Deployer | None) -> Release:
     release = session.get(Release, release_id)
     if release is None:
         raise ReleaseError(f"release {release_id} not found")

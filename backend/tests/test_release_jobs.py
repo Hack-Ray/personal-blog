@@ -112,7 +112,7 @@ def test_unexpected_error_does_not_leak_driver_secrets(monkeypatch, tmp_path):
 def test_worker_exports_real_content_links_the_job_and_publishes_one_commit(monkeypatch, tmp_path):
     from blog import articles
     from blog.content_repository import GitHubRepository
-    from tests.test_content_repository import LocalGitAPI
+    from tests.local_git_api import LocalGitAPI
     from tests.test_release import FakeDeployer
 
     api = LocalGitAPI(tmp_path / "content.git")

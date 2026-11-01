@@ -20,9 +20,7 @@
 # client addresses.
 #
 # Publish through the API: set CONTENT_REPO and GitHub credentials, and mount
-# the App private key read-only when using GITHUB_AUTH=app. deploy-cloud.sh
-# mounts no content repo clone, so git publication (CONTENT_REPO_DIR) works
-# only in a manual run that mounts a clone and its git credentials.
+# the App private key read-only when using GITHUB_AUTH=app.
 #
 # Run one container at a time. Before starting a new image, back up and
 # migrate with one-off containers, stopping if either fails:
@@ -42,11 +40,11 @@ COPY cms/ ./
 RUN npm run build
 
 FROM python:3.13-slim-bookworm
-# git publishes to the content repo. pg_dump must match the database's major
-# version, so the client comes from the PostgreSQL apt repository.
+# pg_dump must match the database's major version, so the client comes from
+# the PostgreSQL apt repository.
 ARG PG_MAJOR=16
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
  && install -d /usr/share/postgresql-common/pgdg \
  && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \

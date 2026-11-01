@@ -266,7 +266,7 @@
 
 ### BE-022：本機與雲端共用發布流程
 
-- **Status**：Confirmed（使用者 2026-10-22 決定）
+- **Status**：Confirmed（使用者 2026-10-22 決定）。git 模式與 `CONTENT_TRANSPORT` 已由 BE-028 移除
 - **Decision**：
   - 同一份 CMS 程式以環境設定選擇資料庫、網址、備份位置與憑證。
   - 內容 repo 的寫入方式以 `CONTENT_TRANSPORT` 選擇：`git` 用 `CONTENT_REPO_DIR` 指向的本機 clone 與 git push；`api` 用 Git Data API 寫入 `CONTENT_REPO`，不需要 clone。預設 `auto`：有 `CONTENT_REPO` 時用 API，否則用 git。容器裡沒有 clone，所以雲端 CMS 用 API。
@@ -342,3 +342,13 @@
   - 主機 cron 每小時執行維護，每天備份到 `/srv/blog/backups` 並同步到開啟版本控制的 S3 bucket。主機 role 對 bucket 只能寫入與列出 `cms/` 前綴，不能讀取或刪除。
   - 選 EC2 而不選 Lightsail，是因為 SSM 與 IAM instance role 在 EC2 上內建。
 - **Consequences**：沒有設定 `CMS_DEPLOY_VIA` 時，部署仍走 Tailscale，fork 的行為不變。資料庫在主機的磁碟上，主機被取代時資料不會跟過去，所以 stack 固定 AMI ID，並保留被取代的主機。步驟見 `docs/cloud-ec2.md`。
+
+### BE-028：只保留 GitHub API 發布
+
+- **Status**：Confirmed（使用者 2026-11-01 決定）
+- **Context**：BE-022 留下兩種寫入內容 repo 的方式。同一條「遠端有別人的 commit 就拒絕」規則因此寫了兩次（git 模式的 `ls-remote`、API 模式的 parent 比對），改發布流程要改兩邊、測兩邊。API 模式本機也能用，只多需要 token 對內容 repo 的 Contents 讀寫。
+- **Decision**：
+  - 移除 git 模式、`CONTENT_REPO_DIR`、`CONTENT_TRANSPORT` 與 `python -m blog.exporter` CLI。本機與雲端都設定 `CONTENT_REPO` 經 Git Data API 發布。
+  - 舊環境變數不再讀取，也不報錯；只設 `CONTENT_REPO_DIR` 的 `.env` 在按「更新網站」時得到「CONTENT_REPO and GitHub credentials … are required」。
+  - 沒有 release 紀錄的資料庫可以直接取代空的 Snapshot（沒有任何文章），讓 fork 照 [`fork-and-deploy.md`](../fork-and-deploy.md) 第 2 步建立的內容 repo 可以第一次發布。有文章的遠端 Snapshot 仍要先還原資料庫或執行 `adopt`。
+- **Consequences**：git 模式留下的 release 紀錄 `content_target` 是空的，API 模式接受它們當 parent，只要內容分支的 HEAD 就是最後一次 release 的 commit。升級前最後一次 release 還沒 push（停在 exported 或 push 失敗）時，先用舊版完成它。

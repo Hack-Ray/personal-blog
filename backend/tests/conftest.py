@@ -115,3 +115,11 @@ def configure(monkeypatch):
         monkeypatch.setattr(config, "settings", dataclasses.replace(config.settings, **values))
 
     return apply
+
+
+@pytest.fixture
+def content(tmp_path):
+    """A content repository behind a fake GitHub API (tests/local_git_api.py)."""
+    from tests.local_git_api import Content
+
+    return Content(tmp_path / "content.git")

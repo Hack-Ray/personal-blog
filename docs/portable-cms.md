@@ -2,14 +2,11 @@
 
 CMS 使用相同程式與資料表。本機和雲端只透過環境變數切換網址、資料庫、備份與憑證。公開網站仍由內容 Snapshot 建置，不會在 build 時連回 CMS。
 
-## 選擇發布方式
+## 發布設定
 
-原有 `.env` 只設定 `CONTENT_REPO_DIR` 時，仍使用 git clone。原本的 Git 身分與 push 憑證繼續有效。
-
-改用 API 時，不需要 clone 或 Git 身分。在 `backend/.env` 設定以下項目。
+CMS 透過 GitHub API 寫入內容 repo，本機與雲端都不需要內容 repo 的 clone 或 Git 身分。在 `backend/.env` 設定以下項目。
 
 ```dotenv
-CONTENT_TRANSPORT=api
 CONTENT_REPO=your-account/your-blog-content
 CONTENT_BRANCH=main
 DEPLOY_REPO=your-account/your-blog
@@ -19,11 +16,11 @@ GITHUB_AUTH=token
 CMS_GITHUB_TOKEN=replace-with-your-token
 ```
 
-Token 需要內容 repo 的 Contents 讀寫，以及程式 repo 的 Actions 讀寫。不要把 token 寫入程式、文章或版本控制。API 的憑證和 git clone 的 push 憑證互相獨立；切換 API 後才不再需要後者。
+Token 需要內容 repo 的 Contents 讀寫，以及程式 repo 的 Actions 讀寫。不要把 token 寫入程式、文章或版本控制。
 
 程式 repo 的 Actions variable `CONTENT_BRANCH` 設成相同分支，供程式更新觸發的建置使用。CMS 發布時會將自己的 `CONTENT_BRANCH` 傳給 workflow。
 
-內容 repo 的目標分支必須已存在。新 repo 可先建立 README。既有本機資料庫保留 release 紀錄時，遠端 HEAD 必須和最後一次 release 相同，才能繼續發布。
+內容 repo 的目標分支必須已存在。新 repo 照 [`fork-and-deploy.md`](fork-and-deploy.md) 第 2 步放一份空的 Snapshot；第一次「更新網站」會取代它。既有本機資料庫保留 release 紀錄時，遠端 HEAD 必須和最後一次 release 相同，才能繼續發布。
 
 若還原的資料庫沒有 release 紀錄，但遠端已有 Snapshot，預設拒絕覆蓋。確認這是同一套資料後執行以下命令。
 
@@ -71,4 +68,4 @@ GitHub 完成提交與 GitHub Pages 完成部署是兩個狀態。背景工作�
 
 先停用原來的 CMS，再備份並還原到新的位置，保持同一時間只有一套資料庫在寫入。切換網址或執行位置不會同步兩份資料庫。完整切換步驟見 [本機安裝文件](local-setup.md) 第 12 節。
 
-本機繼續使用 `scripts/start.sh`。雲端的兩種做法見 [`cloud-ec2.md`](cloud-ec2.md)（作者使用）與 [`cloud-tailscale.md`](cloud-tailscale.md)，共用的部署參考見 [`cms-deployment.md`](cms-deployment.md)。雲端的容器裡沒有內容 repo 的 clone，只能用 API 發布。公開網站的網域與 CDN 見 [網域設定](site-domain.md)。這些程式不會自行建立 AWS、Tailscale、DNS 或 CDN 資源。
+本機繼續使用 `scripts/start.sh`。雲端的兩種做法見 [`cloud-ec2.md`](cloud-ec2.md)（作者使用）與 [`cloud-tailscale.md`](cloud-tailscale.md)，共用的部署參考見 [`cms-deployment.md`](cms-deployment.md)。公開網站的網域與 CDN 見 [網域設定](site-domain.md)。這些程式不會自行建立 AWS、Tailscale、DNS 或 CDN 資源。

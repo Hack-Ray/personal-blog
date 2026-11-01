@@ -1,5 +1,3 @@
-import json
-import subprocess
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,7 +6,6 @@ from sqlalchemy.exc import IntegrityError
 
 from blog import articles, maintenance
 from blog.db import SessionLocal, engine
-from blog.exporter import export
 from blog.models import RetiredDocId
 
 BACKEND = {"slug": "backend", "name": "Backend"}
@@ -167,17 +164,14 @@ def test_database_rejects_pending_deletion_without_deleted_at(client):
             conn.execute(text("UPDATE articles SET state = 'pending_deletion' WHERE doc_id = :id"), {"id": doc_id})
 
 
-def test_export_follows_lifecycle_state(client, tmp_path):
-    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
-    for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
-        subprocess.run(["git", "-C", str(tmp_path), "config", key, value], check=True)
+def test_export_follows_lifecycle_state(client, content):
     live, gone, hidden = published(client), published(client), published(client)
     client.post(f"/api/articles/{gone}/archive")
     client.delete(f"/api/articles/{hidden}")
 
-    export(tmp_path)
+    content.release()
 
-    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    manifest = content.json("manifest.json")
     assert [a["doc_id"] for a in manifest["articles"]] == [live]
     assert manifest["archived_articles"] == [{"doc_id": gone}]
-    assert sorted(p.stem for p in (tmp_path / "articles").iterdir()) == [live]
+    assert [f for f in content.files() if f.startswith("articles/")] == [f"articles/{live}.json"]

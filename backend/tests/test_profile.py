@@ -9,7 +9,6 @@ from PIL import Image as Pillow
 
 from blog import articles
 from blog.db import SessionLocal
-from blog.exporter import export
 from blog.models import Profile
 
 SEED = {
@@ -38,18 +37,6 @@ FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 
 def put(client, content, revision=1):
     return client.put("/api/profile", json={"revision": revision, "content": content})
-
-
-def git(repo, *args):
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
-
-
-@pytest.fixture
-def repo(tmp_path):
-    git(tmp_path, "init", "--quiet")
-    git(tmp_path, "config", "user.email", "test@example.com")
-    git(tmp_path, "config", "user.name", "Test")
-    return tmp_path
 
 
 def test_get_returns_the_seeded_profile(client):
@@ -137,38 +124,31 @@ def test_profile_requires_sign_in(anon):
     assert put(anon, EDITED).status_code == 401
 
 
-def test_export_writes_profile_json(client, repo):
+def test_export_writes_profile_json(client, content):
     put(client, EDITED)
-    export(repo)
-    exported = json.loads((repo / "profile.json").read_text())
+    content.release()
+    exported = content.json("profile.json")
     assert exported == EDITED
     assert list(exported) == ["name", "headline", "intro", "links", "experience", "projects", "site"]
-    assert "profile.json" in git(repo, "ls-files").split()
 
 
-def test_a_profile_only_change_is_new_content(client, repo):
-    first = export(repo)
-    assert export(repo) is None
+def test_a_profile_only_change_is_new_content(client, content):
+    first = content.release()
+    assert content.release() is None
     put(client, EDITED)
-    second = export(repo)
-    assert second is not None and second.release_id != first.release_id
-    assert git(repo, "rev-list", "--count", "HEAD").strip() == "2"
-
-
-def test_interrupted_profile_write_is_discarded(client, repo):
-    export(repo)
-    (repo / "profile.json").write_text("{}")
-    assert export(repo) is None
-    assert json.loads((repo / "profile.json").read_text()) == SEED
+    second = content.release()
+    assert second is not None and second.id != first.id
+    assert second.content_parent == first.content_commit
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the frontend snapshot parser")
-def test_frontend_parses_the_exported_profile_and_falls_back_to_the_seed(client, repo):
+def test_frontend_parses_the_exported_profile_and_falls_back_to_the_seed(client, content, tmp_path):
     with SessionLocal() as s:
         doc_id = articles.create_article(s, articles.DraftContent("T", articles.Taxon("backend", "Backend"), "m")).article.doc_id
         articles.publish(s, doc_id, 1, articles.DraftContent("T", articles.Taxon("backend", "Backend"), "m"))
     put(client, EDITED)
-    export(repo)
+    content.release()
+    repo = content.checkout(tmp_path / "snapshot")
 
     def parsed():
         r = subprocess.run(["node", "scripts/check-snapshot.ts", str(repo), "--profile"], cwd=FRONTEND, capture_output=True, text=True)

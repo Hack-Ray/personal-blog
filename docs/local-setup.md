@@ -8,7 +8,7 @@
 |---|---|---|
 | PostgreSQL 16 | Docker 容器 | 存放文章、草稿、版本、快照、圖片、發布紀錄與管理員密碼 |
 | FastAPI 後端 + CMS 介面 | 你的電腦（透過 `uv`） | 在 http://127.0.0.1:8000/admin/ 編輯文章 |
-| 你的 private 內容 repo（例如 `personal-blog-content`） | 你的電腦上的一份 clone | 「更新網站」時匯出 Snapshot 並 push |
+| 你的 private 內容 repo（例如 `personal-blog-content`） | GitHub | 「更新網站」時 CMS 透過 GitHub API 寫入 Snapshot，不需要本機 clone |
 | 公開網站 | GitHub Actions + GitHub Pages | 讀者看到的網站，不依賴你的電腦 |
 
 只有資料庫用 Docker。後端直接在你的電腦上執行，這樣改程式後重新啟動最快。
@@ -51,7 +51,7 @@ node --version   # v22.x
 
 ### 1.4 Git
 
-`git --version` 能執行即可。push 到 GitHub 需要你的認證：用 SSH key，或 `gh auth login`。
+`git --version` 能執行即可，用來 clone 程式 repo。
 
 ## 2. 取得程式碼
 
@@ -94,9 +94,9 @@ cp .env.example .env
 | 變數 | 填什麼 | 何時需要 |
 |---|---|---|
 | `CMS_ENV` | 保持 `local` | 一定要（留空也是 `local`） |
-| `CONTENT_REPO_DIR` | 內容 repo 在你電腦上的 clone 路徑（見第 8 節）。`.env.example` 裡這行是註解，拿掉 `#` 再填。改用 API 發布時改設 `CONTENT_REPO`，不需要 clone（[`portable-cms.md`](portable-cms.md)） | 使用「更新網站」時 |
+| `CONTENT_REPO` | 內容 repo 的 `owner/name`，例如 `you/personal-blog-content`（見第 8 節） | 使用「更新網站」時 |
 | `DEPLOY_REPO` | 你的 fork，例如 `you/personal-blog` | 使用「更新網站」時 |
-| `CMS_GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token（舊的 `.env` 叫 `GITHUB_TOKEN`，仍然有效） | 使用「更新網站」時 |
+| `CMS_GITHUB_TOKEN` | [`fork-and-deploy.md`](./fork-and-deploy.md) 第 4 步建立的本機 token | 使用「更新網站」時 |
 
 其他設定在本機都有預設值，不用填：`DATABASE_URL`（Docker 的資料庫）、`ALLOWED_HOSTS`（`127.0.0.1,localhost`）、`COOKIE_SECURE`（關）、`ENABLE_DOCS`（開，`/docs` 可看 API 文件）。設定有錯或缺少時，CMS 不會啟動，並在終端機說明是哪一項。
 
@@ -132,7 +132,7 @@ uv run --env-file .env uvicorn blog.api:app --host 127.0.0.1 --port 8000
 
 ## 8. 讓「更新網站」可以用
 
-「更新網站」需要你自己的內容 repo、GitHub Pages 與兩個 token。步驟見 [`fork-and-deploy.md`](./fork-and-deploy.md) 第 2 到 5 步，完成後在 `backend/.env` 填好 `CONTENT_REPO_DIR`、`DEPLOY_REPO`、`CMS_GITHUB_TOKEN` 並重新啟動後端。
+「更新網站」需要你自己的內容 repo、GitHub Pages 與兩個 token。步驟見 [`fork-and-deploy.md`](./fork-and-deploy.md) 第 2 到 5 步，完成後在 `backend/.env` 填好 `CONTENT_REPO`、`DEPLOY_REPO`、`CMS_GITHUB_TOKEN` 並重新啟動後端。
 
 ## 9. 日常啟動與關閉
 
@@ -228,7 +228,7 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
 4. 清空資料庫並還原備份。這一步在同一個交易內完成，中途失敗時資料庫維持原狀。
 5. 執行 `alembic upgrade head`（連到 `.env` 的 `DATABASE_URL`），所以舊程式版本的備份也能還原到新版程式。
 6. 登出所有裝置，並把備份當時還在排隊或執行中的「更新網站」標為失敗，不會自己發布。
-7. 讓網站跟著資料庫：下一次按「更新網站」，網站會變回備份當時的內容，備份之後才發布的文章會從網站上消失。使用 API 發布時，這一步要連到 GitHub；連不到時腳本會提示，之後再執行 `uv run --env-file .env python -m blog.content_repository after-restore` 即可。
+7. 讓網站跟著資料庫：下一次按「更新網站」，網站會變回備份當時的內容，備份之後才發布的文章會從網站上消失。這一步要連到 GitHub；連不到時腳本會提示，之後再執行 `uv run --env-file .env python -m blog.content_repository after-restore` 即可。
 
 還原後重新啟動後端（`scripts/start.sh`），用備份當時的密碼登入。
 
@@ -242,19 +242,19 @@ scripts/restore.sh backups/blog-20261020T120000Z.dump
    scripts/restore.sh backups/<檔名>.dump
    ```
 
-4. 第 7 節建置 CMS 並啟動，重新 clone 內容 repo（`git clone https://github.com/<你的帳號>/personal-blog-content.git`）。
+4. 第 7 節建置 CMS 並啟動。
 
 不需要再跑第 5、6 節：還原會建立資料表並帶回管理員密碼。
 
 ### 同一時間只用一個 CMS
 
-每個 CMS 有自己的資料庫，卻推送到同一個內容 repo。兩邊同時使用時，草稿與版本會分歧。換電腦或在本機與雲端之間切換時：
+每個 CMS 有自己的資料庫，卻寫入同一個內容 repo。兩邊同時使用時，草稿與版本會分歧。換電腦或在本機與雲端之間切換時：
 
 1. 在原本的 CMS 備份（第 10 節）。
 2. 把備份還原到新的 CMS（上面的步驟，雲端見第 13 節）。
 3. 停用原本的 CMS，之後只用新的。
 
-切回來時反向進行。「更新網站」會先檢查內容 repo：如果遠端有這個 CMS 沒有的 commit，就拒絕發布，並顯示「another CMS may be in use」。`restore.sh` 還原後會記下內容 repo 當下的 HEAD（第 11 節第 7 步），所以剛還原的 CMS 不會被擋，下一次發布以資料庫為準。
+切回來時反向進行。「更新網站」會先檢查內容 repo：如果最新的 commit 不是這個 CMS 上一次發布的，就拒絕發布，並顯示「another CMS may be in use」。`restore.sh` 還原後會記下內容 repo 當下的 HEAD（第 11 節第 7 步），所以剛還原的 CMS 不會被擋，下一次發布以資料庫為準。
 
 ## 13. 搬到雲端
 
@@ -275,10 +275,10 @@ repo 根目錄的 `Dockerfile` 會把後端與建置好的 CMS 包成一個映�
 | `Cannot connect to the Docker daemon` | Docker Desktop 沒開，或 Linux 上 docker 服務沒啟動 |
 | `/admin/` 回 404 | 還沒執行第 7 節的 `npm run build` |
 | 登入一直說密碼錯誤 | 重新執行 `python -m blog.auth` 設定密碼。連續錯 5 次後要等 30 秒，之後每錯一次加倍（最長 15 分鐘）；最後一次計入的嘗試後滿一小時就重新計算。想立刻解除，在資料庫執行 `DELETE FROM sign_in_attempts` |
-| 更新網站回「CONTENT_REPO_DIR must point at a clone」 | `.env` 沒設 `CONTENT_REPO_DIR`，或路徑不是 git clone；改完要重啟後端 |
+| 更新網站回「CONTENT_REPO and GitHub credentials … are required」 | `.env` 沒設 `CONTENT_REPO` 或 `CMS_GITHUB_TOKEN`；改完要重啟後端 |
 | 發布紀錄顯示「無法啟動部署」 | `.env` 沒設 `CMS_GITHUB_TOKEN` 或 `DEPLOY_REPO`，或 token 權限不足（需要 `DEPLOY_REPO` 的 Actions read/write）。修好後按「重試」 |
-| 發布紀錄顯示「push 失敗」 | 內容 repo 的 git 認證有問題；在該目錄試 `git push --dry-run`，修好後按「重試」 |
-| 更新網站回「another CMS may be in use」 | 內容 repo 有不是這個 CMS 推送的 commit。若另一個 CMS 還在用，照第 12 節「同一時間只用一個 CMS」切換；若是你手動改了內容 repo，在 `CONTENT_REPO_DIR` 執行 `git pull` 後再按一次 |
+| 發布紀錄顯示「push 失敗」 | token 沒有內容 repo 的 Contents read/write，或內容 repo 的分支不存在；修好後按「重試」 |
+| 更新網站回「another CMS may be in use」 | 內容 repo 有不是這個 CMS 寫入的 commit。若另一個 CMS 還在用，照第 12 節「同一時間只用一個 CMS」切換；若是你手動改了內容 repo，把那個 commit revert 掉，或執行 `uv run --env-file .env python -m blog.content_repository after-restore` 讓下一次發布以資料庫為準 |
 | 更新網站回「another release is in progress」 | 另一次「更新網站」或「重試」還在執行，等它結束再按 |
 | 文章發錯，要讓網站退回去 | 沒有一鍵回到上一版網站的按鈕。在 CMS 修改文章，或在編輯器的快照面板還原較早的內容後再發布；要整篇下架就封存它。之後按「更新網站」，約 3 分鐘生效 |
 
@@ -352,4 +352,4 @@ CMS 一直開著時，`start.sh` 很久才執行一次，到期的清理與啟�
 
 ## 本機與雲端共用程式
 
-既有 clone 設定與 `start.sh` 繼續可用。API 發布、GitHub App 和背景發布工作見 [portable-cms.md](portable-cms.md)。雲端的容器只能用 API 發布，見第 13 節。
+本機與雲端都透過 GitHub API 發布。GitHub App 和背景發布工作見 [portable-cms.md](portable-cms.md)，雲端見第 13 節。
