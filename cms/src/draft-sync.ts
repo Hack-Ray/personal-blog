@@ -27,7 +27,7 @@ export class DraftSync {
   private readonly retryMs: number;
   private failures = 0;
   private closed = false;
-  /** A save whose answer never arrived (network or server error); the server may have stored it. */
+  /** A save or publish whose answer never arrived (network or server error); the server may have stored it. */
   private unanswered: DraftContent | undefined;
   status: SyncStatus = { kind: "saved" };
 
@@ -158,15 +158,20 @@ export class DraftSync {
       if (this.blocked) return undefined;
       const sent = this.content;
       this.set({ kind: "publishing" });
-      try {
-        const published = await this.api.publish(this.docId, this.revision, sent);
-        this.revision = published.revision;
-        this.dirty = this.content !== sent;
-        this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
-        return published;
-      } catch (e) {
-        this.fail(e);
-        return undefined;
+      for (let recovered = false; ; recovered = true) {
+        try {
+          const published = await this.api.publish(this.docId, this.revision, sent);
+          this.unanswered = undefined;
+          this.revision = published.revision;
+          this.dirty = this.content !== sent;
+          this.set(this.dirty ? { kind: "dirty" } : { kind: "saved" });
+          return published;
+        } catch (e) {
+          if (!recovered && (await this.storedBefore(e))) continue;
+          if (!(e instanceof ApiError) || e.status >= 500) this.unanswered = sent;
+          this.fail(e);
+          return undefined;
+        }
       }
     });
   }
