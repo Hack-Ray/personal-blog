@@ -62,10 +62,9 @@ def test_a_local_cms_backs_up_daily_and_a_cloud_one_leaves_it_to_the_host():
     assert config.load(CLOUD).backup_every_hours == 0
 
 
-def test_the_old_github_token_name_still_works(caplog):
-    assert config.load({"GITHUB_TOKEN": "old"}).github_token == "old"
-    assert "CMS_GITHUB_TOKEN" in caplog.text
-    assert config.load({"GITHUB_TOKEN": "old", "CMS_GITHUB_TOKEN": "new"}).github_token == "new"
+def test_only_cms_github_token_sets_the_token():
+    assert config.load({"GITHUB_TOKEN": "from-another-tool"}).github_token is None
+    assert config.load({"CMS_GITHUB_TOKEN": "cms"}).github_token == "cms"
 
 
 def test_hosts_come_from_the_settings_and_healthz_answers_any_host(configure):

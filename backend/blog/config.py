@@ -5,7 +5,6 @@ be set on its own. A missing or malformed setting stops the CMS from
 starting instead of falling back to something unsafe.
 """
 
-import logging
 import os
 import re
 from collections.abc import Mapping
@@ -13,7 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
-log = logging.getLogger(__name__)
 LOCAL_DATABASE_URL = "postgresql+psycopg://blog:blog@127.0.0.1:5432/blog"
 DEFAULT_CMS_DIST = Path(__file__).resolve().parents[2] / "cms" / "dist"
 
@@ -226,8 +224,6 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         cms_origin = _origin(cms_origin)
 
     token = _optional(env, "CMS_GITHUB_TOKEN")
-    if token is None and (token := _optional(env, "GITHUB_TOKEN")):
-        log.warning("GITHUB_TOKEN is deprecated for the CMS; rename it to CMS_GITHUB_TOKEN in backend/.env")
     repo_dir = _optional(env, "CONTENT_REPO_DIR")
     content_repo = _repository(_optional(env, "CONTENT_REPO"), "CONTENT_REPO")
     transport = _choice(env, "CONTENT_TRANSPORT", ("auto", "git", "api"), "auto")
