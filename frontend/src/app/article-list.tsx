@@ -6,18 +6,28 @@ import { BASE_PATH, TIME_ZONE } from "../site.ts";
 
 const dateFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeZone: TIME_ZONE });
 
-/** The article page passes readingMinutes and showUpdated; lists keep the line short. */
+/** The article page passes author, readingMinutes and showUpdated; lists keep the line short. */
 export function ArticleMeta({
   article,
+  author,
   readingMinutes,
   showUpdated = false,
 }: {
   article: PublishedArticle;
+  author?: string;
   readingMinutes?: number;
   showUpdated?: boolean;
 }) {
   return (
     <p className="meta">
+      {author && (
+        <>
+          <Link href="/about/" rel="author">
+            {author}
+          </Link>
+          {" · "}
+        </>
+      )}
       <time dateTime={article.publishedAt.toISOString()}>{dateFormat.format(article.publishedAt)}</time>
       {showUpdated && article.updatedAt && (
         <>

@@ -316,7 +316,7 @@
 ### BE-026：經公開網址連線的雲端 CMS 以 Cloudflare Access 登入
 
 - **Status**：Confirmed（使用者 2026-10-29 決定）
-- **Context**：作者的雲端 CMS 經 Cloudflare Tunnel 對外，放在 `cms.<網域>`，不只 tailnet 裡的裝置連得到，所以 BE-020 以核准裝置當第一道驗證的做法不適用。CMS 自己只有一組密碼。
+- **Context**：作者的雲端 CMS 不用 Tailscale，改經 Cloudflare Tunnel 對外，放在 `cms.<網域>`。理由（作者 2026-11-01 確認）：手機要能用，而且網域已經在 Cloudflare。這樣不只 tailnet 裡的裝置連得到，所以 BE-020 以核准裝置當第一道驗證的做法不適用。CMS 自己只有一組密碼。
 - **Decision**：
   - Cloudflare Access 擋在 `cms.<網域>` 前面，以 GitHub 為登入方式，session 24 小時，policy 只允許作者的 email。
   - 設定 `CLOUDFLARE_ACCESS_TEAM_DOMAIN`、`CLOUDFLARE_ACCESS_AUD` 與 `CLOUDFLARE_ACCESS_EMAILS` 時，CMS 不接受密碼登入。三個要一起設定，否則 CMS 不啟動。沒有設定時，密碼與 session cookie 的行為完全不變。

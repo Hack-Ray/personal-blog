@@ -1,9 +1,26 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 // Runs against the build of sample-site-data.
 const FASTAPI_POST = "posts/01K7M4Y7P65BDCF8AHRTQY7ZQF/";
 // Has a Mermaid diagram, callouts and footnotes.
 const SYNTAX_POST = "posts/nextjs-static-export/";
+
+const profile = JSON.parse(readFileSync("sample-site-data/profile.json", "utf8"));
+
+test("the home page shows the site name, its description and the latest posts heading", async ({ page }) => {
+  await page.goto("");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(profile.site.title);
+  await expect(page.locator(".site-intro")).toHaveText(profile.site.description);
+  await expect(page.getByRole("heading", { level: 2, name: "最新文章" })).toBeVisible();
+});
+
+test("an article page starts its meta line with an author link to the About page", async ({ page }) => {
+  await page.goto(FASTAPI_POST);
+  const author = page.locator("main .meta").first().getByRole("link", { name: profile.name });
+  await expect(author).toHaveAttribute("href", "/personal-blog/about/");
+  await expect(author).toHaveAttribute("rel", "author");
+});
 
 test("the header search previews matches and opens the search page", async ({ page }) => {
   await page.goto("");

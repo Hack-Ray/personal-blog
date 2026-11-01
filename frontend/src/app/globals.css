@@ -218,6 +218,11 @@ input:focus-visible {
   font-size: 0.9em;
 }
 
+.site-intro {
+  color: var(--muted);
+  font-size: 1.1em;
+}
+
 /* Wide screens: fixed in the margin left of the article. Narrow screens: a drawer opened by .toc-toggle. */
 .toc {
   position: fixed;
