@@ -73,7 +73,8 @@ def test_not_configured_never_calls_aws(client, monkeypatch):
 
 
 def test_reports_host_days_bucket_and_latest_backup(client, aws, monkeypatch):
-    monkeypatch.setattr(infra, "datetime", type("Clock", (), {"now": staticmethod(lambda tz: NOW), "combine": datetime.combine}))
+    report = infra.report
+    monkeypatch.setattr(infra, "report", lambda days, now, refresh=False: report(days, NOW, refresh))
     body = client.get("/api/infrastructure?days=7").json()
     assert body["error"] is None
     assert body["start"] == "2026-10-25" and body["end"] == "2026-10-31"
