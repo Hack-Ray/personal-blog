@@ -12,6 +12,7 @@ const LATEST = 5;
 
 export default function HomePage() {
   const content = loadSiteContent();
+  const { title, description } = content.profile.site;
   const top = pinned(content);
   const latest = published(content)
     .filter((a) => !a.pinnedAt)
@@ -19,7 +20,9 @@ export default function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(webSite(content.profile.site)) }} />
-      <h1>最新文章</h1>
+      <h1>{title}</h1>
+      {description && <p className="site-intro">{description}</p>}
+      <h2>最新文章</h2>
       <ArticleList articles={[...top, ...latest]} showPinned />
       <p>
         <Link href="/posts/">所有文章</Link>
