@@ -99,7 +99,7 @@ export default async function PostPage({ params }: Props) {
       />
       <ReadingProgress />
       <h1>{a.title}</h1>
-      <ArticleMeta article={a} readingMinutes={readingMinutes(a.markdown)} showUpdated />
+      <ArticleMeta article={a} author={loadSiteContent().profile.name} readingMinutes={readingMinutes(a.markdown)} showUpdated />
       {a.series && series && (
         <nav className="series" aria-label={`系列：${a.series.name}`}>
           <p className="series-title">
