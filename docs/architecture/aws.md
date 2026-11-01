@@ -1,6 +1,6 @@
 # AWS 資源與架構
 
-作者的雲端 CMS 在 AWS 上用到的全部資源，以及它們和 GitHub、Cloudflare 之間的連線。內容以 2026-11-01 的 `main` 為準，來源是 [`infra/aws/cms-ec2.yaml`](../../infra/aws/cms-ec2.yaml)、[`docs/cloud-ec2.md`](../cloud-ec2.md) 與 [`docs/maintainer-notes.md`](../maintainer-notes.md)。這份文件沒有對照 AWS 帳號的實際狀態，要確認時用文末的指令查。
+作者的雲端 CMS 在 AWS 上用到的全部資源，以及它們和 GitHub、Cloudflare 之間的連線。內容以 2026-11-01 的 `main` 為準，來源是 [`infra/aws/cms-ec2.yaml`](../../infra/aws/cms-ec2.yaml)、[`docs/cloud-ec2.md`](../cloud-ec2.md) 與 [`docs/maintainer-notes.md`](../maintainer-notes.md)。2026-11-01 已用文末的指令對照過 AWS 帳號，資源與設定都和這份文件相符。
 
 公開網站（GitHub Pages ＋ Cloudflare）不使用任何 AWS 資源。AWS 只負責 CMS：主機停止時 CMS 無法使用，讀者不受影響。
 
@@ -44,7 +44,7 @@ flowchart TB
   cms -- "awslogs" --> logs
   cms -- "GetMetricStatistics" --> cw
   cms -- "ListObjectsV2" --> s3
-  budget -. "100% 時 StopInstances" .-> ec2
+  budget -. "100% 時經 SSM 停機" .-> ec2
 ```
 
 ### 部署：推 `cms-v*` tag
@@ -84,7 +84,7 @@ flowchart LR
 | 資源 | 內容 |
 | --- | --- |
 | SSM Parameter Store（SecureString） | `/blog/cms/*`：CMS 的環境變數，主機設定腳本據此產生 `/srv/blog/cms.env`。`/blog/cloudflared-token`：tunnel token。`/blog/cms-github-app-pem`、`/blog/cms-gsc-credentials`：GitHub App 私鑰與 Search Console 服務帳戶金鑰，主機設定腳本寫成 `/srv/blog/secrets/` 底下的檔案。參數清單見 [`cloud-ec2.md`](../cloud-ec2.md) 第 3 節 |
-| AWS Budgets `blog-monthly` | 每月 US$30。實際花費達 100% 時，budget action 停止 EC2 主機。執行 action 需要一個允許停止 EC2 的 IAM role，也是手動建立 |
+| AWS Budgets `blog-monthly` | 每月 US$30。Budget action 的類型是 Run SSM documents → Stop EC2 instances：實際花費達 100% 時自動執行（不需要核准），經 SSM 停止 EC2 主機。執行 action 用的 IAM role 也是手動建立 |
 | VPC 與 subnet | 用帳號的預設 VPC 與一個 public subnet，以 stack 參數傳入。主機拿到的 public IPv4 只用來往外連 |
 
 ### 用到但不需要建立的 AWS 服務
@@ -101,7 +101,7 @@ flowchart LR
 | 部署 CMS | 推 `cms-v*` tag → `cms-deploy.yml` 建 image 推到 GHCR → OIDC 換 `DeployRole` 憑證 → SSM Run Command → 主機上 `deploy-cloud.sh`：先備份、再 migration、最後換容器 |
 | 每日備份 | 主機 cron 03:30（UTC）→ `/srv/blog/backups` → `aws s3 sync` 到 bucket 的 `cms/`。每次部署前也會備份 |
 | 發布文章 | CMS → GitHub API（GitHub App）寫內容 repo、觸發 `deploy.yml`。這一步不經過 AWS |
-| 費用上限 | AWS Budgets 達 100% → budget action 停止 EC2 |
+| 費用上限 | AWS Budgets 實際花費達 100% → budget action 經 SSM 停止 EC2 |
 
 ## 憑證
 
@@ -117,7 +117,9 @@ AWS 這一側沒有長期存取金鑰：
 
 ## 對照實際帳號
 
-這份文件依 template 與文件寫成。要確認 AWS 帳號的實際狀態，先 `aws login`，再執行：
+2026-11-01 的對照結果：stack 的 9 個資源都是 `CREATE_COMPLETE` 或 `UPDATE_COMPLETE`；SSM 的 23 個參數都在上面列的路徑下；EC2、磁碟、IMDS、預設 VPC、log 保留 30 天、備份 90 天到期與版本控制都和 template 相同；第一份排程備份（03:30 UTC）已出現在 bucket。
+
+之後要再確認時，先 `aws login`，再執行：
 
 ```sh
 aws cloudformation describe-stack-resources --region ap-northeast-1 --stack-name blog-cms \
