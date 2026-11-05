@@ -8,8 +8,8 @@ dependencies = [
     "markdown-it-py>=4.2.0",
     "pillow>=13.0.0",
     "psycopg[binary]>=3.3.6",
-    "python-multipart>=0.0.32",
-    "python-ulid>=4.0.1",
+    "python-multipart>=0.0.33",
+    "python-ulid>=4.1.0",
     "pyjwt[crypto]>=2.15.1",
     "sqlalchemy>=2.1.6",
     "uvicorn>=0.54.0",
@@ -19,9 +19,9 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.17.2",
+    "ruff>=0.17.3",
 ]
 
 [tool.pytest.ini_options]
