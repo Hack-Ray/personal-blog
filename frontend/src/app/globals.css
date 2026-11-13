@@ -844,6 +844,96 @@ input[type="search"] {
   padding: 0;
 }
 
+.experience-list,
+.project-grid {
+  list-style: none;
+  padding: 0;
+}
+
+.experience-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.experience-list p {
+  margin: 4px 0 0;
+}
+
+/* The period stays on one line and drops below the title only when the row runs out of room. */
+.experience-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0 16px;
+}
+
+.experience-period {
+  white-space: nowrap;
+}
+
+.project-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.project-card {
+  padding: 16px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.project-card h3 {
+  margin: 0;
+  font-size: 1.05em;
+}
+
+.project-card h3 a {
+  color: var(--link);
+}
+
+.project-card p {
+  margin: 4px 0 12px;
+}
+
+.project-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-chip {
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 0.8em;
+  line-height: 1.8;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.project-tags-more summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-tags-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.project-tags-more[open] .tag-more {
+  display: none;
+}
+
+.project-tags-more[open] > .project-tags {
+  margin-top: 6px;
+}
+
+.tag-more {
+  color: var(--link);
+}
+
 .code-block {
   position: relative;
 }

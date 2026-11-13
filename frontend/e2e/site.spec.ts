@@ -22,6 +22,20 @@ test("an article page starts its meta line with an author link to the About page
   await expect(author).toHaveAttribute("rel", "author");
 });
 
+test("the About page keeps each period beside its role and shows projects as cards with tag chips", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("about/");
+  const [job] = profile.experience;
+  const role = page.getByText(job.role, { exact: true });
+  const period = page.getByText(job.period, { exact: true });
+  const [roleBox, periodBox] = [await role.boundingBox(), await period.boundingBox()];
+  expect(Math.abs(roleBox!.y - periodBox!.y)).toBeLessThan(8);
+  const [project] = profile.projects;
+  const card = page.locator(".project-card").filter({ has: page.getByRole("heading", { level: 3, name: project.name }) });
+  await expect(card).toContainText(project.description);
+  await expect(card.locator(".tag-chip")).toHaveText(project.tags);
+});
+
 test("the header search previews matches and opens the search page", async ({ page }) => {
   await page.goto("");
   const box = page.getByRole("searchbox", { name: "搜尋文章" }).first();

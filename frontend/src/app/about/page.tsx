@@ -36,11 +36,15 @@ export default function AboutPage() {
       {experience.length > 0 && (
         <section>
           <h2>經歷</h2>
-          <ul className="article-list">
+          <ul className="experience-list">
             {experience.map((e, i) => (
               <li key={i}>
-                <strong>{e.role}</strong> · {e.organization}
-                <p className="meta">{e.period}</p>
+                <div className="experience-head">
+                  <span>
+                    <strong>{e.role}</strong> · {e.organization}
+                  </span>
+                  <span className="meta experience-period">{e.period}</span>
+                </div>
                 {e.description && <p>{e.description}</p>}
               </li>
             ))}
@@ -50,23 +54,44 @@ export default function AboutPage() {
       {projects.length > 0 && (
         <section>
           <h2>作品</h2>
-          <ul className="article-list">
+          <ul className="project-grid">
             {projects.map((p, i) => (
-              <li key={i}>
-                {p.url ? (
-                  <a href={p.url} target="_blank" rel="noopener">
-                    {p.name}
-                  </a>
-                ) : (
-                  <strong>{p.name}</strong>
-                )}
+              <li key={i} className="project-card">
+                <h3>
+                  {p.url ? (
+                    <a href={p.url} target="_blank" rel="noopener">
+                      {p.name}
+                    </a>
+                  ) : (
+                    p.name
+                  )}
+                </h3>
                 <p>{p.description}</p>
-                {p.tags.length > 0 && <p className="meta">{p.tags.join(" · ")}</p>}
+                {p.tags.length > 0 && <ProjectTags tags={p.tags} />}
               </li>
             ))}
           </ul>
         </section>
       )}
     </>
+  );
+}
+
+const VISIBLE_TAGS = 8;
+
+/** Long tag lists fold behind a "+N" toggle; <details> keeps it working without JavaScript. */
+function ProjectTags({ tags }: { tags: string[] }) {
+  const visible = tags.slice(0, VISIBLE_TAGS);
+  const hidden = tags.slice(VISIBLE_TAGS);
+  const chips = (list: string[]) => list.map((t, i) => <span key={i} className="tag-chip">{t}</span>);
+  if (hidden.length === 0) return <div className="project-tags">{chips(visible)}</div>;
+  return (
+    <details className="project-tags-more">
+      <summary className="project-tags">
+        {chips(visible)}
+        <span className="tag-chip tag-more">+{hidden.length}</span>
+      </summary>
+      <div className="project-tags">{chips(hidden)}</div>
+    </details>
   );
 }
